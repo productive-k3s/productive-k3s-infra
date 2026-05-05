@@ -4,6 +4,8 @@ This use case bootstraps `productive-k3s` onto machines that already exist and a
 
 Unlike `multipass`, this path does not provision infrastructure. The user provides the machine IPs, chooses which node is the `server`, and optionally provides one or more `agent` IPs.
 
+Internally, `onprem-basic` now consumes the reusable remote bootstrap layer under [ansible/roles/remote_cluster](/home/jmacchi/prg/jemacchi/productive-k3s-env/productive-k3s-infra/ansible/roles/remote_cluster/README.md:1), which is also reused by the public AWS single-node path.
+
 ## What This Use Case Does
 
 `onprem-basic` is meant for a simple lab or early on-prem validation flow:

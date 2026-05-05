@@ -12,7 +12,7 @@ fail() {
 }
 
 log "Waiting for all cluster nodes to become Ready"
-mp_exec "${SERVER_NAME}" "sudo k3s kubectl wait --for=condition=Ready node --all --timeout=10m"
+bash "${SCRIPT_DIR}/wait-for-nodes-ready.sh" 3 600
 
 node_count="$(mp_exec "${SERVER_NAME}" "sudo k3s kubectl get nodes --no-headers | wc -l")"
 [[ "${node_count}" == "3" ]] || fail "expected 3 nodes, got ${node_count}"

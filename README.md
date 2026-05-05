@@ -54,26 +54,6 @@ productive-k3s-infra/
   docs/
 ```
 
-## Open vs. Pro boundary
-
-This public repository should contain the use cases that help adoption and make the project easy to evaluate:
-
-- local Multipass environments
-- basic single-node cloud provisioning
-- basic on-premises provisioning
-- reusable low-level modules and roles
-
-Production-grade compositions such as HA clusters, hardened networking, backup/restore automation, upgrade workflows, and managed customer deployments can live in a private companion repository, for example:
-
-- `productive-k3s-infra-pro`
-
-That repository can consume this one through:
-
-- OpenTofu remote module sources
-- Ansible `requirements.yml`
-
-Submodules are not required for the intended architecture.
-
 ## Implemented Use Cases
 
 The public entry points of this repository live under [use-cases/](./use-cases/README.md).
@@ -81,7 +61,7 @@ The public entry points of this repository live under [use-cases/](./use-cases/R
 Current documented paths include:
 
 - [Multipass](./use-cases/multipass/README.md): local three-node cluster with `1` server, `2` agents, shared stack installation, and validation
-- [AWS single-node](./use-cases/aws-single-node/README.md): basic single-node cloud path
+- [AWS single-node](./use-cases/aws-single-node/README.md): public `EC2 + SSH` single-node flow driven by `OpenTofu` and the shared remote bootstrap layer
 - [On-prem basic](./use-cases/onprem-basic/README.md): bootstrap existing machines by declaring a `server` IP and optional `agent` IPs over SSH, with public validation on `single-host` and `server + agent` layouts
 
 Each use case should describe what is already implemented, how it is executed, and where its environment-specific documentation lives.
@@ -101,6 +81,7 @@ Use those documents for environment-specific flows, prerequisites, examples, and
 - Root overview: [README.md](./README.md)
 - Use case index: [use-cases/README.md](./use-cases/README.md)
 - Multipass details: [use-cases/multipass/README.md](./use-cases/multipass/README.md)
+- Privacy and telemetry contract: [docs/privacy-and-telemetry.md](./docs/privacy-and-telemetry.md)
 - Productive K3S bootstrap project: [jemacchi/productive-k3s](https://github.com/jemacchi/productive-k3s)
 
 ## License

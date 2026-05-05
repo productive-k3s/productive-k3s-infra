@@ -1,8 +1,31 @@
 #!/usr/bin/env python3
 import argparse
+import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
+
+
+TELEMETRY_ENV_KEYS = [
+    "TELEMETRY_ENABLED",
+    "TELEMETRY_ENDPOINT",
+    "TELEMETRY_MAX_RETRIES",
+    "TELEMETRY_CONNECT_TIMEOUT_SECONDS",
+    "TELEMETRY_REQUEST_TIMEOUT_SECONDS",
+    "TELEMETRY_OUTBOX_DIR",
+    "TELEMETRY_USER_AGENT",
+]
+
+
+def telemetry_env_prefix():
+    assignments = []
+    for key in TELEMETRY_ENV_KEYS:
+        value = os.environ.get(key)
+        if value is None:
+            continue
+        assignments.append(f"{key}={shlex.quote(value)}")
+    return " ".join(assignments)
 
 
 def build_prompt_map(args):
@@ -73,6 +96,12 @@ def main():
 
     prompt_map = build_prompt_map(args)
     pending = list(prompt_map)
+    remote_script = f"cd {shlex.quote(args.remote_dir)} && "
+    telemetry_prefix = telemetry_env_prefix()
+    if telemetry_prefix:
+        remote_script += f"{telemetry_prefix} "
+    remote_script += f"./scripts/bootstrap-k3s-stack.sh --mode {shlex.quote(args.mode)}"
+
     command = [
         "multipass",
         "exec",
@@ -80,7 +109,7 @@ def main():
         "--",
         "bash",
         "-lc",
-        f"cd {args.remote_dir} && ./scripts/bootstrap-k3s-stack.sh --mode {args.mode}",
+        remote_script,
     ]
 
     proc = subprocess.Popen(

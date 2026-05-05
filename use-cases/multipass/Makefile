@@ -1,15 +1,23 @@
-.PHONY: infra-init infra-up cluster-up stack-up validate up down clean status
+.PHONY: infra-init infra-up cluster-up stack-up validate up down clean status test-static test-contract test-live
 
 USE_CASE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 OPENTOFU_DIR := $(USE_CASE_DIR)/opentofu
 GENERATED_DIR := $(USE_CASE_DIR)/generated
 SCRIPTS_DIR := $(USE_CASE_DIR)/scripts
+TESTS_DIR := $(USE_CASE_DIR)/../../tests
 TOFU_BIN ?= $(shell if command -v tofu >/dev/null 2>&1; then echo tofu; elif command -v terraform >/dev/null 2>&1; then echo terraform; fi)
 
 export PRODUCTIVE_K3S_REPO ?= $(abspath $(USE_CASE_DIR)/../../../productive-k3s)
 export PRODUCTIVE_K3S_SOURCE ?= local
 export PRODUCTIVE_K3S_VERSION ?=
 export PRODUCTIVE_K3S_RELEASE_REPO ?= jemacchi/productive-k3s
+export TELEMETRY_ENABLED ?=
+export TELEMETRY_ENDPOINT ?=
+export TELEMETRY_MAX_RETRIES ?= 3
+export TELEMETRY_CONNECT_TIMEOUT_SECONDS ?= 5
+export TELEMETRY_REQUEST_TIMEOUT_SECONDS ?= 10
+export TELEMETRY_OUTBOX_DIR ?=
+export TELEMETRY_USER_AGENT ?= productive-k3s-infra/multipass
 export TOFU_BIN
 
 infra-init:
@@ -51,8 +59,31 @@ status:
 		PRODUCTIVE_K3S_SOURCE="$$(jq -r '.productive_k3s.source // empty' "$(GENERATED_DIR)/cluster.json")" \
 		PRODUCTIVE_K3S_VERSION="$$(jq -r '.productive_k3s.version // empty' "$(GENERATED_DIR)/cluster.json")" \
 		PRODUCTIVE_K3S_RELEASE_REPO="$$(jq -r '.productive_k3s.release_repo // empty' "$(GENERATED_DIR)/cluster.json")" \
+		TELEMETRY_ENABLED="$$(jq -r '.telemetry.enabled // false' "$(GENERATED_DIR)/cluster.json")" \
+		TELEMETRY_ENDPOINT="$$(jq -r '.telemetry.endpoint // empty' "$(GENERATED_DIR)/cluster.json")" \
+		TELEMETRY_MAX_RETRIES="$$(jq -r '.telemetry.max_retries // 3' "$(GENERATED_DIR)/cluster.json")" \
+		TELEMETRY_CONNECT_TIMEOUT_SECONDS="$$(jq -r '.telemetry.connect_timeout_seconds // 5' "$(GENERATED_DIR)/cluster.json")" \
+		TELEMETRY_REQUEST_TIMEOUT_SECONDS="$$(jq -r '.telemetry.request_timeout_seconds // 10' "$(GENERATED_DIR)/cluster.json")" \
+		TELEMETRY_OUTBOX_DIR="$$(jq -r '.telemetry.outbox_dir // empty' "$(GENERATED_DIR)/cluster.json")" \
+		TELEMETRY_USER_AGENT="$$(jq -r '.telemetry.user_agent // empty' "$(GENERATED_DIR)/cluster.json")" \
 		$(SCRIPTS_DIR)/refresh-generated-artifacts.sh; \
 	else \
 		$(SCRIPTS_DIR)/refresh-generated-artifacts.sh; \
 	fi
 	@cat $(GENERATED_DIR)/cluster.json
+
+test-static: infra-init
+	bash -n $(SCRIPTS_DIR)/*.sh
+	python3 -m py_compile $(SCRIPTS_DIR)/run_bootstrap_session.py
+	$(TOFU_BIN) -chdir=$(OPENTOFU_DIR) init -backend=false
+	$(TOFU_BIN) -chdir=$(OPENTOFU_DIR) validate
+	$(MAKE) -n up TOFU_BIN=$(TOFU_BIN) >/dev/null
+	bash $(TESTS_DIR)/test-multipass-telemetry-consent.sh
+	bash $(TESTS_DIR)/test-multipass-telemetry-propagation.sh
+	bash $(TESTS_DIR)/test-multipass-cluster-up-preserves-telemetry.sh
+
+test-contract:
+	$(TESTS_DIR)/contract-check.sh multipass
+
+test-live:
+	$(TESTS_DIR)/live-multipass.sh

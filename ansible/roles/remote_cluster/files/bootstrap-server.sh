@@ -6,15 +6,18 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 ensure_base_requirements
 ensure_logs_dir
 load_cluster_metadata
-export_resolved_telemetry_env
 
-python3 "${SCRIPT_DIR}/run_bootstrap_session.py" \
-  --instance "${SERVER_NAME}" \
+python3 "${SCRIPT_DIR}/run_remote_bootstrap_session.py" \
+  --host "${SERVER_IP}" \
+  --user "${SSH_USER}" \
+  --port "${SSH_PORT}" \
+  --key-path "${SSH_KEY_PATH}" \
+  --extra-opts "${SSH_EXTRA_OPTS}" \
   --mode server \
   --remote-dir "${REMOTE_DIR}" \
   --log-file "${LOG_DIR}/bootstrap-server.log"
 
-multipass exec "${SERVER_NAME}" -- sudo cat /var/lib/rancher/k3s/server/node-token | tr -d '\r' > "${SERVER_TOKEN_FILE}"
+remote_exec "${SERVER_IP}" "sudo cat /var/lib/rancher/k3s/server/node-token | tr -d '\r'" > "${SERVER_TOKEN_FILE}"
 [[ -s "${SERVER_TOKEN_FILE}" ]] || {
   err "failed to capture a non-empty k3s server token"
   exit 1

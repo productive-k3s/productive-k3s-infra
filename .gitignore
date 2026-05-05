@@ -1,2 +1,4 @@
 .codex
 __pycache__/
+use-cases/*/generated/
+test-artifacts/

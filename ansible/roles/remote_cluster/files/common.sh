@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-USE_CASE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+USE_CASE_DIR="${USE_CASE_DIR:-$(pwd)}"
 GENERATED_DIR="${USE_CASE_DIR}/generated"
 LOG_DIR="${GENERATED_DIR}/logs"
 PRODUCTIVE_K3S_REPO="${PRODUCTIVE_K3S_REPO:-$(cd "${USE_CASE_DIR}/../../../productive-k3s" && pwd)}"
@@ -15,18 +15,8 @@ TELEMETRY_MAX_RETRIES="${TELEMETRY_MAX_RETRIES:-3}"
 TELEMETRY_CONNECT_TIMEOUT_SECONDS="${TELEMETRY_CONNECT_TIMEOUT_SECONDS:-5}"
 TELEMETRY_REQUEST_TIMEOUT_SECONDS="${TELEMETRY_REQUEST_TIMEOUT_SECONDS:-10}"
 TELEMETRY_OUTBOX_DIR="${TELEMETRY_OUTBOX_DIR:-}"
-TELEMETRY_USER_AGENT="${TELEMETRY_USER_AGENT:-productive-k3s-infra/onprem-basic}"
-ONPREM_CLUSTER_NAME="${ONPREM_CLUSTER_NAME:-productive-k3s-onprem}"
-ONPREM_BASE_DOMAIN="${ONPREM_BASE_DOMAIN:-k3s.lab.internal}"
-ONPREM_RANCHER_HOST="${ONPREM_RANCHER_HOST:-rancher.${ONPREM_BASE_DOMAIN}}"
-ONPREM_REGISTRY_HOST="${ONPREM_REGISTRY_HOST:-registry.${ONPREM_BASE_DOMAIN}}"
-ONPREM_SERVER_IP="${ONPREM_SERVER_IP:-}"
-ONPREM_AGENT_IPS="${ONPREM_AGENT_IPS:-}"
-ONPREM_SSH_USER="${ONPREM_SSH_USER:-ubuntu}"
-ONPREM_SSH_PORT="${ONPREM_SSH_PORT:-22}"
-ONPREM_SSH_KEY_PATH="${ONPREM_SSH_KEY_PATH:-}"
-ONPREM_SSH_EXTRA_OPTS="${ONPREM_SSH_EXTRA_OPTS:-}"
-ONPREM_REMOTE_DIR="${ONPREM_REMOTE_DIR:-}"
+TELEMETRY_USER_AGENT="${TELEMETRY_USER_AGENT:-productive-k3s-infra/remote-cluster}"
+CASE_PREFIX="${CASE_PREFIX:-ONPREM}"
 CLUSTER_JSON="${GENERATED_DIR}/cluster.json"
 HOSTS_YML="${GENERATED_DIR}/hosts.yml"
 NODES_ENV="${GENERATED_DIR}/nodes.env"
@@ -39,6 +29,47 @@ SUPPORTED_PLATFORMS=(
   "debian:13"
   "debian:12"
 )
+
+trim() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "${value}"
+}
+
+case_var() {
+  local suffix="$1"
+  local default="${2:-}"
+  local var_name="${CASE_PREFIX}_${suffix}"
+  printf '%s' "${!var_name:-${default}}"
+}
+
+case_var_first() {
+  local default="$1"
+  shift
+  local suffix var_name value
+  for suffix in "$@"; do
+    var_name="${CASE_PREFIX}_${suffix}"
+    value="${!var_name:-}"
+    if [[ -n "$(trim "${value}")" ]]; then
+      printf '%s' "${value}"
+      return 0
+    fi
+  done
+  printf '%s' "${default}"
+}
+
+REMOTE_CLUSTER_NAME="$(trim "$(case_var CLUSTER_NAME productive-k3s-remote)")"
+BASE_DOMAIN="$(trim "$(case_var BASE_DOMAIN k3s.lab.internal)")"
+RANCHER_HOST="$(trim "$(case_var RANCHER_HOST "rancher.${BASE_DOMAIN}")")"
+REGISTRY_HOST="$(trim "$(case_var REGISTRY_HOST "registry.${BASE_DOMAIN}")")"
+REMOTE_SERVER_IP="$(trim "$(case_var SERVER_IP "")")"
+REMOTE_AGENT_IPS="$(trim "$(case_var AGENT_IPS "")")"
+SSH_USER="$(trim "$(case_var SSH_USER ubuntu)")"
+SSH_PORT="$(trim "$(case_var SSH_PORT 22)")"
+SSH_KEY_PATH="$(trim "$(case_var_first "" SSH_KEY_PATH SSH_PRIVATE_KEY_PATH)")"
+SSH_EXTRA_OPTS="$(trim "$(case_var SSH_EXTRA_OPTS "")")"
+REMOTE_DIR_OVERRIDE="$(trim "$(case_var REMOTE_DIR "")")"
 
 log() {
   printf '[INFO] %s\n' "$*"
@@ -124,34 +155,26 @@ validate_productive_k3s_source() {
   esac
 }
 
-trim() {
-  local value="$1"
-  value="${value#"${value%%[![:space:]]*}"}"
-  value="${value%"${value##*[![:space:]]}"}"
-  printf '%s' "${value}"
-}
-
 parse_agent_ips() {
-  local raw
-  raw="$(trim "${ONPREM_AGENT_IPS}")"
   AGENT_IPS_ARRAY=()
-  if [[ -n "${raw}" ]]; then
-    read -r -a AGENT_IPS_ARRAY <<< "${raw}"
+  if [[ -n "${REMOTE_AGENT_IPS}" ]]; then
+    read -r -a AGENT_IPS_ARRAY <<< "${REMOTE_AGENT_IPS}"
   fi
 }
 
 require_node_inputs() {
-  ONPREM_SERVER_IP="$(trim "${ONPREM_SERVER_IP}")"
-  [[ -n "${ONPREM_SERVER_IP}" ]] || {
-    err "ONPREM_SERVER_IP is required"
+  REMOTE_SERVER_IP="$(trim "${REMOTE_SERVER_IP}")"
+  [[ -n "${REMOTE_SERVER_IP}" ]] || {
+    err "${CASE_PREFIX}_SERVER_IP is required"
     exit 1
   }
   parse_agent_ips
-  local seen="${ONPREM_SERVER_IP}"
+  local seen="${REMOTE_SERVER_IP}"
+  local agent_ip
   for agent_ip in "${AGENT_IPS_ARRAY[@]}"; do
     [[ -n "${agent_ip}" ]] || continue
     if [[ " ${seen} " == *" ${agent_ip} "* ]]; then
-      err "duplicate IP detected in ONPREM_AGENT_IPS: ${agent_ip}"
+      err "duplicate IP detected in ${CASE_PREFIX}_AGENT_IPS: ${agent_ip}"
       exit 1
     fi
     seen+=" ${agent_ip}"
@@ -163,14 +186,14 @@ ssh_base_args() {
     -o BatchMode=yes
     -o StrictHostKeyChecking=accept-new
     -o ConnectTimeout=10
-    -p "${ONPREM_SSH_PORT}"
+    -p "${SSH_PORT}"
   )
-  if [[ -n "${ONPREM_SSH_KEY_PATH}" ]]; then
-    args+=(-i "${ONPREM_SSH_KEY_PATH}")
+  if [[ -n "${SSH_KEY_PATH}" ]]; then
+    args+=(-i "${SSH_KEY_PATH}")
   fi
-  if [[ -n "${ONPREM_SSH_EXTRA_OPTS}" ]]; then
+  if [[ -n "${SSH_EXTRA_OPTS}" ]]; then
     local extra=()
-    read -r -a extra <<< "${ONPREM_SSH_EXTRA_OPTS}"
+    read -r -a extra <<< "${SSH_EXTRA_OPTS}"
     args+=("${extra[@]}")
   fi
   printf '%s\0' "${args[@]}"
@@ -186,7 +209,7 @@ ssh_args_array() {
 
 ssh_target() {
   local ip="$1"
-  printf '%s@%s' "${ONPREM_SSH_USER}" "${ip}"
+  printf '%s@%s' "${SSH_USER}" "${ip}"
 }
 
 remote_exec() {
@@ -213,14 +236,14 @@ scp_to() {
     -o BatchMode=yes
     -o StrictHostKeyChecking=accept-new
     -o ConnectTimeout=10
-    -P "${ONPREM_SSH_PORT}"
+    -P "${SSH_PORT}"
   )
-  if [[ -n "${ONPREM_SSH_KEY_PATH}" ]]; then
-    scp_args+=(-i "${ONPREM_SSH_KEY_PATH}")
+  if [[ -n "${SSH_KEY_PATH}" ]]; then
+    scp_args+=(-i "${SSH_KEY_PATH}")
   fi
-  if [[ -n "${ONPREM_SSH_EXTRA_OPTS}" ]]; then
+  if [[ -n "${SSH_EXTRA_OPTS}" ]]; then
     local extra=()
-    read -r -a extra <<< "${ONPREM_SSH_EXTRA_OPTS}"
+    read -r -a extra <<< "${SSH_EXTRA_OPTS}"
     scp_args+=("${extra[@]}")
   fi
   scp "${scp_args[@]}" "${source}" "$(ssh_target "${ip}"):${destination}"
@@ -296,7 +319,7 @@ download_productive_k3s_release_bundle() {
 
 load_cluster_metadata() {
   [[ -f "${CLUSTER_JSON}" ]] || {
-    err "missing ${CLUSTER_JSON}; run 'make preflight' first"
+    err "missing ${CLUSTER_JSON}; run the metadata refresh first"
     exit 1
   }
   SERVER_NAME="$(jq -r '.server.name' "${CLUSTER_JSON}")"
@@ -318,12 +341,37 @@ load_cluster_metadata() {
   TELEMETRY_USER_AGENT_RESOLVED="$(jq -r '.telemetry.user_agent // empty' "${CLUSTER_JSON}")"
   SSH_USER_RESOLVED="$(jq -r '.ssh.user' "${CLUSTER_JSON}")"
   SSH_PORT_RESOLVED="$(jq -r '.ssh.port' "${CLUSTER_JSON}")"
-  ONPREM_SSH_USER="${SSH_USER_RESOLVED}"
-  ONPREM_SSH_PORT="${SSH_PORT_RESOLVED}"
+  SSH_KEY_PATH_RESOLVED="$(jq -r '.ssh.key_path // empty' "${CLUSTER_JSON}")"
+  SSH_EXTRA_OPTS_RESOLVED="$(jq -r '.ssh.extra_opts // empty' "${CLUSTER_JSON}")"
+  SSH_USER="${SSH_USER_RESOLVED}"
+  SSH_PORT="${SSH_PORT_RESOLVED}"
+  SSH_KEY_PATH="${SSH_KEY_PATH_RESOLVED}"
+  SSH_EXTRA_OPTS="${SSH_EXTRA_OPTS_RESOLVED}"
   mapfile -t AGENT_NAMES < <(jq -r '.agents[].name' "${CLUSTER_JSON}")
   mapfile -t AGENT_IPS < <(jq -r '.agents[].ipv4' "${CLUSTER_JSON}")
   mapfile -t ALL_NODE_NAMES < <(jq -r '.nodes[].name' "${CLUSTER_JSON}")
   mapfile -t ALL_NODE_IPS < <(jq -r '.nodes[].ipv4' "${CLUSTER_JSON}")
+}
+
+export_resolved_telemetry_env() {
+  export TELEMETRY_ENABLED="${TELEMETRY_ENABLED_RESOLVED}"
+  export TELEMETRY_ENDPOINT="${TELEMETRY_ENDPOINT_RESOLVED}"
+  export TELEMETRY_MAX_RETRIES="${TELEMETRY_MAX_RETRIES_RESOLVED}"
+  export TELEMETRY_CONNECT_TIMEOUT_SECONDS="${TELEMETRY_CONNECT_TIMEOUT_SECONDS_RESOLVED}"
+  export TELEMETRY_REQUEST_TIMEOUT_SECONDS="${TELEMETRY_REQUEST_TIMEOUT_SECONDS_RESOLVED}"
+  export TELEMETRY_OUTBOX_DIR="${TELEMETRY_OUTBOX_DIR_RESOLVED}"
+  export TELEMETRY_USER_AGENT="${TELEMETRY_USER_AGENT_RESOLVED}"
+}
+
+export_resolved_cluster_config_env() {
+  export PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE_RESOLVED}"
+  export PRODUCTIVE_K3S_VERSION="${PRODUCTIVE_K3S_VERSION_RESOLVED}"
+  export PRODUCTIVE_K3S_RELEASE_REPO="${PRODUCTIVE_K3S_RELEASE_REPO_RESOLVED}"
+  export SSH_USER="${SSH_USER_RESOLVED}"
+  export SSH_PORT="${SSH_PORT_RESOLVED}"
+  export SSH_KEY_PATH="${SSH_KEY_PATH_RESOLVED}"
+  export SSH_EXTRA_OPTS="${SSH_EXTRA_OPTS_RESOLVED}"
+  export_resolved_telemetry_env
 }
 
 write_hosts_entry_on_node() {

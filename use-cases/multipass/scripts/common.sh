@@ -10,6 +10,13 @@ PRODUCTIVE_K3S_REPO="${PRODUCTIVE_K3S_REPO:-$(cd "${USE_CASE_DIR}/../../../produ
 PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE:-local}"
 PRODUCTIVE_K3S_VERSION="${PRODUCTIVE_K3S_VERSION:-}"
 PRODUCTIVE_K3S_RELEASE_REPO="${PRODUCTIVE_K3S_RELEASE_REPO:-jemacchi/productive-k3s}"
+TELEMETRY_ENABLED="${TELEMETRY_ENABLED:-}"
+TELEMETRY_ENDPOINT="${TELEMETRY_ENDPOINT:-}"
+TELEMETRY_MAX_RETRIES="${TELEMETRY_MAX_RETRIES:-3}"
+TELEMETRY_CONNECT_TIMEOUT_SECONDS="${TELEMETRY_CONNECT_TIMEOUT_SECONDS:-5}"
+TELEMETRY_REQUEST_TIMEOUT_SECONDS="${TELEMETRY_REQUEST_TIMEOUT_SECONDS:-10}"
+TELEMETRY_OUTBOX_DIR="${TELEMETRY_OUTBOX_DIR:-}"
+TELEMETRY_USER_AGENT="${TELEMETRY_USER_AGENT:-productive-k3s-infra/multipass}"
 TOFU_BIN="${TOFU_BIN:-}"
 DEFAULT_REMOTE_DIR="/home/ubuntu/productive-k3s"
 CLUSTER_JSON="${GENERATED_DIR}/cluster.json"
@@ -47,6 +54,47 @@ ensure_base_requirements() {
 
 ensure_logs_dir() {
   mkdir -p "${LOG_DIR}"
+}
+
+can_use_tty() {
+  [[ -t 0 && -t 1 && -r /dev/tty && -w /dev/tty ]]
+}
+
+prompt_yesno() {
+  local var="$1" default="$2" msg="$3"
+  local val
+  if can_use_tty; then
+    printf '%s [%s] (y/n): ' "${msg}" "${default}" > /dev/tty
+    IFS= read -r val < /dev/tty
+  else
+    printf '%s [%s] (y/n): ' "${msg}" "${default}"
+    IFS= read -r val
+  fi
+  val="${val:-$default}"
+  case "${val}" in
+    y|Y) printf -v "${var}" 'y' ;;
+    n|N) printf -v "${var}" 'n' ;;
+    *) warn "Invalid input, using default: ${default}"; printf -v "${var}" '%s' "${default}" ;;
+  esac
+}
+
+resolve_telemetry_enabled() {
+  if [[ -n "${TELEMETRY_ENABLED:-}" ]]; then
+    return 0
+  fi
+
+  if can_use_tty; then
+    local telemetry_consent="y"
+    prompt_yesno telemetry_consent "y" "Productive K3S Infra can send anonymous telemetry about this use case run to help improve the installation flow. It does not include any sensitive information like hostnames or other environment-specific identifiers. If enabled, this choice will also be propagated to the underlying productive-k3s bootstrap steps. Enable anonymous telemetry for this run?"
+    if [[ "${telemetry_consent}" == "y" ]]; then
+      TELEMETRY_ENABLED="true"
+    else
+      TELEMETRY_ENABLED="false"
+    fi
+    return 0
+  fi
+
+  TELEMETRY_ENABLED="false"
 }
 
 detect_tofu_bin() {
@@ -100,8 +148,32 @@ load_cluster_metadata() {
   PRODUCTIVE_K3S_SOURCE_RESOLVED="$(jq -r '.productive_k3s.source' "${CLUSTER_JSON}")"
   PRODUCTIVE_K3S_VERSION_RESOLVED="$(jq -r '.productive_k3s.version' "${CLUSTER_JSON}")"
   PRODUCTIVE_K3S_RELEASE_REPO_RESOLVED="$(jq -r '.productive_k3s.release_repo' "${CLUSTER_JSON}")"
+  TELEMETRY_ENABLED_RESOLVED="$(jq -r '.telemetry.enabled // false' "${CLUSTER_JSON}")"
+  TELEMETRY_ENDPOINT_RESOLVED="$(jq -r '.telemetry.endpoint // empty' "${CLUSTER_JSON}")"
+  TELEMETRY_MAX_RETRIES_RESOLVED="$(jq -r '.telemetry.max_retries // 3' "${CLUSTER_JSON}")"
+  TELEMETRY_CONNECT_TIMEOUT_SECONDS_RESOLVED="$(jq -r '.telemetry.connect_timeout_seconds // 5' "${CLUSTER_JSON}")"
+  TELEMETRY_REQUEST_TIMEOUT_SECONDS_RESOLVED="$(jq -r '.telemetry.request_timeout_seconds // 10' "${CLUSTER_JSON}")"
+  TELEMETRY_OUTBOX_DIR_RESOLVED="$(jq -r '.telemetry.outbox_dir // empty' "${CLUSTER_JSON}")"
+  TELEMETRY_USER_AGENT_RESOLVED="$(jq -r '.telemetry.user_agent // empty' "${CLUSTER_JSON}")"
   mapfile -t AGENT_NAMES < <(jq -r '.agents[].name' "${CLUSTER_JSON}")
   mapfile -t ALL_NODE_NAMES < <(jq -r '.nodes[].name' "${CLUSTER_JSON}")
+}
+
+export_resolved_telemetry_env() {
+  export TELEMETRY_ENABLED="${TELEMETRY_ENABLED_RESOLVED}"
+  export TELEMETRY_ENDPOINT="${TELEMETRY_ENDPOINT_RESOLVED}"
+  export TELEMETRY_MAX_RETRIES="${TELEMETRY_MAX_RETRIES_RESOLVED}"
+  export TELEMETRY_CONNECT_TIMEOUT_SECONDS="${TELEMETRY_CONNECT_TIMEOUT_SECONDS_RESOLVED}"
+  export TELEMETRY_REQUEST_TIMEOUT_SECONDS="${TELEMETRY_REQUEST_TIMEOUT_SECONDS_RESOLVED}"
+  export TELEMETRY_OUTBOX_DIR="${TELEMETRY_OUTBOX_DIR_RESOLVED}"
+  export TELEMETRY_USER_AGENT="${TELEMETRY_USER_AGENT_RESOLVED}"
+}
+
+export_resolved_cluster_config_env() {
+  export PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE_RESOLVED}"
+  export PRODUCTIVE_K3S_VERSION="${PRODUCTIVE_K3S_VERSION_RESOLVED}"
+  export PRODUCTIVE_K3S_RELEASE_REPO="${PRODUCTIVE_K3S_RELEASE_REPO_RESOLVED}"
+  export_resolved_telemetry_env
 }
 
 validate_productive_k3s_source() {
