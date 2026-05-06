@@ -1,7 +1,7 @@
 site_name: Productive K3S Infra
 site_description: Pre-assembled infrastructure use cases for Productive K3S, with bilingual documentation.
 site_author: Productive K3S Infra
-site_url: https://jemacchi.github.io/productive-k3s-infra/
+site_url: https://infra.productive-k3s.io/
 repo_url: https://github.com/jemacchi/productive-k3s-infra
 repo_name: GitHub
 edit_uri: edit/main/docs/src/

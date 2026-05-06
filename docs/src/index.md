@@ -31,14 +31,14 @@ card_items_es:
 why_title: "Why it exists"
 why_title_es: "Por qué existe"
 why_options:
-  - label: "Option 1"
+  - label: "DIY INFRASTRUCTURE"
     text: "Raw infrastructure scripts are flexible, but inconsistent and hard to reuse."
-  - label: "Option 2"
+  - label: "FULL PLATFORM"
     text: "A fully productized platform can be powerful, but too heavy for early adoption and evaluation."
 why_options_es:
-  - label: "Opción 1"
+  - label: "INFRAESTRUCTURA DIY"
     text: "Los scripts de infraestructura crudos son flexibles, pero inconsistentes y difíciles de reutilizar."
-  - label: "Opción 2"
+  - label: "PLATAFORMA COMPLETA"
     text: "Una plataforma completamente productizada puede ser potente, pero demasiado pesada para adopción y evaluación temprana."
 bridge_note: "Productive K3S Infra provides the middle path: repeatable infrastructure flows around Productive K3S."
 bridge_note_es: "Productive K3S Infra ofrece el camino intermedio: flujos repetibles de infraestructura alrededor de Productive K3S."
