@@ -2,87 +2,71 @@
 
 **Productive K3S Infra** provides pre-assembled infrastructure use cases for running [Productive K3S](https://github.com/jemacchi/productive-k3s) in repeatable local, cloud, and on-premises environments.
 
-The goal of this repository is not to replace Productive K3S. Instead, it acts as the infrastructure companion project: it prepares machines, networking assumptions, inventories, and provisioning flows so that Productive K3S can bootstrap a useful K3S environment on top.
+It does not replace `productive-k3s`. It acts as the infrastructure companion project: it prepares machines, inventories, networking assumptions, and orchestration flows so that `productive-k3s` can bootstrap a usable K3S environment on top.
 
-## Positioning
+## What this repository covers
 
-Productive K3S focuses on a simple, production-like K3S setup, especially for single-node scenarios.
-
-Productive K3S Infra focuses on the surrounding infrastructure:
+The current public scope includes:
 
 - local virtual machines with Multipass
 - basic AWS single-node provisioning
 - basic on-premises provisioning over SSH
 - reusable OpenTofu modules
-- reusable Ansible roles
+- reusable Ansible-side bootstrap assets
 
-This repository is intended to provide **pre-assembled solutions**, not toy examples. For that reason, the main entry points are organized as `use-cases/`.
+The main public entry points are organized as `use-cases/`.
 
-## How This Repository Uses Productive K3S
+## Documentation
 
-`productive-k3s-infra` does not reimplement cluster bootstrap logic. It delegates cluster installation to [Productive K3S](https://github.com/jemacchi/productive-k3s), and focuses on everything around it:
+The long-form documentation lives in the published site:
 
-- machine provisioning
-- inventory and node metadata
-- networking assumptions between nodes
-- orchestration of bootstrap phases
-- use-case-specific validation
+- Site home: <https://jemacchi.github.io/productive-k3s-infra/>
+- English docs entry point: <https://jemacchi.github.io/productive-k3s-infra/en/>
+- Spanish docs entry point: <https://jemacchi.github.io/productive-k3s-infra/es/>
 
-The infrastructure flows in this repository rely on the execution modes exposed by `productive-k3s`, especially:
+Use the site as the canonical reference. This README stays intentionally shorter and links into the web docs instead of duplicating the same explanations.
 
-- `single-node`
-- `server`
-- `agent`
-- `stack`
+## Product
 
-Those modes are documented and implemented in the `productive-k3s` repository. In this repository, they are treated as the bootstrap interface that each infrastructure use case can orchestrate.
+High-level product framing:
 
-## Repository structure
+- Product overview: <https://jemacchi.github.io/productive-k3s-infra/en/product/>
+- How to use Productive K3S Infra: <https://jemacchi.github.io/productive-k3s-infra/en/product/how-to-use/>
+- Reasons behind the repository: <https://jemacchi.github.io/productive-k3s-infra/en/product/reasons-behind/>
+- Open vs Pro: <https://jemacchi.github.io/productive-k3s-infra/en/product/open-vs-pro/>
+- Relationship with Productive K3S: <https://jemacchi.github.io/productive-k3s-infra/en/product/productive-k3s-relationship/>
 
-```text
-productive-k3s-infra/
-  use-cases/
-    multipass/
-    aws-single-node/
-    onprem-basic/
-  ansible/
-    roles/
-  opentofu/
-    modules/
-      base-vm/
-      k3s-single-node/
-  docs/
-```
+## User Docs
 
-## Implemented Use Cases
+Operational use cases and user-facing references:
 
-The public entry points of this repository live under [use-cases/](./use-cases/README.md).
+- User docs index: <https://jemacchi.github.io/productive-k3s-infra/en/user-docs/>
+- Multipass: <https://jemacchi.github.io/productive-k3s-infra/en/user-docs/multipass/>
+- On-prem basic: <https://jemacchi.github.io/productive-k3s-infra/en/user-docs/onprem-basic/>
+- AWS single-node: <https://jemacchi.github.io/productive-k3s-infra/en/user-docs/aws-single-node/>
+- Make targets: <https://jemacchi.github.io/productive-k3s-infra/en/user-docs/make-targets/>
+- Productive K3S modes: <https://jemacchi.github.io/productive-k3s-infra/en/user-docs/productive-k3s-modes/>
+- Privacy and telemetry: <https://jemacchi.github.io/productive-k3s-infra/en/user-docs/privacy-and-telemetry/>
 
-Current documented paths include:
+## Developer Docs
 
-- [Multipass](./use-cases/multipass/README.md): local three-node cluster with `1` server, `2` agents, shared stack installation, and validation
-- [AWS single-node](./use-cases/aws-single-node/README.md): public `EC2 + SSH` single-node flow driven by `OpenTofu` and the shared remote bootstrap layer
-- [On-prem basic](./use-cases/onprem-basic/README.md): bootstrap existing machines by declaring a `server` IP and optional `agent` IPs over SSH, with public validation on `single-host` and `server + agent` layouts
+Repository and implementation guidance:
 
-Each use case should describe what is already implemented, how it is executed, and where its environment-specific documentation lives.
+- Developer docs index: <https://jemacchi.github.io/productive-k3s-infra/en/developer-docs/>
+- Project layout: <https://jemacchi.github.io/productive-k3s-infra/en/developer-docs/guides/project-layout/>
+- Ansible layer: <https://jemacchi.github.io/productive-k3s-infra/en/developer-docs/guides/ansible/>
+- OpenTofu usage: <https://jemacchi.github.io/productive-k3s-infra/en/developer-docs/guides/opentofu/>
+- Testing and matrix: <https://jemacchi.github.io/productive-k3s-infra/en/developer-docs/guides/testing-and-matrix/>
+- CI/CD flow: <https://jemacchi.github.io/productive-k3s-infra/en/developer-docs/guides/github-actions-and-cicd/>
+- Documentation workflow: <https://jemacchi.github.io/productive-k3s-infra/en/developer-docs/guides/documentation-workflow/>
 
-## Use Case Documentation
+## Local Repository Pointers
 
-Operational details live inside each `use-case`, not in this root README.
+Use these local files when you are already inside the repository and want the source material directly:
 
-Use those documents for environment-specific flows, prerequisites, examples, and validation notes:
-
-- [Multipass](./use-cases/multipass/README.md)
-- [On-prem basic](./use-cases/onprem-basic/README.md)
-- [AWS single-node](./use-cases/aws-single-node/README.md)
-
-## Documentation Map
-
-- Documentation workspace: [docs/README.md](./docs/README.md)
+- Docs workspace: [docs/README.md](./docs/README.md)
 - MkDocs configuration: [docs/mkdocs.yml](./docs/mkdocs.yml)
 - Use case index: [use-cases/README.md](./use-cases/README.md)
-- Multipass details: [use-cases/multipass/README.md](./use-cases/multipass/README.md)
-- Privacy and telemetry notes: [docs/src/en/reference/privacy-and-telemetry.md](./docs/src/en/reference/privacy-and-telemetry.md)
 - Productive K3S bootstrap project: [jemacchi/productive-k3s](https://github.com/jemacchi/productive-k3s)
 
 ## License
