@@ -1,0 +1,61 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+      - synchronize
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-and-contract:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout productive-k3s-infra
+        uses: actions/checkout@v4
+        with:
+          path: productive-k3s-infra
+          fetch-depth: 0
+
+      - name: Checkout productive-k3s
+        uses: actions/checkout@v4
+        with:
+          repository: jemacchi/productive-k3s
+          ref: main
+          path: productive-k3s
+          fetch-depth: 0
+
+      - name: Set up OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
+
+      - name: Run static checks
+        working-directory: productive-k3s-infra
+        run: make test-static
+
+      - name: Run contract checks
+        working-directory: productive-k3s-infra
+        run: make test-contract
+
+      - name: Upload matrix artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-validation-artifacts
+          path: |
+            productive-k3s-infra/test-artifacts
+            productive-k3s-infra/use-cases/*/generated
+          if-no-files-found: ignore
