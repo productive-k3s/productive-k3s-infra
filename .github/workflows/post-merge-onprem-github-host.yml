@@ -18,6 +18,11 @@ jobs:
           path: productive-k3s-infra
           fetch-depth: 0
 
+      - name: Set up OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
+
       - name: Run static checks
         working-directory: productive-k3s-infra
         run: make test-static
