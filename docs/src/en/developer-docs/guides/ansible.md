@@ -17,6 +17,7 @@ Current consumers:
 - SSH reachability checks
 - supported-platform validation
 - Productive K3S bundle copy from `local` or `remote` source
+- optional remote invocation of the Productive K3S host preflight before bootstrap
 - orchestration of `server`, `agent`, and `stack`
 - host alias synchronization
 - shared remote validation
@@ -24,7 +25,9 @@ Current consumers:
 ## Key shared files
 
 - `preflight.sh`
+- `preflight-productive-k3s.sh`
 - `cluster-up.sh`
+- `push-productive-k3s.sh`
 - `bootstrap-server.sh`
 - `bootstrap-agents.sh`
 - `bootstrap-stack.sh`

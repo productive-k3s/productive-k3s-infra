@@ -26,10 +26,11 @@ make -C use-cases/aws-single-node down
 2. Renders generated metadata from the `OpenTofu` outputs.
 3. Runs the shared remote preflight checks.
 4. Copies a `productive-k3s` bundle to the instance.
-5. Runs the server bootstrap path on the same node.
-6. Synchronizes Rancher and registry aliases locally on the instance.
-7. Runs the shared stack bootstrap path.
-8. Validates node status, ingress, and storage behavior.
+5. Runs the remote `productive-k3s` host preflight when the copied bundle exposes `scripts/preflight-host.sh`.
+6. Runs the server bootstrap path on the same node.
+7. Synchronizes Rancher and registry aliases locally on the instance.
+8. Runs the shared stack bootstrap path.
+9. Validates node status, ingress, and storage behavior.
 
 ## Notes
 

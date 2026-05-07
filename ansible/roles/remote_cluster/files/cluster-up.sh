@@ -16,6 +16,7 @@ resolve_telemetry_enabled
 ${METADATA_REFRESH_SCRIPT}
 "${SCRIPT_DIR}/preflight.sh"
 "${SCRIPT_DIR}/push-productive-k3s.sh"
+bash "${SCRIPT_DIR}/preflight-productive-k3s.sh"
 "${SCRIPT_DIR}/bootstrap-server.sh"
 "${SCRIPT_DIR}/bootstrap-agents.sh"
 "${SCRIPT_DIR}/bootstrap-stack.sh"

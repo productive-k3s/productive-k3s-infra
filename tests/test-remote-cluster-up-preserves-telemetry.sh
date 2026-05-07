@@ -91,7 +91,7 @@ jq -n \
 EOF
 chmod +x "${TEST_USE_CASE_DIR}/scripts/refresh-generated-artifacts.sh"
 
-for script_name in preflight.sh push-productive-k3s.sh bootstrap-server.sh bootstrap-agents.sh bootstrap-stack.sh; do
+for script_name in preflight.sh push-productive-k3s.sh preflight-productive-k3s.sh bootstrap-server.sh bootstrap-agents.sh bootstrap-stack.sh; do
   cat > "${TEST_USE_CASE_DIR}/scripts/${script_name}" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail

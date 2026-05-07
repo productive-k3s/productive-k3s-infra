@@ -41,6 +41,8 @@ Ese workflow corre cuando un pull request apuntando a `main` se cierra en estado
 
 El job live prepara `openssh-server` sobre el runner hospedado por GitHub y luego ejercita `use-cases/onprem-basic` contra `127.0.0.1` como host remoto single-node.
 
+Cuando la revisión checkout del repo hermano `productive-k3s` ya incluye `scripts/preflight-host.sh`, ese mismo camino hosted también ejercita el host preflight remoto de Productive K3S antes de que empiece el bootstrap.
+
 ## Notas
 
 !!! note

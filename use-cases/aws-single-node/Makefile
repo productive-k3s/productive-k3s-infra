@@ -74,6 +74,8 @@ infra-down: tofu-init
 preflight:
 	$(SCRIPTS_DIR)/refresh-generated-artifacts.sh
 	$(SHARED_SCRIPTS_DIR)/preflight.sh
+	$(SHARED_SCRIPTS_DIR)/push-productive-k3s.sh
+	bash $(SHARED_SCRIPTS_DIR)/preflight-productive-k3s.sh
 
 cluster-up:
 	$(SHARED_SCRIPTS_DIR)/cluster-up.sh
@@ -86,7 +88,7 @@ validate:
 	$(SCRIPTS_DIR)/refresh-generated-artifacts.sh
 	$(SHARED_SCRIPTS_DIR)/validate-cluster.sh
 
-up: infra-up preflight cluster-up validate
+up: infra-up cluster-up validate
 
 down: infra-down clean
 

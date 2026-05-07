@@ -32,7 +32,10 @@ ONPREM_SSH_USER ?= ubuntu
 ONPREM_SSH_PORT ?= 22
 
 preflight:
+	$(SCRIPTS_DIR)/refresh-generated-artifacts.sh
 	$(SCRIPTS_DIR)/preflight.sh
+	$(SCRIPTS_DIR)/push-productive-k3s.sh
+	bash $(SCRIPTS_DIR)/preflight-productive-k3s.sh
 
 cluster-up:
 	$(SCRIPTS_DIR)/cluster-up.sh
@@ -43,7 +46,7 @@ stack-up:
 validate:
 	$(SCRIPTS_DIR)/validate-cluster.sh
 
-up: preflight cluster-up validate
+up: cluster-up validate
 
 status:
 	@server_ip="$(ONPREM_SERVER_IP)"; \

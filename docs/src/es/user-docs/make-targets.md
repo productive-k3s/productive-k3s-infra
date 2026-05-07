@@ -34,11 +34,11 @@
 
 | Target | Propósito |
 | --- | --- |
-| `preflight` | Validar reachability remoto y soporte de runtime |
+| `preflight` | Validar reachability remoto y soporte de runtime, copiar el bundle y ejecutar el host preflight remoto de Productive K3S cuando esté disponible |
 | `cluster-up` | Ejecutar el bootstrap remoto sobre los nodos declarados |
 | `stack-up` | Reejecutar la instalación del stack compartido |
 | `validate` | Ejecutar validación remota |
-| `up` | `preflight + cluster-up + validate` |
+| `up` | `cluster-up + validate` |
 | `status` | Re-renderizar e imprimir `generated/cluster.json` |
 | `clean` | Borrar metadata generada local |
 
@@ -49,11 +49,11 @@
 | `tofu-init` | Inicializar el directorio de trabajo de `OpenTofu` |
 | `infra-up` | Crear la infraestructura en AWS y refrescar metadata |
 | `infra-down` | Destruir la infraestructura en AWS |
-| `preflight` | Validar la instancia provisionada por `SSH` |
+| `preflight` | Validar la instancia provisionada por `SSH`, copiar el bundle y ejecutar el host preflight remoto de Productive K3S cuando esté disponible |
 | `cluster-up` | Ejecutar el flujo compartido de bootstrap remoto |
 | `stack-up` | Reejecutar la instalación del stack compartido |
 | `validate` | Ejecutar validación remota |
-| `up` | `infra-up + preflight + cluster-up + validate` |
+| `up` | `infra-up + cluster-up + validate` |
 | `down` | `infra-down + clean` |
 | `status` | Imprimir `generated/cluster.json` |
 
