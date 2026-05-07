@@ -48,18 +48,35 @@
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
       <div class="pk3s-footer-slogan">
-        {% if page and page.url and page.url.startswith('es/') %}
-          Productive K3S Infra: casos de uso de infraestructura listos para ejecutar Productive K3S en entornos locales, cloud y on-premises.
-        {% else %}
-          Productive K3S Infra: pre-assembled infrastructure use cases for running Productive K3S in local, cloud, and on-premises environments.
+        {% set footer_slogan_en = "Productive K3S Infra: pre-assembled infrastructure use cases for running Productive K3S in local, cloud, and on-premises environments." %}
+        {% set footer_slogan_es = "Productive K3S Infra: casos de uso de infraestructura listos para ejecutar Productive K3S en entornos locales, cloud y on-premises." %}
+        <span
+          data-pk3s-footer-slogan
+          data-pk3s-footer-slogan-en="{{ footer_slogan_en }}"
+          data-pk3s-footer-slogan-es="{{ footer_slogan_es }}"
+        >
+          {{ footer_slogan_es if page and page.url and page.url.startswith('es/') else footer_slogan_en }}
+        </span>
+      </div>
+      <div class="pk3s-footer-meta-row">
+        <div class="pk3s-footer-credit">
+          {% set footer_credit_en = "Made in Argentina - Made with" %}
+          {% set footer_credit_es = "Hecho en Argentina - Hecho con" %}
+          <span
+            data-pk3s-footer-credit-prefix
+            data-pk3s-footer-credit-prefix-en="{{ footer_credit_en }}"
+            data-pk3s-footer-credit-prefix-es="{{ footer_credit_es }}"
+          >
+            {{ footer_credit_es if page and page.url and page.url.startswith('es/') else footer_credit_en }}
+          </span>
+          <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">Material for MkDocs</a>
+        </div>
+        {% if config.extra.social %}
+          <div class="pk3s-footer-social">
+            {% include "partials/social.html" %}
+          </div>
         {% endif %}
       </div>
-      <div class="pk3s-footer-credit">
-        Made in Argentina - Made with Material for MkDocs
-      </div>
-      {% if config.extra.social %}
-        {% include "partials/social.html" %}
-      {% endif %}
     </div>
   </div>
 </footer>
