@@ -59,3 +59,40 @@ jobs:
             productive-k3s-infra/test-artifacts
             productive-k3s-infra/use-cases/*/generated
           if-no-files-found: ignore
+
+  live-onprem-github-host:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false }}
+    needs:
+      - static-and-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout productive-k3s-infra
+        uses: actions/checkout@v4
+        with:
+          path: productive-k3s-infra
+          fetch-depth: 0
+
+      - name: Checkout productive-k3s
+        uses: actions/checkout@v4
+        with:
+          repository: jemacchi/productive-k3s
+          ref: main
+          path: productive-k3s
+          fetch-depth: 0
+
+      - name: Run GitHub-host on-prem live test
+        working-directory: productive-k3s-infra
+        env:
+          TELEMETRY_ENABLED: "false"
+        run: make test-live-gha-onprem
+
+      - name: Upload live artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-validation-live-onprem-github-host-artifacts
+          path: |
+            productive-k3s-infra/test-artifacts
+            productive-k3s-infra/use-cases/onprem-basic/generated
+          if-no-files-found: ignore
