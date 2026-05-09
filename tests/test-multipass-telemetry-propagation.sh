@@ -6,9 +6,12 @@ SOURCE_DIR="${ROOT_DIR}/scenarios/multipass"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-TEST_SCENARIO_DIR="${TMP_DIR}/multipass"
+TEST_REPO_DIR="${TMP_DIR}/repo"
+TEST_SCENARIO_DIR="${TEST_REPO_DIR}/scenarios/multipass"
 mkdir -p "${TEST_SCENARIO_DIR}"
 cp -R "${SOURCE_DIR}/scripts" "${TEST_SCENARIO_DIR}/scripts"
+mkdir -p "${TEST_REPO_DIR}/scripts"
+cp "${ROOT_DIR}/scripts/release-config.sh" "${TEST_REPO_DIR}/scripts/release-config.sh"
 mkdir -p "${TEST_SCENARIO_DIR}/generated/logs"
 
 cat > "${TEST_SCENARIO_DIR}/generated/cluster.json" <<'EOF'
