@@ -15,6 +15,11 @@ err() {
   printf '%s\n' "$*" >&2
 }
 
+git_config_or_empty() {
+  local key="$1"
+  git -C "${REPO_ROOT}" config --get "${key}" 2>/dev/null || true
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${PRODUCTIVE_K3S_INFRA_REPO_DIR:-}"
 if [[ -z "${REPO_ROOT}" ]]; then
@@ -63,6 +68,20 @@ if [[ -z "${remote_refs}" ]]; then
   exit 1
 fi
 
-git -C "${REPO_ROOT}" tag -a "${tag}" -m "Release ${tag}" HEAD
+git_user_name="$(git_config_or_empty user.name)"
+git_user_email="$(git_config_or_empty user.email)"
+
+if [[ -z "${git_user_name}" ]]; then
+  git_user_name="${PRODUCTIVE_K3S_RELEASE_GIT_NAME:-productive-k3s-infra release automation}"
+fi
+
+if [[ -z "${git_user_email}" ]]; then
+  git_user_email="${PRODUCTIVE_K3S_RELEASE_GIT_EMAIL:-productive-k3s-infra@local.invalid}"
+fi
+
+git -C "${REPO_ROOT}" \
+  -c user.name="${git_user_name}" \
+  -c user.email="${git_user_email}" \
+  tag -a "${tag}" -m "Release ${tag}" HEAD
 printf 'Created tag %s\n' "${tag}"
 printf 'Next: git push origin %s\n' "${tag}"

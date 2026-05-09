@@ -6,6 +6,7 @@ HELPER="${ROOT_DIR}/scripts/create-release-tag.sh"
 TMP_DIR="$(mktemp -d)"
 WORKTREE="${TMP_DIR}/infra"
 CORE_REMOTE="${TMP_DIR}/core-remote.git"
+NO_GIT_CONFIG_HOME="${TMP_DIR}/home-without-git-config"
 TAG_NAME="1.2.3-0.9.0"
 
 cleanup() {
@@ -28,6 +29,7 @@ assert_contains() {
 
 git clone --quiet "${ROOT_DIR}" "${WORKTREE}"
 git init --bare "${CORE_REMOTE}" >/dev/null
+mkdir -p "${NO_GIT_CONFIG_HOME}"
 
 git -C "${WORKTREE}" tag -d "${TAG_NAME}" >/dev/null 2>&1 || true
 
@@ -59,6 +61,8 @@ git -C "${core_seed}" push --quiet origin HEAD refs/tags/0.9.0
 
 output="$(
   cd "${WORKTREE}" && \
+  HOME="${NO_GIT_CONFIG_HOME}" \
+  GIT_CONFIG_GLOBAL=/dev/null \
   PRODUCTIVE_K3S_CORE_GIT_REMOTE_URL="${CORE_REMOTE}" \
   bash "${HELPER}" 1.2.3
 )"
