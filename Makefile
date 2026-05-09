@@ -1,4 +1,4 @@
-.PHONY: docs-build docs-serve docs-up docs-down docs-clean test-clean test-checkstatus test-static test-contract test-live test-live-gha-onprem test-matrix test-productive-k3s-infra-cli infra-help infra-doctor infra-list-profiles infra-validate infra-plan infra-apply infra-destroy infra-status multipass onprem aws-single-node
+.PHONY: docs-build docs-serve docs-up docs-down docs-clean test-clean test-checkstatus test-static test-contract test-live test-live-gha-onprem test-matrix test-productive-k3s-infra-cli infra-help infra-doctor infra-list-profiles infra-validate infra-plan infra-apply infra-destroy infra-status tag-release multipass onprem aws-single-node
 
 SCENARIOS := multipass onprem-basic aws-single-node
 TESTS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))/tests
@@ -74,6 +74,9 @@ infra-destroy:
 
 infra-status:
 	$(PUBLIC_CLI) status --profile $(PROFILE)
+
+tag-release:
+	$(SCRIPTS_DIR)/create-release-tag.sh $(VERSION)
 
 multipass:
 	$(PUBLIC_CLI) multipass up

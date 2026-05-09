@@ -21,6 +21,32 @@ Published releases must use composite tags:
 
 The release workflow validates that format and publishes an infra bundle whose public CLI is already tied to that `productive-k3s-core` version.
 
+The repo-level default for official release-oriented flows now lives in `scripts/release-config.sh`:
+
+- `PRODUCTIVE_K3S_SOURCE_DEFAULT=remote`
+- `PRODUCTIVE_K3S_CORE_VERSION_DEFAULT=<current bundled core version>`
+- `PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT=<core release repo>`
+
+That config is the single source of truth for the default remote `productive-k3s-core` version used when composing official infra release tags.
+
+## Creating a release tag
+
+The supported release tagging flow is:
+
+1. update `PRODUCTIVE_K3S_CORE_VERSION_DEFAULT` in `scripts/release-config.sh` when the bundled core version changes
+2. run `make tag-release VERSION=X.Y.Z`
+3. push the resulting composite tag with `git push origin X.Y.Z-A.B.C`
+
+The helper validates all of the following before creating the local tag:
+
+- the infra version input matches `X.Y.Z`
+- the repo default source is `remote`
+- the default bundled core version is valid
+- the default bundled core tag exists in the configured upstream `productive-k3s-core` remote
+- the resulting composite infra tag does not already exist locally
+
+Local development can still override `PRODUCTIVE_K3S_SOURCE`, `PRODUCTIVE_K3S_VERSION`, and `PRODUCTIVE_K3S_RELEASE_REPO` manually. The repo defaults only define the official release-oriented path.
+
 ## Practical CI/CD model
 
 In CI, the intended flow is:

@@ -21,6 +21,32 @@ Los releases publicados deben usar tags compuestos:
 
 El workflow de release valida ese formato y publica un bundle de infra cuyo CLI público ya queda ligado a esa versión de `productive-k3s-core`.
 
+El default a nivel repositorio para los flujos oficiales orientados a release ahora vive en `scripts/release-config.sh`:
+
+- `PRODUCTIVE_K3S_SOURCE_DEFAULT=remote`
+- `PRODUCTIVE_K3S_CORE_VERSION_DEFAULT=<versión actual de core bundleada>`
+- `PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT=<repo de releases de core>`
+
+Esa config es la única fuente de verdad para la versión remota default de `productive-k3s-core` usada al componer tags oficiales de release de infra.
+
+## Cómo crear un tag de release
+
+El flujo soportado para taguear releases es:
+
+1. actualizar `PRODUCTIVE_K3S_CORE_VERSION_DEFAULT` en `scripts/release-config.sh` cuando cambie la versión bundleada de core
+2. ejecutar `make tag-release VERSION=X.Y.Z`
+3. pushear el tag compuesto resultante con `git push origin X.Y.Z-A.B.C`
+
+Antes de crear el tag local, el helper valida todo lo siguiente:
+
+- que la versión de infra cumpla `X.Y.Z`
+- que el source default del repo sea `remote`
+- que la versión default bundleada de core sea válida
+- que el tag default bundleado de core exista en el remote configurado de `productive-k3s-core`
+- que el tag compuesto resultante de infra no exista todavía en local
+
+El desarrollo local todavía puede overridear manualmente `PRODUCTIVE_K3S_SOURCE`, `PRODUCTIVE_K3S_VERSION` y `PRODUCTIVE_K3S_RELEASE_REPO`. Los defaults del repo sólo definen el camino oficial orientado a releases.
+
 ## Modelo práctico de CI/CD
 
 En CI, el flujo esperado es:

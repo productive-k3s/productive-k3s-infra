@@ -171,6 +171,9 @@ assert_contains "$ROOT_INFRA_APPLY" "${REPO_DIR}/productive-k3s-infra.sh apply -
 ROOT_INFRA_PLAN="$(make -C "$REPO_DIR" -n infra-plan PROFILE=${PROFILE_DIR}/onprem.env)"
 assert_contains "$ROOT_INFRA_PLAN" "${REPO_DIR}/productive-k3s-infra.sh plan --profile ${PROFILE_DIR}/onprem.env"
 
+ROOT_TAG_RELEASE="$(make -C "$REPO_DIR" -n tag-release VERSION=1.2.3)"
+assert_contains "$ROOT_TAG_RELEASE" "${REPO_DIR}/scripts/create-release-tag.sh 1.2.3"
+
 if bash "$CLI" invalid-case >/dev/null 2>&1; then
   echo "[FAIL] Invalid scenario unexpectedly succeeded" >&2
   exit 1
