@@ -68,6 +68,7 @@ case "$COMMAND" in
     bash "${TESTS_DIR}/test-create-release-tag.sh"
     bash "${TESTS_DIR}/test-set-core-version.sh"
     bash "${TESTS_DIR}/test-multipass-tofu-ensure-instance-cloud-init.sh"
+    bash "${TESTS_DIR}/test-multipass-push-productive-k3s-core-stages-transfer-archive.sh"
     bash "${TESTS_DIR}/test-productive-k3s-infra-cli.sh"
     bash "${TESTS_DIR}/test-release-bundle.sh"
     bash "${TESTS_DIR}/test-release-installer.sh"

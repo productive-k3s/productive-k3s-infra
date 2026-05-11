@@ -9,7 +9,7 @@ load_cluster_metadata
 validate_productive_k3s_source
 
 mkdir -p "${GENERATED_DIR}"
-archive="${GENERATED_DIR}/productive-k3s-bundle.tgz"
+archive="$(mktemp "${HOME}/pk3s-productive-k3s-bundle-XXXXXX.tgz")"
 extracted_subdir=""
 trap 'rm -f "${archive}"' EXIT
 
@@ -27,10 +27,12 @@ case "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" in
       -C "$(dirname "${PRODUCTIVE_K3S_REPO}")" \
       -czf "${archive}" \
       "$(basename "${PRODUCTIVE_K3S_REPO}")"
+    chmod 0644 "${archive}"
     extracted_subdir="$(basename "${PRODUCTIVE_K3S_REPO}")"
     ;;
   remote)
     download_productive_k3s_release_bundle "${archive}" "${PRODUCTIVE_K3S_VERSION_RESOLVED}"
+    chmod 0644 "${archive}"
     first_entry="$(tar -tzf "${archive}" | head -n 1 || true)"
     extracted_subdir="${first_entry%%/*}"
     [[ -n "${extracted_subdir}" ]] || {
