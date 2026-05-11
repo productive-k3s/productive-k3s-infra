@@ -9,7 +9,7 @@ TESTS_DIR := $(SCENARIO_DIR)/../../tests
 TOFU_BIN ?= $(shell if command -v tofu >/dev/null 2>&1; then echo tofu; elif command -v terraform >/dev/null 2>&1; then echo terraform; fi)
 
 export PRODUCTIVE_K3S_REPO ?= $(abspath $(SCENARIO_DIR)/../../../productive-k3s-core)
-export PRODUCTIVE_K3S_SOURCE ?= local
+export PRODUCTIVE_K3S_SOURCE ?= remote
 export PRODUCTIVE_K3S_VERSION ?=
 export PRODUCTIVE_K3S_RELEASE_REPO ?= jemacchi/productive-k3s-core
 export TELEMETRY_ENABLED ?=

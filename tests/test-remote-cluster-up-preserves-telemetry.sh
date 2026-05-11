@@ -9,6 +9,8 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 TEST_SCENARIO_DIR="${TMP_DIR}/remote-cluster"
 mkdir -p "${TEST_SCENARIO_DIR}"
 cp -R "${SOURCE_DIR}" "${TEST_SCENARIO_DIR}/scripts"
+mkdir -p "${TMP_DIR}/scripts"
+cp "${ROOT_DIR}/scripts/release-config.sh" "${TMP_DIR}/scripts/release-config.sh"
 mkdir -p "${TEST_SCENARIO_DIR}/generated/logs"
 
 cat > "${TEST_SCENARIO_DIR}/generated/cluster.json" <<'EOF'

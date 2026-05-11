@@ -59,6 +59,7 @@ case "$COMMAND" in
     bash "${TESTS_DIR}/test-artifact-tools.sh"
     bash "${TESTS_DIR}/test-scenario-test-artifacts.sh"
     bash "${TESTS_DIR}/test-release-versioning.sh"
+    bash "${TESTS_DIR}/test-core-release-bundle-contract.sh"
     bash "${TESTS_DIR}/test-create-release-tag.sh"
     bash "${TESTS_DIR}/test-productive-k3s-infra-cli.sh"
     bash "${TESTS_DIR}/test-release-bundle.sh"

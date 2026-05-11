@@ -6,9 +6,15 @@ SCENARIO_DIR="${SCENARIO_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 GENERATED_DIR="${SCENARIO_DIR}/generated"
 OPENTOFU_DIR="${SCENARIO_DIR}/opentofu"
 LOG_DIR="${GENERATED_DIR}/logs"
-REPO_ROOT="$(cd "${SCENARIO_DIR}/../.." && pwd)"
-# shellcheck disable=SC1091
-source "${REPO_ROOT}/scripts/release-config.sh"
+REPO_ROOT="${REPO_ROOT:-$(cd "${SCENARIO_DIR}/../.." && pwd)}"
+if [[ -r "${REPO_ROOT}/scripts/release-config.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${REPO_ROOT}/scripts/release-config.sh"
+else
+  : "${PRODUCTIVE_K3S_SOURCE_DEFAULT:=remote}"
+  : "${PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=0.9.0}"
+  : "${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT:=jemacchi/productive-k3s-core}"
+fi
 PRODUCTIVE_K3S_REPO="${PRODUCTIVE_K3S_REPO:-$(cd "${SCENARIO_DIR}/../../../productive-k3s-core" && pwd)}"
 PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE:-${PRODUCTIVE_K3S_SOURCE_DEFAULT}}"
 PRODUCTIVE_K3S_VERSION="${PRODUCTIVE_K3S_VERSION:-}"
@@ -197,6 +203,36 @@ normalize_release_version() {
   printf '%s\n' "${version#v}"
 }
 
+validate_productive_k3s_bundle_archive() {
+  local archive="$1"
+  local prefix listing
+  local required=(
+    "bundle-info.json"
+    "productive-k3s-core.sh"
+    "scripts/productive-k3s-core.sh"
+    "scripts/preflight-host.sh"
+    "scripts/bootstrap-k3s-stack.sh"
+    "scripts/backup-k3s-stack.sh"
+    "scripts/validate-k3s-stack.sh"
+    "scripts/send-telemetry.sh"
+  )
+
+  listing="$(tar -tzf "${archive}")"
+  prefix="$(printf '%s\n' "${listing}" | head -n 1 | cut -d/ -f1)"
+  [[ -n "${prefix}" ]] || {
+    err "could not determine extracted directory from remote archive ${archive}"
+    exit 1
+  }
+
+  local rel
+  for rel in "${required[@]}"; do
+    printf '%s\n' "${listing}" | grep -Fx "${prefix}/${rel}" >/dev/null || {
+      err "productive-k3s-core remote bundle is incomplete; missing ${rel} in ${archive}"
+      exit 1
+    }
+  done
+}
+
 productive_k3s_release_json() {
   local version="$1"
   local release_json=""
@@ -265,6 +301,7 @@ download_productive_k3s_release_bundle() {
   curl -fsSL "${sha_url}" -o "${destination}.sha256"
   expected_sha="$(cut -d' ' -f1 < "${destination}.sha256")"
   printf '%s  %s\n' "${expected_sha}" "${destination}" | sha256sum -c -
+  validate_productive_k3s_bundle_archive "${destination}"
 }
 
 mp_exec() {
