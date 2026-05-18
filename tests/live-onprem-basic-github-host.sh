@@ -44,6 +44,8 @@ prepare_ssh_key() {
 }
 
 wait_for_ssh() {
+  ssh-keygen -f "${HOME}/.ssh/known_hosts" -R "${LOCALHOST_IP}" >/dev/null 2>&1 || true
+  ssh-keygen -f "${HOME}/.ssh/known_hosts" -R "[${LOCALHOST_IP}]:22" >/dev/null 2>&1 || true
   local attempt
   for attempt in $(seq 1 30); do
     if ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 -i "${SSH_KEY_PATH}" "${CURRENT_USER}@${LOCALHOST_IP}" true >/dev/null 2>&1; then

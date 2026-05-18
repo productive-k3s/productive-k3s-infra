@@ -6,6 +6,11 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 ensure_base_requirements
 ensure_logs_dir
 load_cluster_metadata
+export PRODUCTIVE_K3S_SSH_HOST="${SERVER_IP}"
+export PRODUCTIVE_K3S_SSH_USER="${SSH_USER}"
+export PRODUCTIVE_K3S_SSH_PORT="${SSH_PORT}"
+export PRODUCTIVE_K3S_SSH_KEY_PATH="${SSH_KEY_PATH}"
+export PRODUCTIVE_K3S_SSH_EXTRA_OPTS="${SSH_EXTRA_OPTS}"
 
 python3 "${SCRIPT_DIR}/run_remote_bootstrap_session.py" \
   --host "${SERVER_IP}" \

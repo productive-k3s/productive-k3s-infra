@@ -17,6 +17,14 @@ cluster_token="$(tr -d '\r\n' < "${SERVER_TOKEN_FILE}")"
 for i in "${!AGENT_IPS[@]}"; do
   agent_name="${AGENT_NAMES[$i]}"
   agent_ip="${AGENT_IPS[$i]}"
+  if [[ "${PRODUCTIVE_K3S_ENGINE:-native}" == "k3sup" ]]; then
+    k3sup_controller_join_agent "${agent_ip}" "${SERVER_IP}" "${ONPREM_SSH_USER}"
+  fi
+  export PRODUCTIVE_K3S_SSH_HOST="${agent_ip}"
+  export PRODUCTIVE_K3S_SSH_USER="${ONPREM_SSH_USER}"
+  export PRODUCTIVE_K3S_SSH_PORT="${ONPREM_SSH_PORT}"
+  export PRODUCTIVE_K3S_SSH_KEY_PATH="${ONPREM_SSH_KEY_PATH}"
+  export PRODUCTIVE_K3S_SSH_EXTRA_OPTS="${ONPREM_SSH_EXTRA_OPTS}"
   python3 "${SCRIPT_DIR}/run_remote_bootstrap_session.py" \
     --host "${agent_ip}" \
     --user "${ONPREM_SSH_USER}" \

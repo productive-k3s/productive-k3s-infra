@@ -24,6 +24,7 @@ Development commands:
   test-contract
   test-live
   test-live-gha-onprem
+  test-k3s-engine-propagation
   test-productive-k3s-infra-cli
 EOF
 }
@@ -63,6 +64,7 @@ case "$COMMAND" in
     bash "${TESTS_DIR}/test-artifact-tools.sh"
     bash "${TESTS_DIR}/test-scenario-test-artifacts.sh"
     bash "${TESTS_DIR}/test-scripts-executable.sh"
+    bash "${TESTS_DIR}/test-k3s-engine-propagation.sh"
     bash "${TESTS_DIR}/test-release-versioning.sh"
     bash "${TESTS_DIR}/test-core-release-bundle-contract.sh"
     bash "${TESTS_DIR}/test-create-release-tag.sh"
@@ -72,7 +74,9 @@ case "$COMMAND" in
     bash "${TESTS_DIR}/test-productive-k3s-infra-cli.sh"
     bash "${TESTS_DIR}/test-release-bundle.sh"
     bash "${TESTS_DIR}/test-release-installer.sh"
+    bash "${TESTS_DIR}/test-live-multipass-cleanup-timeout.sh"
     bash "${TESTS_DIR}/test-live-onprem-basic-noninteractive.sh"
+    bash "${TESTS_DIR}/test-live-onprem-basic-cleanup-timeout.sh"
     exec bash -n "${TESTS_DIR}/live-onprem-basic-github-host.sh"
     ;;
   test-contract)
@@ -83,6 +87,9 @@ case "$COMMAND" in
     ;;
   test-live-gha-onprem)
     exec "${TESTS_DIR}/live-onprem-basic-github-host.sh" "$@"
+    ;;
+  test-k3s-engine-propagation)
+    exec bash "${TESTS_DIR}/test-k3s-engine-propagation.sh" "$@"
     ;;
   test-productive-k3s-infra-cli)
     exec bash "${TESTS_DIR}/test-productive-k3s-infra-cli.sh" "$@"

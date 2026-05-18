@@ -9,6 +9,8 @@ HOME_DIR="${TMP_DIR}/home"
 LOG_FILE="${TMP_DIR}/make.log"
 MULTIPASS_LOG="${TMP_DIR}/multipass.log"
 SSH_KEYGEN_LOG="${TMP_DIR}/ssh-keygen.log"
+STDOUT_LOG="${TMP_DIR}/stdout.log"
+STDERR_LOG="${TMP_DIR}/stderr.log"
 
 cleanup() {
   rm -rf "${TMP_DIR}"
@@ -25,21 +27,11 @@ cat > "${FAKEBIN}/multipass" <<'EOF'
 set -euo pipefail
 printf '%s\n' "$*" >> "${TEST_MULTIPASS_LOG}"
 case "${1:-}" in
-  launch)
-    launch_state="${TEST_MULTIPASS_STATE_DIR}/launch"
-    count=0
-    if [[ -f "${launch_state}" ]]; then
-      count="$(cat "${launch_state}")"
-    fi
-    count="$((count + 1))"
-    printf '%s\n' "${count}" > "${launch_state}"
-    if [[ "${count}" == "1" ]]; then
-      printf 'launch failed: Remote "" is unknown or unreachable.\n' >&2
-      exit 1
-    fi
+  launch|list)
     exit 0
     ;;
-  delete|purge|list)
+  delete|purge)
+    sleep 10
     exit 0
     ;;
   info)
@@ -81,35 +73,37 @@ EOF
 
 chmod +x "${FAKEBIN}/multipass" "${FAKEBIN}/jq" "${FAKEBIN}/ssh" "${FAKEBIN}/ssh-keygen" "${FAKEBIN}/make"
 
+set +e
 PATH="${FAKEBIN}:${PATH}" \
 HOME="${HOME_DIR}" \
 TEST_MAKE_LOG="${LOG_FILE}" \
 TEST_MULTIPASS_LOG="${MULTIPASS_LOG}" \
 TEST_SSH_KEYGEN_LOG="${SSH_KEYGEN_LOG}" \
-TEST_MULTIPASS_STATE_DIR="${TMP_DIR}" \
-MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS=0 \
-bash "${TARGET_SCRIPT}"
+MULTIPASS_DELETE_TIMEOUT_SECONDS=1 \
+timeout 5 bash "${TARGET_SCRIPT}" >"${STDOUT_LOG}" 2>"${STDERR_LOG}"
+rc=$?
+set -e
 
-grep -F 'TELEMETRY_ENABLED=false' "${LOG_FILE}" >/dev/null || {
-  printf '[FAIL] live-onprem-basic.sh did not force TELEMETRY_ENABLED=false\n' >&2
-  printf 'Captured make invocations:\n' >&2
-  cat "${LOG_FILE}" >&2
-  exit 1
-}
-
-launch_count="$(grep -c '^launch ' "${MULTIPASS_LOG}")"
-if [[ "${launch_count}" != "3" ]]; then
-  printf '[FAIL] expected multipass launch retry flow to attempt 3 launches, got %s\n' "${launch_count}" >&2
-  printf 'Captured multipass invocations:\n' >&2
-  cat "${MULTIPASS_LOG}" >&2
+if [[ "${rc}" != "0" ]]; then
+  printf '[FAIL] live-onprem-basic.sh did not finish successfully when multipass cleanup hung (rc=%s)\n' "${rc}" >&2
+  printf 'stdout:\n' >&2
+  cat "${STDOUT_LOG}" >&2
+  printf 'stderr:\n' >&2
+  cat "${STDERR_LOG}" >&2
   exit 1
 fi
 
-grep -F -- '-R 10.0.0.10' "${SSH_KEYGEN_LOG}" >/dev/null || {
-  printf '[FAIL] live-onprem-basic.sh did not clear known_hosts for the reused IP\n' >&2
-  printf 'Captured ssh-keygen invocations:\n' >&2
-  cat "${SSH_KEYGEN_LOG}" >&2
+grep -F '[PASS] onprem-basic live test completed' "${STDOUT_LOG}" >/dev/null || {
+  printf '[FAIL] live-onprem-basic.sh did not report success before cleanup handling\n' >&2
+  printf 'stdout:\n' >&2
+  cat "${STDOUT_LOG}" >&2
   exit 1
 }
 
-printf '[PASS] live-onprem-basic.sh forces TELEMETRY_ENABLED=false for automation\n'
+grep -F 'delete ' "${MULTIPASS_LOG}" >/dev/null || {
+  printf '[FAIL] cleanup did not attempt multipass delete\n' >&2
+  cat "${MULTIPASS_LOG}" >&2
+  exit 1
+}
+
+printf '[PASS] live-onprem-basic.sh survives a hung multipass cleanup\n'

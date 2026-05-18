@@ -1,4 +1,6 @@
 .codex
+docs/superpowers/
+superpowers/
 __pycache__/
 docs/.venv/
 docs/site/

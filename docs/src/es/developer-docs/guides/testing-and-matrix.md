@@ -79,6 +79,7 @@ Cuando cambies un escenario público, revisá si tenés que actualizar:
 
 - el target `test-static` local del escenario
 - las expectativas de contrato en `tests/contract-check.sh`
+- `tests/test-k3s-engine-propagation.sh` cuando cambie el contrato de los wrappers de bootstrap
 - algún test de propagación de telemetría
 - el contrato de metadata generada consumido por los manifests de matriz
 

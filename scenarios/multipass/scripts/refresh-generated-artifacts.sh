@@ -60,6 +60,8 @@ fi
 
 resolve_telemetry_enabled
 
+ensure_multipass_ssh_key_pair
+
 resolved_source="${PRODUCTIVE_K3S_SOURCE}"
 resolved_version="${PRODUCTIVE_K3S_VERSION}"
 resolved_telemetry_enabled="${TELEMETRY_ENABLED}"
@@ -100,6 +102,11 @@ tmp_json="$(mktemp)"
   printf '    "request_timeout_seconds": %s,\n' "$(jq -n --argjson v "${resolved_telemetry_request_timeout_seconds}" '$v')"
   printf '    "outbox_dir": %s,\n' "$(jq -Rn --arg v "${resolved_telemetry_outbox_dir}" '$v')"
   printf '    "user_agent": %s\n' "$(jq -Rn --arg v "${resolved_telemetry_user_agent}" '$v')"
+  printf '  },\n'
+  printf '  "ssh": {\n'
+  printf '    "user": %s,\n' "$(jq -Rn --arg v "${MULTIPASS_SSH_USER}" '$v')"
+  printf '    "port": %s,\n' "$(jq -n --argjson v "${MULTIPASS_SSH_PORT}" '$v')"
+  printf '    "key_path": %s\n' "$(jq -Rn --arg v "${MULTIPASS_SSH_KEY_PATH}" '$v')"
   printf '  },\n'
   printf '  "server_url": %s,\n' "$(jq -Rn --arg v "https://${server_ip}:6443" '$v')"
   printf '  "rancher_host": %s,\n' "$(jq -Rn --arg v "${rancher_host}" '$v')"
@@ -145,6 +152,8 @@ mv "${tmp_json}" "${CLUSTER_JSON}"
   printf 'all:\n'
   printf '  vars:\n'
   printf '    ansible_user: ubuntu\n'
+  printf '    ansible_port: %s\n' "${MULTIPASS_SSH_PORT}"
+  printf '    ansible_ssh_private_key_file: %s\n' "${MULTIPASS_SSH_KEY_PATH}"
   printf '    productive_k3s_remote_dir: %s\n' "${remote_dir}"
   printf '    productive_k3s_server_url: %s\n' "https://${server_ip}:6443"
   printf '    productive_k3s_base_domain: %s\n' "${base_domain}"
@@ -178,6 +187,9 @@ mv "${tmp_json}" "${CLUSTER_JSON}"
   printf 'TELEMETRY_REQUEST_TIMEOUT_SECONDS=%q\n' "${resolved_telemetry_request_timeout_seconds}"
   printf 'TELEMETRY_OUTBOX_DIR=%q\n' "${resolved_telemetry_outbox_dir}"
   printf 'TELEMETRY_USER_AGENT=%q\n' "${resolved_telemetry_user_agent}"
+  printf 'SSH_USER=%q\n' "${MULTIPASS_SSH_USER}"
+  printf 'SSH_PORT=%q\n' "${MULTIPASS_SSH_PORT}"
+  printf 'SSH_KEY_PATH=%q\n' "${MULTIPASS_SSH_KEY_PATH}"
   printf 'SERVER_NAME=%q\n' "${server_name}"
   printf 'SERVER_IP=%q\n' "${server_ip}"
   printf 'SERVER_URL=%q\n' "https://${server_ip}:6443"

@@ -45,6 +45,11 @@ case "${ACTION}" in
     log "Launching Multipass instance ${NAME}"
     TEMP_CLOUD_INIT_FILE="$(mktemp "${HOME}/pk3s-multipass-cloud-init-XXXXXX.yaml")"
     cp "${CLOUD_INIT_FILE}" "${TEMP_CLOUD_INIT_FILE}"
+    ensure_multipass_ssh_key_pair
+    {
+      printf '\nssh_authorized_keys:\n'
+      printf '  - %s\n' "$(cat "${MULTIPASS_SSH_KEY_PATH}.pub")"
+    } >> "${TEMP_CLOUD_INIT_FILE}"
     chmod 0644 "${TEMP_CLOUD_INIT_FILE}"
     multipass launch "${IMAGE}" \
       --name "${NAME}" \

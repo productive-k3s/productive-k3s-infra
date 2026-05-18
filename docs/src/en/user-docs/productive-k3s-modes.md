@@ -29,3 +29,9 @@ That split makes the orchestration model explicit:
 
 !!! note
     The more explicit the bootstrap modes are in `productive-k3s-core`, the easier it is for infrastructure automation to stay understandable and testable.
+
+!!! note
+    The optional experimental environment variable `PRODUCTIVE_K3S_ENGINE` can switch the base K3S installation backend between `native` and `k3sup` without changing the mode contract. The shared stack path remains unchanged.
+
+!!! note
+    `k3sup` support is complementary and experimental. The product scope, supported matrix, and repository guarantees are still defined by Productive K3S itself, not by every workflow that `k3sup` could theoretically enable.

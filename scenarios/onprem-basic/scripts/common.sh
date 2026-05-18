@@ -312,6 +312,71 @@ remote_home_dir() {
   remote_exec "${ip}" 'printf "%s" "$HOME"'
 }
 
+ensure_local_k3sup() {
+  if command -v k3sup >/dev/null 2>&1; then
+    K3SUP_BIN="$(command -v k3sup)"
+    return 0
+  fi
+
+  local tmp_dir=""
+  tmp_dir="$(mktemp -d)"
+  log "Installing k3sup on the controller..."
+  (
+    cd "${tmp_dir}"
+    curl -sLS https://get.k3sup.dev | sh
+  )
+  if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+    sudo install "${tmp_dir}/k3sup" /usr/local/bin/k3sup
+    K3SUP_BIN="/usr/local/bin/k3sup"
+  else
+    mkdir -p "${HOME}/.local/bin"
+    install "${tmp_dir}/k3sup" "${HOME}/.local/bin/k3sup"
+    export PATH="${HOME}/.local/bin:${PATH}"
+    K3SUP_BIN="${HOME}/.local/bin/k3sup"
+  fi
+  rm -rf "${tmp_dir}"
+}
+
+k3sup_controller_join_agent() {
+  local agent_ip="$1"
+  local server_ip="$2"
+  local server_user="$3"
+  local cmd=()
+
+  [[ -n "${agent_ip}" ]] || {
+    err "agent IP is required for controller-side k3sup join"
+    exit 1
+  }
+  [[ -n "${server_ip}" ]] || {
+    err "server IP is required for controller-side k3sup join"
+    exit 1
+  }
+  [[ -n "${server_user}" ]] || {
+    err "server SSH user is required for controller-side k3sup join"
+    exit 1
+  }
+
+  ensure_local_k3sup
+  cmd=(
+    "${K3SUP_BIN}"
+    join
+    --ip "${agent_ip}"
+    --user "${ONPREM_SSH_USER}"
+    --server-ip "${server_ip}"
+    --server-user "${server_user}"
+    --k3s-channel stable
+  )
+  if [[ -n "${ONPREM_SSH_KEY_PATH}" ]]; then
+    cmd+=(--ssh-key "${ONPREM_SSH_KEY_PATH}")
+  fi
+  if [[ -n "${ONPREM_SSH_PORT}" ]]; then
+    cmd+=(--ssh-port "${ONPREM_SSH_PORT}")
+  fi
+
+  log "Joining ${agent_ip} to ${server_ip} with controller-side k3sup..."
+  "${cmd[@]}"
+}
+
 productive_k3s_release_api_url() {
   local version="$1"
   if [[ -n "${version}" ]]; then

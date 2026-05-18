@@ -53,7 +53,32 @@ if [[ "${cloud_init}" != "${expected_prefix}"* ]]; then
   exit 1
 fi
 cmp -s "${ORIGINAL_CLOUD_INIT_FILE}" "${cloud_init}" || {
-  printf 'staged cloud-init content does not match original\n' >&2
+  if ! grep -Fqx "ssh_authorized_keys:" "${cloud_init}"; then
+    printf 'staged cloud-init is missing ssh_authorized_keys section\n' >&2
+    cat "${cloud_init}" >&2
+    exit 1
+  fi
+  if ! grep -Fq "$(cat "${EXPECTED_PUBKEY_FILE}")" "${cloud_init}"; then
+    printf 'staged cloud-init is missing the expected authorized key\n' >&2
+    cat "${cloud_init}" >&2
+    exit 1
+  fi
+  original_without_trailing_newline="$(cat "${ORIGINAL_CLOUD_INIT_FILE}")"
+  if ! grep -Fq "${original_without_trailing_newline}" "${cloud_init}"; then
+    printf 'staged cloud-init does not preserve original content\n' >&2
+    cat "${cloud_init}" >&2
+    exit 1
+  fi
+  exit 0
+}
+if ! grep -Fqx "ssh_authorized_keys:" "${cloud_init}"; then
+  printf 'staged cloud-init is missing ssh_authorized_keys section\n' >&2
+  cat "${cloud_init}" >&2
+  exit 1
+fi
+if ! grep -Fq "$(cat "${EXPECTED_PUBKEY_FILE}")" "${cloud_init}"; then
+  printf 'staged cloud-init is missing the expected authorized key\n' >&2
+  cat "${cloud_init}" >&2
   exit 1
 }
 exit 0
@@ -67,6 +92,10 @@ export MULTIPASS_CAPTURE_FILE="${TMP_DIR}/multipass-command.txt"
 export PRODUCTIVE_K3S_REPO="${TMP_DIR}/productive-k3s-core"
 export HOME="${TMP_DIR}/home"
 mkdir -p "${HOME}"
+mkdir -p "${TEST_SCENARIO_DIR}/generated/ssh"
+export MULTIPASS_SSH_KEY_DIR="${TEST_SCENARIO_DIR}/generated/ssh"
+ssh-keygen -q -t ed25519 -N '' -f "${MULTIPASS_SSH_KEY_DIR}/id_ed25519" >/dev/null
+export EXPECTED_PUBKEY_FILE="${MULTIPASS_SSH_KEY_DIR}/id_ed25519.pub"
 
 bash "${TEST_SCENARIO_DIR}/scripts/tofu-ensure-instance.sh" \
   apply test-node 24.04 2 4G 30G "${FAKE_CLOUD_INIT_FILE}"

@@ -31,6 +31,10 @@ TELEMETRY_OUTBOX_DIR="${TELEMETRY_OUTBOX_DIR:-}"
 TELEMETRY_USER_AGENT="${TELEMETRY_USER_AGENT:-productive-k3s-infra/multipass}"
 TOFU_BIN="${TOFU_BIN:-}"
 DEFAULT_REMOTE_DIR="/home/ubuntu/productive-k3s-core"
+MULTIPASS_SSH_USER="${MULTIPASS_SSH_USER:-ubuntu}"
+MULTIPASS_SSH_PORT="${MULTIPASS_SSH_PORT:-22}"
+MULTIPASS_SSH_KEY_DIR="${MULTIPASS_SSH_KEY_DIR:-${GENERATED_DIR}/ssh}"
+MULTIPASS_SSH_KEY_PATH="${MULTIPASS_SSH_KEY_PATH:-${MULTIPASS_SSH_KEY_DIR}/id_ed25519}"
 CLUSTER_JSON="${GENERATED_DIR}/cluster.json"
 HOSTS_YML="${GENERATED_DIR}/hosts.yml"
 NODES_ENV="${GENERATED_DIR}/nodes.env"
@@ -62,6 +66,7 @@ ensure_base_requirements() {
   need_cmd tar
   need_cmd curl
   need_cmd sha256sum
+  need_cmd ssh-keygen
 }
 
 ensure_logs_dir() {
@@ -167,8 +172,14 @@ load_cluster_metadata() {
   TELEMETRY_REQUEST_TIMEOUT_SECONDS_RESOLVED="$(jq -r '.telemetry.request_timeout_seconds // 10' "${CLUSTER_JSON}")"
   TELEMETRY_OUTBOX_DIR_RESOLVED="$(jq -r '.telemetry.outbox_dir // empty' "${CLUSTER_JSON}")"
   TELEMETRY_USER_AGENT_RESOLVED="$(jq -r '.telemetry.user_agent // empty' "${CLUSTER_JSON}")"
+  SSH_USER_RESOLVED="$(jq -r '.ssh.user // "ubuntu"' "${CLUSTER_JSON}")"
+  SSH_PORT_RESOLVED="$(jq -r '.ssh.port // 22' "${CLUSTER_JSON}")"
+  SSH_KEY_PATH_RESOLVED="$(jq -r '.ssh.key_path // empty' "${CLUSTER_JSON}")"
   mapfile -t AGENT_NAMES < <(jq -r '.agents[].name' "${CLUSTER_JSON}")
   mapfile -t ALL_NODE_NAMES < <(jq -r '.nodes[].name' "${CLUSTER_JSON}")
+  SSH_USER="${SSH_USER_RESOLVED}"
+  SSH_PORT="${SSH_PORT_RESOLVED}"
+  SSH_KEY_PATH="${SSH_KEY_PATH_RESOLVED}"
 }
 
 export_resolved_telemetry_env() {
@@ -317,6 +328,16 @@ mp_transfer_to() {
   multipass transfer "${source}" "${target_instance}:${target_path}"
 }
 
+ensure_multipass_ssh_key_pair() {
+  mkdir -p "${MULTIPASS_SSH_KEY_DIR}"
+  chmod 700 "${MULTIPASS_SSH_KEY_DIR}"
+  if [[ ! -f "${MULTIPASS_SSH_KEY_PATH}" ]]; then
+    ssh-keygen -q -t ed25519 -N '' -f "${MULTIPASS_SSH_KEY_PATH}" >/dev/null
+  fi
+  chmod 600 "${MULTIPASS_SSH_KEY_PATH}"
+  chmod 644 "${MULTIPASS_SSH_KEY_PATH}.pub"
+}
+
 write_hosts_entry_on_node() {
   local node="$1" ip="$2" rancher_host="$3" registry_host="$4"
   local escaped_line
@@ -331,4 +352,72 @@ write_hosts_entry_on_node() {
     fi
     printf '%s\n' '${escaped_line}' | sudo tee -a /etc/hosts >/dev/null
   "
+}
+
+ensure_local_k3sup() {
+  if command -v k3sup >/dev/null 2>&1; then
+    K3SUP_BIN="$(command -v k3sup)"
+    return 0
+  fi
+
+  local tmp_dir=""
+  tmp_dir="$(mktemp -d)"
+  log "Installing k3sup on the controller..."
+  (
+    cd "${tmp_dir}"
+    curl -sLS https://get.k3sup.dev | sh
+  )
+  if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+    sudo install "${tmp_dir}/k3sup" /usr/local/bin/k3sup
+    K3SUP_BIN="/usr/local/bin/k3sup"
+  else
+    mkdir -p "${HOME}/.local/bin"
+    install "${tmp_dir}/k3sup" "${HOME}/.local/bin/k3sup"
+    export PATH="${HOME}/.local/bin:${PATH}"
+    K3SUP_BIN="${HOME}/.local/bin/k3sup"
+  fi
+  rm -rf "${tmp_dir}"
+}
+
+k3sup_controller_join_agent() {
+  local agent_ip="$1"
+  local server_ip="$2"
+  local server_user="$3"
+  local ssh_user="${SSH_USER:-ubuntu}"
+  local ssh_port="${SSH_PORT:-22}"
+  local ssh_key="${SSH_KEY_PATH:-}"
+  local cmd=()
+
+  [[ -n "${agent_ip}" ]] || {
+    err "agent IP is required for controller-side k3sup join"
+    exit 1
+  }
+  [[ -n "${server_ip}" ]] || {
+    err "server IP is required for controller-side k3sup join"
+    exit 1
+  }
+  [[ -n "${server_user}" ]] || {
+    err "server SSH user is required for controller-side k3sup join"
+    exit 1
+  }
+
+  ensure_local_k3sup
+  cmd=(
+    "${K3SUP_BIN}"
+    join
+    --ip "${agent_ip}"
+    --user "${ssh_user}"
+    --server-ip "${server_ip}"
+    --server-user "${server_user}"
+    --k3s-channel stable
+  )
+  if [[ -n "${ssh_key}" ]]; then
+    cmd+=(--ssh-key "${ssh_key}")
+  fi
+  if [[ -n "${ssh_port}" ]]; then
+    cmd+=(--ssh-port "${ssh_port}")
+  fi
+
+  log "Joining ${agent_ip} to ${server_ip} with controller-side k3sup..."
+  "${cmd[@]}"
 }

@@ -79,6 +79,7 @@ When changing a public scenario, review whether you need to update:
 
 - the scenario-local `test-static` target
 - the contract expectations in `tests/contract-check.sh`
+- `tests/test-k3s-engine-propagation.sh` when the bootstrap wrapper contract changes
 - any telemetry propagation tests
 - the generated metadata contract consumed by matrix manifests
 

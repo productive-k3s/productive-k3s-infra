@@ -20,6 +20,32 @@ En la práctica eso significa que `productive-k3s-infra` maneja:
 - orquestación de las fases `server`, `agent` y `stack` cuando el escenario lo necesita
 - validación específica del escenario
 
+## Engine opcional de instalación de K3S
+
+El engine por default sigue siendo el camino nativo de bootstrap de Productive K3S.
+
+Los usuarios avanzados también pueden optar por:
+
+```bash
+PRODUCTIVE_K3S_ENGINE=k3sup
+```
+
+Eso está documentado intencionalmente como experimental.
+
+Por qué existe:
+
+- para mostrar que `k3sup` puede complementar a `productive-k3s-core`
+- para permitir que usuarios avanzados experimenten con las mismas decisiones opinionadas de plataforma de Productive K3S usando un backend de instalación de K3S que ya conocen
+
+Qué no significa:
+
+- `k3sup` no es el producto
+- `k3sup` no reemplaza el contrato de bootstrap de Productive K3S
+- `k3sup` no amplía la matriz pública de soporte más allá de la cobertura documentada de VMs, sistemas operativos y escenarios del repositorio
+
+Si habilitás el engine experimental, seguís dentro del modelo de soporte de Productive K3S sólo en los lugares que la matriz y los tests del repositorio cubren de forma explícita.
+Fuera de ese scope, especialmente en combinaciones custom o manualmente orquestadas, la responsabilidad pasa al usuario que está experimentando.
+
 ## Elegí el modo fuente de Productive K3S Core
 
 La mayoría de los escenarios públicos soportan dos modos fuente:

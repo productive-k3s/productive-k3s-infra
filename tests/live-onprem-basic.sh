@@ -12,6 +12,7 @@ SSH_KEY_PATH=""
 SSH_PUBKEY=""
 MULTIPASS_LAUNCH_RETRIES="${MULTIPASS_LAUNCH_RETRIES:-3}"
 MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS="${MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS:-5}"
+MULTIPASS_DELETE_TIMEOUT_SECONDS="${MULTIPASS_DELETE_TIMEOUT_SECONDS:-120}"
 
 fail() {
   printf '[FAIL] %s\n' "$1" >&2
@@ -41,10 +42,25 @@ pick_ssh_key() {
 }
 
 cleanup() {
-  multipass delete "${SERVER_NAME}" "${AGENT_NAME}" >/dev/null 2>&1 || true
-  multipass purge >/dev/null 2>&1 || true
+  run_multipass_cleanup delete "${SERVER_NAME}" "${AGENT_NAME}"
+  run_multipass_cleanup purge
   rm -rf "${WORK_DIR}"
   make -C "${SCENARIO_DIR}" clean >/dev/null 2>&1 || true
+}
+
+run_multipass_cleanup() {
+  local subcommand="$1"
+  shift || true
+
+  if command -v timeout >/dev/null 2>&1; then
+    if timeout --kill-after=5s "${MULTIPASS_DELETE_TIMEOUT_SECONDS}s" multipass "${subcommand}" "$@" >/dev/null 2>&1; then
+      return 0
+    fi
+    warn "multipass ${subcommand} timed out after ${MULTIPASS_DELETE_TIMEOUT_SECONDS}s; continuing"
+    return 0
+  fi
+
+  multipass "${subcommand}" "$@" >/dev/null 2>&1 || true
 }
 
 write_cloud_init() {
@@ -72,6 +88,8 @@ instance_ip() {
 
 wait_for_ssh() {
   local ip="$1"
+  ssh-keygen -f "${HOME}/.ssh/known_hosts" -R "${ip}" >/dev/null 2>&1 || true
+  ssh-keygen -f "${HOME}/.ssh/known_hosts" -R "[${ip}]:22" >/dev/null 2>&1 || true
   local attempt
   for attempt in $(seq 1 60); do
     if ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 -i "${SSH_KEY_PATH}" "ubuntu@${ip}" true >/dev/null 2>&1; then

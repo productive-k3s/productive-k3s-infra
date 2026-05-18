@@ -17,10 +17,19 @@ TELEMETRY_ENV_KEYS = [
     "TELEMETRY_USER_AGENT",
 ]
 
+ENGINE_ENV_KEYS = [
+    "PRODUCTIVE_K3S_ENGINE",
+    "PRODUCTIVE_K3S_SSH_HOST",
+    "PRODUCTIVE_K3S_SSH_USER",
+    "PRODUCTIVE_K3S_SSH_PORT",
+    "PRODUCTIVE_K3S_SSH_KEY_PATH",
+    "PRODUCTIVE_K3S_SSH_EXTRA_OPTS",
+]
+
 
 def telemetry_env_prefix():
     assignments = []
-    for key in TELEMETRY_ENV_KEYS:
+    for key in TELEMETRY_ENV_KEYS + ENGINE_ENV_KEYS:
         value = os.environ.get(key)
         if value is None:
             continue
