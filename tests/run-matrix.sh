@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LEVEL="${1:-}"
 shift || true
-ARTIFACTS_DIR="${ROOT_DIR}/test-artifacts"
+ARTIFACTS_DIR="${TEST_ARTIFACTS_DIR:-${ROOT_DIR}/test-artifacts}"
 RUNS_DIR="${ARTIFACTS_DIR}/infra-runs"
 RUN_TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 MATRIX_RUN_ID="${RUN_TIMESTAMP}-${LEVEL}-$$"
@@ -137,6 +137,7 @@ write_run_manifest() {
   local source_mode="${PRODUCTIVE_K3S_SOURCE:-}"
   local source_version="${PRODUCTIVE_K3S_VERSION:-}"
   local release_repo="${PRODUCTIVE_K3S_RELEASE_REPO:-jemacchi/productive-k3s-core}"
+  local engine_mode="${PRODUCTIVE_K3S_ENGINE:-native}"
 
   scenario_metadata "${scenario}" "${LEVEL}"
 
@@ -156,7 +157,8 @@ write_run_manifest() {
     printf '  "productive_k3s": {\n'
     printf '    "source": "%s",\n' "$(json_escape "${source_mode:-default}")"
     printf '    "version": "%s",\n' "$(json_escape "${source_version:-unspecified}")"
-    printf '    "release_repo": "%s"\n' "$(json_escape "${release_repo}")"
+    printf '    "release_repo": "%s",\n' "$(json_escape "${release_repo}")"
+    printf '    "engine": "%s"\n' "$(json_escape "${engine_mode}")"
     printf '  },\n'
     printf '  "installation": {\n'
     printf '    "environment": "%s",\n' "$(json_escape "${ENVIRONMENT}")"
@@ -250,6 +252,10 @@ printf '  skip: %s\n' "${skips[*]:-none}"
 printf '  fail: %s\n' "${fails[*]:-none}"
 
 mkdir -p "${ARTIFACTS_DIR}"
+summary_source_mode="${PRODUCTIVE_K3S_SOURCE:-}"
+summary_source_version="${PRODUCTIVE_K3S_VERSION:-}"
+summary_release_repo="${PRODUCTIVE_K3S_RELEASE_REPO:-jemacchi/productive-k3s-core}"
+summary_engine_mode="${PRODUCTIVE_K3S_ENGINE:-native}"
 {
   printf '{\n'
   printf '  "schema_version": "1",\n'
@@ -257,6 +263,12 @@ mkdir -p "${ARTIFACTS_DIR}"
   printf '  "run_id": "%s",\n' "$(json_escape "${MATRIX_RUN_ID}")"
   printf '  "test_level": "%s",\n' "$(json_escape "${LEVEL}")"
   printf '  "execution_kind": "%s",\n' "$(json_escape "$(execution_kind)")"
+  printf '  "productive_k3s": {\n'
+  printf '    "source": "%s",\n' "$(json_escape "${summary_source_mode:-default}")"
+  printf '    "version": "%s",\n' "$(json_escape "${summary_source_version:-unspecified}")"
+  printf '    "release_repo": "%s",\n' "$(json_escape "${summary_release_repo}")"
+  printf '    "engine": "%s"\n' "$(json_escape "${summary_engine_mode}")"
+  printf '  },\n'
   printf '  "pass": %s,\n' "$(json_array_from_values "${passes[@]}")"
   printf '  "skip": %s,\n' "$(json_array_from_values "${skips[@]}")"
   printf '  "fail": %s,\n' "$(json_array_from_values "${fails[@]}")"

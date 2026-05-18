@@ -115,6 +115,7 @@ write_run_manifest() {
   local source_mode="${PRODUCTIVE_K3S_SOURCE:-}"
   local source_version="${PRODUCTIVE_K3S_VERSION:-}"
   local release_repo="${PRODUCTIVE_K3S_RELEASE_REPO:-jemacchi/productive-k3s-core}"
+  local engine_mode="${PRODUCTIVE_K3S_ENGINE:-native}"
 
   scenario_metadata
 
@@ -134,7 +135,8 @@ write_run_manifest() {
     printf '  "productive_k3s": {\n'
     printf '    "source": "%s",\n' "$(json_escape "${source_mode:-default}")"
     printf '    "version": "%s",\n' "$(json_escape "${source_version:-unspecified}")"
-    printf '    "release_repo": "%s"\n' "$(json_escape "${release_repo}")"
+    printf '    "release_repo": "%s",\n' "$(json_escape "${release_repo}")"
+    printf '    "engine": "%s"\n' "$(json_escape "${engine_mode}")"
     printf '  },\n'
     printf '  "installation": {\n'
     printf '    "environment": "%s",\n' "$(json_escape "${ENVIRONMENT}")"

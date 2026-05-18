@@ -62,6 +62,7 @@ case "$COMMAND" in
   test-static)
     "${TESTS_DIR}/run-matrix.sh" static ${SCENARIOS}
     bash "${TESTS_DIR}/test-artifact-tools.sh"
+    bash "${TESTS_DIR}/test-k3s-engine-artifacts.sh"
     bash "${TESTS_DIR}/test-scenario-test-artifacts.sh"
     bash "${TESTS_DIR}/test-scripts-executable.sh"
     bash "${TESTS_DIR}/test-k3s-engine-propagation.sh"
