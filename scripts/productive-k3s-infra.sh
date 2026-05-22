@@ -453,6 +453,7 @@ profile_command_dispatch() {
     case "${PK3S_INFRA_ENGINE}" in
       opentofu)
         run_opentofu_plan "${scenario_dir}"
+        return $?
         ;;
       ansible|shell)
         log "INFO" "Plan mode delegates to 'make -n' for the current remote backend contract"
