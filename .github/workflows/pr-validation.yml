@@ -56,7 +56,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo --preserve-env=TELEMETRY_ENABLED make test-static
+          sudo env \
+            "PATH=${PATH}" \
+            "TOFU_BIN=$(command -v tofu)" \
+            "TELEMETRY_ENABLED=${TELEMETRY_ENABLED}" \
+            make test-static
 
       - name: Run contract checks
         working-directory: productive-k3s-infra
@@ -111,7 +115,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo --preserve-env=TELEMETRY_ENABLED make test-live-gha-onprem
+          sudo env \
+            "PATH=${PATH}" \
+            "TOFU_BIN=$(command -v tofu)" \
+            "TELEMETRY_ENABLED=${TELEMETRY_ENABLED}" \
+            make test-live-gha-onprem
 
       - name: Upload live artifacts
         if: always()
