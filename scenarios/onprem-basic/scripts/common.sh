@@ -317,6 +317,33 @@ remote_home_dir() {
   remote_exec "${ip}" 'printf "%s" "$HOME"'
 }
 
+resolve_hosts_entry_ip() {
+  local host_target="$1"
+  local resolved_ip=""
+
+  if [[ "${host_target}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ || "${host_target}" == *:* ]]; then
+    printf '%s\n' "${host_target}"
+    return 0
+  fi
+
+  resolved_ip="$(getent ahostsv4 "${host_target}" 2>/dev/null | awk 'NR == 1 { print $1; exit }')"
+  resolved_ip="$(trim "${resolved_ip}")"
+  if [[ -n "${resolved_ip}" ]]; then
+    printf '%s\n' "${resolved_ip}"
+    return 0
+  fi
+
+  resolved_ip="$(remote_exec "${host_target}" "hostname -I 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if (\$i ~ /^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$/) {print \$i; exit}}'")"
+  resolved_ip="$(trim "${resolved_ip}")"
+  if [[ -n "${resolved_ip}" ]]; then
+    printf '%s\n' "${resolved_ip}"
+    return 0
+  fi
+
+  err "could not resolve an IPv4 address for host alias target '${host_target}'"
+  exit 1
+}
+
 ensure_local_k3sup() {
   if command -v k3sup >/dev/null 2>&1; then
     K3SUP_BIN="$(command -v k3sup)"
