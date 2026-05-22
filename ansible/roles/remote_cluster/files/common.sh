@@ -23,17 +23,25 @@ fi
 PRODUCTIVE_K3S_RELEASE_REPO="${PRODUCTIVE_K3S_RELEASE_REPO:-${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT}}"
 TELEMETRY_ENABLED="${TELEMETRY_ENABLED:-}"
 TELEMETRY_ENDPOINT="${TELEMETRY_ENDPOINT:-}"
+TELEMETRY_MARKER="${TELEMETRY_MARKER:-pk3s-public-v1}"
 TELEMETRY_MAX_RETRIES="${TELEMETRY_MAX_RETRIES:-3}"
 TELEMETRY_CONNECT_TIMEOUT_SECONDS="${TELEMETRY_CONNECT_TIMEOUT_SECONDS:-5}"
 TELEMETRY_REQUEST_TIMEOUT_SECONDS="${TELEMETRY_REQUEST_TIMEOUT_SECONDS:-10}"
 TELEMETRY_OUTBOX_DIR="${TELEMETRY_OUTBOX_DIR:-}"
 TELEMETRY_USER_AGENT="${TELEMETRY_USER_AGENT:-productive-k3s-infra/remote-cluster}"
+TELEMETRY_SESSION_ID="${TELEMETRY_SESSION_ID:-}"
+TELEMETRY_PARENT_RUN_ID="${TELEMETRY_PARENT_RUN_ID:-}"
+TELEMETRY_COMPONENT="${TELEMETRY_COMPONENT:-infra}"
 CASE_PREFIX="${CASE_PREFIX:-ONPREM}"
 CLUSTER_JSON="${GENERATED_DIR}/cluster.json"
 HOSTS_YML="${GENERATED_DIR}/hosts.yml"
 NODES_ENV="${GENERATED_DIR}/nodes.env"
 SERVER_TOKEN_FILE="${GENERATED_DIR}/server-token.txt"
 SERVER_URL_FILE="${GENERATED_DIR}/server-url.txt"
+INFRA_TELEMETRY_SENDER="${REPO_ROOT}/scripts/send-telemetry-event.sh"
+INFRA_TELEMETRY_RUN_ID=""
+INFRA_TELEMETRY_PARENT_CONTEXT=""
+INFRA_TELEMETRY_COMMAND_NAME=""
 
 SUPPORTED_PLATFORMS=(
   "ubuntu:24.04"
@@ -93,6 +101,99 @@ warn() {
 
 err() {
   printf '[ERROR] %s\n' "$*" >&2
+}
+
+json_escape() {
+  printf '%s' "$1" | sed \
+    -e 's/\\/\\\\/g' \
+    -e 's/"/\\"/g' \
+    -e ':a;N;$!ba;s/\n/\\n/g' \
+    -e 's/\r/\\r/g' \
+    -e 's/\t/\\t/g'
+}
+
+is_truthy() {
+  case "${1,,}" in
+    1|true|yes|y|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+generate_telemetry_id() {
+  od -An -N8 -tx1 /dev/urandom | tr -d ' \n'
+}
+
+scenario_name() {
+  basename "${SCENARIO_DIR}"
+}
+
+emit_infra_command_telemetry_event() {
+  local event_name="$1"
+  local command_name="$2"
+  local result="$3"
+  local parent_id="$4"
+  local event_file
+
+  event_file="$(mktemp)"
+  {
+    printf '{\n'
+    printf '  "schema_version": "1",\n'
+    printf '  "event_family": "usage",\n'
+    printf '  "event_name": "%s",\n' "$(json_escape "${event_name}")"
+    printf '  "sent_at": "%s",\n' "$(json_escape "$(date -Iseconds)")"
+    printf '  "session_id": "%s",\n' "$(json_escape "${TELEMETRY_SESSION_ID}")"
+    printf '  "run_id": "%s",\n' "$(json_escape "${INFRA_TELEMETRY_RUN_ID}")"
+    printf '  "parent_run_id": "%s",\n' "$(json_escape "${parent_id}")"
+    printf '  "component": "infra",\n'
+    printf '  "command": {\n'
+    printf '    "name": "%s",\n' "$(json_escape "${command_name}")"
+    printf '    "scenario": "%s",\n' "$(json_escape "$(scenario_name)")"
+    printf '    "result": "%s"\n' "$(json_escape "${result}")"
+    printf '  },\n'
+    printf '  "client": {\n'
+    printf '    "repository": "productive-k3s-infra",\n'
+    printf '    "script": "remote-cluster-common.sh",\n'
+    printf '    "telemetry_enabled": "%s"\n' "$(json_escape "${TELEMETRY_ENABLED}")"
+    printf '  },\n'
+    printf '  "telemetry_meta": {\n'
+    printf '    "delivery_mode": "best-effort",\n'
+    printf '    "anonymous_by_contract": true\n'
+    printf '  }\n'
+    printf '}\n'
+  } > "${event_file}"
+
+  TELEMETRY_RUN_ID="${INFRA_TELEMETRY_RUN_ID}" TELEMETRY_MARKER="${TELEMETRY_MARKER}" bash "${INFRA_TELEMETRY_SENDER}" "${event_file}" >/dev/null 2>&1 || true
+  rm -f "${event_file}"
+}
+
+begin_infra_command_telemetry() {
+  local command_name="$1"
+  resolve_telemetry_enabled
+  if ! is_truthy "${TELEMETRY_ENABLED:-false}"; then
+    return 0
+  fi
+  TELEMETRY_SESSION_ID="${TELEMETRY_SESSION_ID:-$(generate_telemetry_id)}"
+  INFRA_TELEMETRY_PARENT_CONTEXT="${TELEMETRY_PARENT_RUN_ID:-}"
+  INFRA_TELEMETRY_RUN_ID="$(generate_telemetry_id)"
+  INFRA_TELEMETRY_COMMAND_NAME="${command_name}"
+  export TELEMETRY_SESSION_ID
+  export TELEMETRY_RUN_ID="${INFRA_TELEMETRY_RUN_ID}"
+  export TELEMETRY_PARENT_RUN_ID="${INFRA_TELEMETRY_RUN_ID}"
+  export TELEMETRY_COMPONENT="infra"
+  emit_infra_command_telemetry_event "infra.command.started" "${command_name}" "started" "${INFRA_TELEMETRY_PARENT_CONTEXT}"
+}
+
+complete_infra_command_telemetry() {
+  local exit_code="$1"
+  local command_name="${2:-${INFRA_TELEMETRY_COMMAND_NAME:-unknown}}"
+  if ! is_truthy "${TELEMETRY_ENABLED:-false}" || [[ -z "${INFRA_TELEMETRY_RUN_ID}" ]]; then
+    return 0
+  fi
+  local result="success"
+  if [[ "${exit_code}" != "0" ]]; then
+    result="failed"
+  fi
+  emit_infra_command_telemetry_event "infra.command.completed" "${command_name}" "${result}" "${INFRA_TELEMETRY_PARENT_CONTEXT}"
 }
 
 need_cmd() {

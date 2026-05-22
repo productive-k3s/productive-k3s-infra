@@ -64,6 +64,7 @@ cat > "${RUNS_DIR}/20260509-010103-live-333-aws-single-node.json" <<'EOF'
   "scenario": "aws-single-node",
   "test_level": "live",
   "result": "skip",
+  "skip_reason": "missing aws credentials",
   "duration_seconds": 0
 }
 EOF

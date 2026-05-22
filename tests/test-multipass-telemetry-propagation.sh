@@ -70,11 +70,14 @@ from pathlib import Path
 capture = {
     "TELEMETRY_ENABLED": os.environ.get("TELEMETRY_ENABLED"),
     "TELEMETRY_ENDPOINT": os.environ.get("TELEMETRY_ENDPOINT"),
+    "TELEMETRY_BEARER_TOKEN": os.environ.get("TELEMETRY_BEARER_TOKEN"),
     "TELEMETRY_MAX_RETRIES": os.environ.get("TELEMETRY_MAX_RETRIES"),
     "TELEMETRY_CONNECT_TIMEOUT_SECONDS": os.environ.get("TELEMETRY_CONNECT_TIMEOUT_SECONDS"),
     "TELEMETRY_REQUEST_TIMEOUT_SECONDS": os.environ.get("TELEMETRY_REQUEST_TIMEOUT_SECONDS"),
     "TELEMETRY_OUTBOX_DIR": os.environ.get("TELEMETRY_OUTBOX_DIR"),
-    "TELEMETRY_USER_AGENT": os.environ.get("TELEMETRY_USER_AGENT")
+    "TELEMETRY_USER_AGENT": os.environ.get("TELEMETRY_USER_AGENT"),
+    "TELEMETRY_SESSION_ID": os.environ.get("TELEMETRY_SESSION_ID"),
+    "TELEMETRY_PARENT_RUN_ID": os.environ.get("TELEMETRY_PARENT_RUN_ID")
 }
 Path(os.environ["CAPTURE_FILE"]).write_text(json.dumps(capture, indent=2), encoding="utf-8")
 EOF
@@ -106,17 +109,23 @@ export TELEMETRY_CONNECT_TIMEOUT_SECONDS="5"
 export TELEMETRY_REQUEST_TIMEOUT_SECONDS="10"
 export TELEMETRY_OUTBOX_DIR=""
 export TELEMETRY_USER_AGENT="productive-k3s-infra/default"
+export TELEMETRY_BEARER_TOKEN="pk3s_live_infra_test"
+export TELEMETRY_SESSION_ID="session-test-123"
+export TELEMETRY_PARENT_RUN_ID="infra-run-456"
 
 bash "${TEST_SCENARIO_DIR}/scripts/bootstrap-server.sh"
 
 jq -e '
   .TELEMETRY_ENABLED == "true" and
   .TELEMETRY_ENDPOINT == "http://10.162.98.1:18080/ingest" and
+  .TELEMETRY_BEARER_TOKEN == "pk3s_live_infra_test" and
   .TELEMETRY_MAX_RETRIES == "7" and
   .TELEMETRY_CONNECT_TIMEOUT_SECONDS == "11" and
   .TELEMETRY_REQUEST_TIMEOUT_SECONDS == "13" and
   .TELEMETRY_OUTBOX_DIR == "/tmp/telemetry-outbox" and
-  .TELEMETRY_USER_AGENT == "productive-k3s-infra/test"
+  .TELEMETRY_USER_AGENT == "productive-k3s-infra/test" and
+  .TELEMETRY_SESSION_ID == "session-test-123" and
+  .TELEMETRY_PARENT_RUN_ID == "infra-run-456"
 ' "${CAPTURE_FILE}" >/dev/null || {
   echo "[FAIL] telemetry environment was not propagated from cluster metadata" >&2
   cat "${CAPTURE_FILE}" >&2

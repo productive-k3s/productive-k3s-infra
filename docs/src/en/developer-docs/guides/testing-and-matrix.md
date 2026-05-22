@@ -44,9 +44,11 @@ Those artifacts record:
 - scenario
 - level
 - result
+- skip reason when a scenario is intentionally skipped
 - duration
+- aggregate matrix start/end timestamps and total duration in the root summary
 - topology and environment class
-- selected Productive K3S Core source details
+- selected Productive K3S Core source details, preferring the effective resolved values from generated scenario metadata when available
 - anonymous telemetry-related metadata
 
 ## Local review workflow

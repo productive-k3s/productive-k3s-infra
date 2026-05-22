@@ -44,9 +44,11 @@ Esos artefactos registran:
 - escenario
 - nivel
 - resultado
+- motivo de skip cuando un escenario se saltea intencionalmente
 - duración
+- timestamps agregados de inicio/fin de la matriz y duración total en el summary raíz
 - topología y clase de entorno
-- detalles seleccionados de la fuente de Productive K3S Core
+- detalles seleccionados de la fuente de Productive K3S Core, priorizando los valores efectivos resueltos desde metadata generada del escenario cuando exista
 - metadata anónima relacionada con telemetría
 
 ## Flujo local de revisión

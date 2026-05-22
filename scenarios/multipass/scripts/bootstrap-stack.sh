@@ -2,10 +2,19 @@
 set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+COMMAND_NAME="stack-up"
+
+cleanup_telemetry() {
+  local exit_code=$?
+  complete_infra_command_telemetry "${exit_code}" "${COMMAND_NAME}"
+}
+
+trap cleanup_telemetry EXIT
 
 ensure_base_requirements
 ensure_logs_dir
 load_cluster_metadata
+begin_infra_command_telemetry "${COMMAND_NAME}"
 export_resolved_telemetry_env
 
 "${SCRIPT_DIR}/sync-hosts.sh"

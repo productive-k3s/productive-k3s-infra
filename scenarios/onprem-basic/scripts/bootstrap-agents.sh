@@ -6,6 +6,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 ensure_base_requirements
 ensure_logs_dir
 load_cluster_metadata
+export_resolved_telemetry_env
 
 if [[ ! -f "${SERVER_TOKEN_FILE}" ]]; then
   err "missing ${SERVER_TOKEN_FILE}; run bootstrap-server first"

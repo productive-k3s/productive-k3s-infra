@@ -24,12 +24,20 @@ fi
 PRODUCTIVE_K3S_RELEASE_REPO="${PRODUCTIVE_K3S_RELEASE_REPO:-${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT}}"
 TELEMETRY_ENABLED="${TELEMETRY_ENABLED:-}"
 TELEMETRY_ENDPOINT="${TELEMETRY_ENDPOINT:-}"
+TELEMETRY_MARKER="${TELEMETRY_MARKER:-pk3s-public-v1}"
+TELEMETRY_BEARER_TOKEN="${TELEMETRY_BEARER_TOKEN:-}"
 TELEMETRY_MAX_RETRIES="${TELEMETRY_MAX_RETRIES:-3}"
 TELEMETRY_CONNECT_TIMEOUT_SECONDS="${TELEMETRY_CONNECT_TIMEOUT_SECONDS:-5}"
 TELEMETRY_REQUEST_TIMEOUT_SECONDS="${TELEMETRY_REQUEST_TIMEOUT_SECONDS:-10}"
 TELEMETRY_OUTBOX_DIR="${TELEMETRY_OUTBOX_DIR:-}"
 TELEMETRY_USER_AGENT="${TELEMETRY_USER_AGENT:-productive-k3s-infra/multipass}"
+TELEMETRY_SESSION_ID="${TELEMETRY_SESSION_ID:-}"
+TELEMETRY_PARENT_RUN_ID="${TELEMETRY_PARENT_RUN_ID:-}"
+TELEMETRY_COMPONENT="${TELEMETRY_COMPONENT:-infra}"
 TOFU_BIN="${TOFU_BIN:-}"
+MULTIPASS_EXEC_TIMEOUT_SECONDS="${MULTIPASS_EXEC_TIMEOUT_SECONDS:-30}"
+MULTIPASS_EXEC_RETRY_DELAY_SECONDS="${MULTIPASS_EXEC_RETRY_DELAY_SECONDS:-1}"
+MULTIPASS_EXEC_MAX_ATTEMPTS="${MULTIPASS_EXEC_MAX_ATTEMPTS:-3}"
 DEFAULT_REMOTE_DIR="/home/ubuntu/productive-k3s-core"
 MULTIPASS_SSH_USER="${MULTIPASS_SSH_USER:-ubuntu}"
 MULTIPASS_SSH_PORT="${MULTIPASS_SSH_PORT:-22}"
@@ -40,6 +48,10 @@ HOSTS_YML="${GENERATED_DIR}/hosts.yml"
 NODES_ENV="${GENERATED_DIR}/nodes.env"
 SERVER_TOKEN_FILE="${GENERATED_DIR}/server-token.txt"
 SERVER_URL_FILE="${GENERATED_DIR}/server-url.txt"
+INFRA_TELEMETRY_SENDER="${REPO_ROOT}/scripts/send-telemetry-event.sh"
+INFRA_TELEMETRY_RUN_ID=""
+INFRA_TELEMETRY_PARENT_CONTEXT=""
+INFRA_TELEMETRY_COMMAND_NAME=""
 
 log() {
   printf '[INFO] %s\n' "$*"
@@ -51,6 +63,99 @@ warn() {
 
 err() {
   printf '[ERROR] %s\n' "$*" >&2
+}
+
+json_escape() {
+  printf '%s' "$1" | sed \
+    -e 's/\\/\\\\/g' \
+    -e 's/"/\\"/g' \
+    -e ':a;N;$!ba;s/\n/\\n/g' \
+    -e 's/\r/\\r/g' \
+    -e 's/\t/\\t/g'
+}
+
+is_truthy() {
+  case "${1,,}" in
+    1|true|yes|y|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+generate_telemetry_id() {
+  od -An -N8 -tx1 /dev/urandom | tr -d ' \n'
+}
+
+scenario_name() {
+  basename "${SCENARIO_DIR}"
+}
+
+emit_infra_command_telemetry_event() {
+  local event_name="$1"
+  local command_name="$2"
+  local result="$3"
+  local parent_id="$4"
+  local event_file
+
+  event_file="$(mktemp)"
+  {
+    printf '{\n'
+    printf '  "schema_version": "1",\n'
+    printf '  "event_family": "usage",\n'
+    printf '  "event_name": "%s",\n' "$(json_escape "${event_name}")"
+    printf '  "sent_at": "%s",\n' "$(json_escape "$(date -Iseconds)")"
+    printf '  "session_id": "%s",\n' "$(json_escape "${TELEMETRY_SESSION_ID}")"
+    printf '  "run_id": "%s",\n' "$(json_escape "${INFRA_TELEMETRY_RUN_ID}")"
+    printf '  "parent_run_id": "%s",\n' "$(json_escape "${parent_id}")"
+    printf '  "component": "infra",\n'
+    printf '  "command": {\n'
+    printf '    "name": "%s",\n' "$(json_escape "${command_name}")"
+    printf '    "scenario": "%s",\n' "$(json_escape "$(scenario_name)")"
+    printf '    "result": "%s"\n' "$(json_escape "${result}")"
+    printf '  },\n'
+    printf '  "client": {\n'
+    printf '    "repository": "productive-k3s-infra",\n'
+    printf '    "script": "scenario-common.sh",\n'
+    printf '    "telemetry_enabled": "%s"\n' "$(json_escape "${TELEMETRY_ENABLED}")"
+    printf '  },\n'
+    printf '  "telemetry_meta": {\n'
+    printf '    "delivery_mode": "best-effort",\n'
+    printf '    "anonymous_by_contract": true\n'
+    printf '  }\n'
+    printf '}\n'
+  } > "${event_file}"
+
+  TELEMETRY_RUN_ID="${INFRA_TELEMETRY_RUN_ID}" TELEMETRY_MARKER="${TELEMETRY_MARKER}" bash "${INFRA_TELEMETRY_SENDER}" "${event_file}" >/dev/null 2>&1 || true
+  rm -f "${event_file}"
+}
+
+begin_infra_command_telemetry() {
+  local command_name="$1"
+  resolve_telemetry_enabled
+  if ! is_truthy "${TELEMETRY_ENABLED:-false}"; then
+    return 0
+  fi
+  TELEMETRY_SESSION_ID="${TELEMETRY_SESSION_ID:-$(generate_telemetry_id)}"
+  INFRA_TELEMETRY_PARENT_CONTEXT="${TELEMETRY_PARENT_RUN_ID:-}"
+  INFRA_TELEMETRY_RUN_ID="$(generate_telemetry_id)"
+  INFRA_TELEMETRY_COMMAND_NAME="${command_name}"
+  export TELEMETRY_SESSION_ID
+  export TELEMETRY_RUN_ID="${INFRA_TELEMETRY_RUN_ID}"
+  export TELEMETRY_PARENT_RUN_ID="${INFRA_TELEMETRY_RUN_ID}"
+  export TELEMETRY_COMPONENT="infra"
+  emit_infra_command_telemetry_event "infra.command.started" "${command_name}" "started" "${INFRA_TELEMETRY_PARENT_CONTEXT}"
+}
+
+complete_infra_command_telemetry() {
+  local exit_code="$1"
+  local command_name="${2:-${INFRA_TELEMETRY_COMMAND_NAME:-unknown}}"
+  if ! is_truthy "${TELEMETRY_ENABLED:-false}" || [[ -z "${INFRA_TELEMETRY_RUN_ID}" ]]; then
+    return 0
+  fi
+  local result="success"
+  if [[ "${exit_code}" != "0" ]]; then
+    result="failed"
+  fi
+  emit_infra_command_telemetry_event "infra.command.completed" "${command_name}" "${result}" "${INFRA_TELEMETRY_PARENT_CONTEXT}"
 }
 
 need_cmd() {
@@ -67,6 +172,8 @@ ensure_base_requirements() {
   need_cmd curl
   need_cmd sha256sum
   need_cmd ssh-keygen
+  need_cmd ssh
+  need_cmd timeout
 }
 
 ensure_logs_dir() {
@@ -185,6 +292,7 @@ load_cluster_metadata() {
 export_resolved_telemetry_env() {
   export TELEMETRY_ENABLED="${TELEMETRY_ENABLED_RESOLVED}"
   export TELEMETRY_ENDPOINT="${TELEMETRY_ENDPOINT_RESOLVED}"
+  export TELEMETRY_BEARER_TOKEN="${TELEMETRY_BEARER_TOKEN:-}"
   export TELEMETRY_MAX_RETRIES="${TELEMETRY_MAX_RETRIES_RESOLVED}"
   export TELEMETRY_CONNECT_TIMEOUT_SECONDS="${TELEMETRY_CONNECT_TIMEOUT_SECONDS_RESOLVED}"
   export TELEMETRY_REQUEST_TIMEOUT_SECONDS="${TELEMETRY_REQUEST_TIMEOUT_SECONDS_RESOLVED}"
@@ -321,11 +429,112 @@ mp_exec() {
   multipass exec "${name}" -- bash -lc "$*"
 }
 
+mp_exec_with_timeout() {
+  local name="$1"
+  local timeout_seconds="$2"
+  shift 2
+
+  local attempt=1
+  local max_attempts="${MULTIPASS_EXEC_MAX_ATTEMPTS}"
+  local exit_code=0
+
+  while (( attempt <= max_attempts )); do
+    set +e
+    timeout --foreground "${timeout_seconds}s" multipass exec "${name}" -- bash -lc "$*"
+    exit_code=$?
+    set -e
+
+    if [[ "${exit_code}" == "0" ]]; then
+      return 0
+    fi
+
+    if [[ "${exit_code}" != "124" ]]; then
+      return "${exit_code}"
+    fi
+
+    if (( attempt == max_attempts )); then
+      warn "multipass exec timed out after ${timeout_seconds}s (${name}): $*"
+      return "${exit_code}"
+    fi
+
+    warn "multipass exec timed out after ${timeout_seconds}s (${name}), retrying: $*"
+    sleep "${MULTIPASS_EXEC_RETRY_DELAY_SECONDS}"
+    attempt=$((attempt + 1))
+  done
+
+  return "${exit_code}"
+}
+
 mp_transfer_to() {
   local source="$1"
   local target_instance="$2"
   local target_path="$3"
   multipass transfer "${source}" "${target_instance}:${target_path}"
+}
+
+ssh_args_array() {
+  local out_name="$1"
+  local -n out_ref="${out_name}"
+  out_ref=(
+    -o BatchMode=yes
+    -o StrictHostKeyChecking=accept-new
+    -o ConnectTimeout=10
+    -p "${SSH_PORT}"
+  )
+  if [[ -n "${SSH_KEY_PATH:-}" ]]; then
+    out_ref+=(-i "${SSH_KEY_PATH}")
+  fi
+}
+
+ssh_target() {
+  local ip="$1"
+  printf '%s@%s' "${SSH_USER}" "${ip}"
+}
+
+ssh_exec() {
+  local ip="$1"
+  local script="$2"
+  local ssh_args=()
+  ssh_args_array ssh_args
+  ssh "${ssh_args[@]}" "$(ssh_target "${ip}")" "bash -lc $(printf '%q' "${script}")"
+}
+
+ssh_exec_with_timeout() {
+  local ip="$1"
+  local timeout_seconds="$2"
+  local script="$3"
+
+  local attempt=1
+  local max_attempts="${MULTIPASS_EXEC_MAX_ATTEMPTS}"
+  local exit_code=0
+  local ssh_args=()
+
+  while (( attempt <= max_attempts )); do
+    ssh_args_array ssh_args
+    set +e
+    timeout --foreground "${timeout_seconds}s" ssh "${ssh_args[@]}" "$(ssh_target "${ip}")" "bash -lc $(printf '%q' "${script}")"
+    exit_code=$?
+    set -e
+
+    if [[ "${exit_code}" == "0" ]]; then
+      return 0
+    fi
+
+    if [[ "${exit_code}" != "124" ]]; then
+      return "${exit_code}"
+    fi
+
+    if (( attempt == max_attempts )); then
+      warn "ssh exec timed out after ${timeout_seconds}s (${ip}): ${script}"
+      return "${exit_code}"
+    fi
+
+    warn "ssh exec timed out after ${timeout_seconds}s (${ip}), retrying: ${script}"
+    sleep "${MULTIPASS_EXEC_RETRY_DELAY_SECONDS}"
+    attempt=$((attempt + 1))
+  done
+
+  return "${exit_code}"
 }
 
 ensure_multipass_ssh_key_pair() {

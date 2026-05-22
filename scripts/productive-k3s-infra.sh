@@ -17,12 +17,118 @@ MAKE_BIN="${PRODUCTIVE_K3S_INFRA_MAKE_BIN:-make}"
 TOFU_BIN="${PRODUCTIVE_K3S_INFRA_TOFU_BIN:-}"
 VERSION="${PRODUCTIVE_K3S_INFRA_VERSION:-${PK3S_INFRA_RELEASE_TAG:-dev}}"
 PROFILES_DIR="${REPO_DIR}/profiles"
+TELEMETRY_EVENT_SENDER="${SCRIPT_DIR}/send-telemetry-event.sh"
+TELEMETRY_MARKER="${TELEMETRY_MARKER:-pk3s-public-v1}"
 
 PROFILE_PATH=""
 GLOBAL_DEBUG=0
 GLOBAL_YES=0
 GLOBAL_DRY_RUN=0
 GLOBAL_JSON=0
+
+can_use_tty() {
+  [[ -t 0 && -t 1 ]]
+}
+
+prompt_yesno() {
+  local var="$1" default="$2" msg="$3"
+  local answer
+  if can_use_tty; then
+    printf '%s [%s]: ' "$msg" "$default" > /dev/tty
+    IFS= read -r answer < /dev/tty
+  else
+    answer="$default"
+  fi
+  answer="${answer:-$default}"
+  printf -v "$var" '%s' "$answer"
+}
+
+resolve_telemetry_enabled() {
+  if [[ -n "${TELEMETRY_ENABLED:-}" ]]; then
+    return 0
+  fi
+
+  if can_use_tty; then
+    local telemetry_consent="y"
+    prompt_yesno telemetry_consent "y" "Productive K3S Infra can send anonymous telemetry about this run to help improve the installation flow. It does not include any sensitive information like hostnames or other environment-specific identifiers. If enabled, this choice will also be propagated to the underlying productive-k3s bootstrap steps. Enable anonymous telemetry for this run?"
+    if [[ "${telemetry_consent}" == "y" ]]; then
+      TELEMETRY_ENABLED="true"
+    else
+      TELEMETRY_ENABLED="false"
+    fi
+    export TELEMETRY_ENABLED
+    return 0
+  fi
+
+  TELEMETRY_ENABLED="false"
+  export TELEMETRY_ENABLED
+}
+
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|y|Y|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+generate_telemetry_id() {
+  od -An -N8 -tx1 /dev/urandom | tr -d ' \n'
+}
+
+json_escape() {
+  printf '%s' "$1" | sed \
+    -e 's/\\/\\\\/g' \
+    -e 's/"/\\"/g' \
+    -e ':a;N;$!ba;s/\n/\\n/g' \
+    -e 's/\r/\\r/g' \
+    -e 's/\t/\\t/g'
+}
+
+prepare_telemetry_context() {
+  resolve_telemetry_enabled
+  export TELEMETRY_SESSION_ID="${TELEMETRY_SESSION_ID:-$(generate_telemetry_id)}"
+  export TELEMETRY_RUN_ID="${TELEMETRY_RUN_ID:-$(generate_telemetry_id)}"
+  export TELEMETRY_COMPONENT="infra"
+}
+
+write_generic_telemetry_event() {
+  local event_name="$1"
+  local command_name="$2"
+  local result="$3"
+  local scenario_name="$4"
+  local event_file
+
+  event_file="$(mktemp)"
+  {
+    printf '{\n'
+    printf '  "schema_version": "1",\n'
+    printf '  "event_family": "usage",\n'
+    printf '  "event_name": "%s",\n' "$(json_escape "${event_name}")"
+    printf '  "sent_at": "%s",\n' "$(json_escape "$(date -Iseconds)")"
+    printf '  "session_id": "%s",\n' "$(json_escape "${TELEMETRY_SESSION_ID}")"
+    printf '  "run_id": "%s",\n' "$(json_escape "${TELEMETRY_RUN_ID}")"
+    printf '  "parent_run_id": "%s",\n' "$(json_escape "${TELEMETRY_PARENT_RUN_ID:-}")"
+    printf '  "component": "infra",\n'
+    printf '  "command": {\n'
+    printf '    "name": "%s",\n' "$(json_escape "${command_name}")"
+    printf '    "scenario": "%s",\n' "$(json_escape "${scenario_name}")"
+    printf '    "result": "%s"\n' "$(json_escape "${result}")"
+    printf '  },\n'
+    printf '  "client": {\n'
+    printf '    "repository": "productive-k3s-infra",\n'
+    printf '    "script": "scripts/productive-k3s-infra.sh",\n'
+    printf '    "telemetry_enabled": "%s"\n' "$(json_escape "${TELEMETRY_ENABLED}")"
+    printf '  },\n'
+    printf '  "telemetry_meta": {\n'
+    printf '    "delivery_mode": "best-effort",\n'
+    printf '    "anonymous_by_contract": true\n'
+    printf '  }\n'
+    printf '}\n'
+  } > "${event_file}"
+
+  TELEMETRY_RUN_ID="${TELEMETRY_RUN_ID}" TELEMETRY_MARKER="${TELEMETRY_MARKER}" bash "${TELEMETRY_EVENT_SENDER}" "${event_file}" >/dev/null 2>&1 || true
+  rm -f "${event_file}"
+}
 
 usage() {
   cat <<'EOF'
@@ -283,7 +389,7 @@ run_opentofu_plan() {
   resolved_tofu="$(resolve_tofu_bin)" || die 5 "missing dependency: tofu or terraform"
   log "INFO" "Running OpenTofu plan in ${opentofu_dir}"
   "${resolved_tofu}" -chdir="${opentofu_dir}" init -backend=false
-  exec "${resolved_tofu}" -chdir="${opentofu_dir}" plan
+  "${resolved_tofu}" -chdir="${opentofu_dir}" plan
 }
 
 run_profile_doctor() {
@@ -352,9 +458,11 @@ profile_command_dispatch() {
         log "INFO" "Plan mode delegates to 'make -n' for the current remote backend contract"
         env_file_var="$(profile_env_var_name "${PK3S_INFRA_SCENARIO}")"
         if [[ -n "${env_file_var}" ]]; then
-          exec env "${env_file_var}=${profile}" "${MAKE_BIN}" -n -C "${scenario_dir}" "${target}"
+          env "${env_file_var}=${profile}" "${MAKE_BIN}" -n -C "${scenario_dir}" "${target}"
+          return $?
         fi
-        exec "${MAKE_BIN}" -n -C "${scenario_dir}" "${target}"
+        "${MAKE_BIN}" -n -C "${scenario_dir}" "${target}"
+        return $?
         ;;
     esac
   fi
@@ -364,10 +472,14 @@ profile_command_dispatch() {
   fi
 
   env_file_var="$(profile_env_var_name "${PK3S_INFRA_SCENARIO}")"
+  export TELEMETRY_PARENT_RUN_ID="${TELEMETRY_RUN_ID:-}"
+  export TELEMETRY_RUN_ID=""
+  export TELEMETRY_COMPONENT="infra"
   if [[ -n "${env_file_var}" ]]; then
-    exec env "${env_file_var}=${profile}" "${MAKE_BIN}" -C "${scenario_dir}" "${target}"
+    env "${env_file_var}=${profile}" "${MAKE_BIN}" -C "${scenario_dir}" "${target}"
+    return $?
   fi
-  exec "${MAKE_BIN}" -C "${scenario_dir}" "${target}"
+  "${MAKE_BIN}" -C "${scenario_dir}" "${target}"
 }
 
 legacy_dispatch() {
@@ -384,7 +496,10 @@ legacy_dispatch() {
   local scenario_dir="${REPO_DIR}/scenarios/${scenario}"
   [[ -d "${scenario_dir}" ]] || die 1 "scenario directory not found: ${scenario_dir}"
 
-  exec "${MAKE_BIN}" -C "${scenario_dir}" "${command}" "$@"
+  export TELEMETRY_PARENT_RUN_ID="${TELEMETRY_RUN_ID:-}"
+  export TELEMETRY_RUN_ID=""
+  export TELEMETRY_COMPONENT="infra"
+  "${MAKE_BIN}" -C "${scenario_dir}" "${command}" "$@"
 }
 
 run_doctor() {
@@ -455,6 +570,19 @@ if [[ "${GLOBAL_DEBUG}" -eq 1 ]]; then
 fi
 
 COMMAND="${1:-help}"
+RC=0
+TELEMETRY_SCENARIO="${PK3S_INFRA_SCENARIO:-}"
+if [[ "${COMMAND}" != "help" && "${COMMAND}" != "-h" && "${COMMAND}" != "--help" && "${COMMAND}" != "version" && "${COMMAND}" != "bundle" ]]; then
+  prepare_telemetry_context
+  if [[ -n "${PROFILE_PATH}" && -f "${PROFILE_PATH}" ]]; then
+    source_profile "${PROFILE_PATH}"
+    TELEMETRY_SCENARIO="${PK3S_INFRA_SCENARIO:-}"
+  fi
+  if is_truthy "${TELEMETRY_ENABLED:-false}"; then
+    write_generic_telemetry_event "infra.command.started" "${COMMAND}" "started" "${TELEMETRY_SCENARIO}"
+  fi
+fi
+
 case "${COMMAND}" in
   -h|--help|help)
     usage
@@ -472,23 +600,34 @@ case "${COMMAND}" in
     render_bundle_info_json
     ;;
   doctor)
-    run_doctor
+    run_doctor || RC=$?
     ;;
   list-profiles)
-    run_list_profiles
+    run_list_profiles || RC=$?
     ;;
   validate-profile)
     [[ -n "${PROFILE_PATH}" ]] || die 3 "the '${COMMAND}' command requires --profile <file>"
-    run_validate_profile_only "${PROFILE_PATH}"
+    run_validate_profile_only "${PROFILE_PATH}" || RC=$?
     ;;
   validate|plan|apply|destroy|status)
     [[ -n "${PROFILE_PATH}" ]] || die 3 "the '${COMMAND}' command requires --profile <file>"
-    profile_command_dispatch "${COMMAND}" "${PROFILE_PATH}"
+    profile_command_dispatch "${COMMAND}" "${PROFILE_PATH}" || RC=$?
     ;;
   multipass|onprem|onprem-basic|on-prem|aws-single-node)
-    legacy_dispatch "$@"
+    TELEMETRY_SCENARIO="$(resolve_scenario "${COMMAND}")"
+    legacy_dispatch "$@" || RC=$?
     ;;
   *)
     die 2 "unsupported command: ${COMMAND}"
     ;;
 esac
+
+if [[ "${COMMAND}" != "help" && "${COMMAND}" != "-h" && "${COMMAND}" != "--help" && "${COMMAND}" != "version" && "${COMMAND}" != "bundle" ]] && is_truthy "${TELEMETRY_ENABLED:-false}"; then
+  if (( RC == 0 )); then
+    write_generic_telemetry_event "infra.command.completed" "${COMMAND}" "success" "${TELEMETRY_SCENARIO}"
+  else
+    write_generic_telemetry_event "infra.command.completed" "${COMMAND}" "failed" "${TELEMETRY_SCENARIO}"
+  fi
+fi
+
+exit "${RC}"

@@ -2,9 +2,18 @@
 set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+COMMAND_NAME="validate"
+
+cleanup_telemetry() {
+  local exit_code=$?
+  complete_infra_command_telemetry "${exit_code}" "${COMMAND_NAME}"
+}
+
+trap cleanup_telemetry EXIT
 
 ensure_base_requirements
 load_cluster_metadata
+begin_infra_command_telemetry "${COMMAND_NAME}"
 
 fail() {
   printf '[FAIL] %s\n' "$1" >&2

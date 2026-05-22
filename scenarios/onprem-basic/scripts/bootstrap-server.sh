@@ -6,6 +6,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 ensure_base_requirements
 ensure_logs_dir
 load_cluster_metadata
+export_resolved_telemetry_env
 export PRODUCTIVE_K3S_SSH_HOST="${SERVER_IP}"
 export PRODUCTIVE_K3S_SSH_USER="${ONPREM_SSH_USER}"
 export PRODUCTIVE_K3S_SSH_PORT="${ONPREM_SSH_PORT}"

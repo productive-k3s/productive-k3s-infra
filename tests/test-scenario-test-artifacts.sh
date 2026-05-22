@@ -30,7 +30,7 @@ test-live:
 	@printf '[PASS] demo live test completed\n'
 
 test-live-skip:
-	@printf '[SKIP] demo live test skipped\n'
+	@printf '[SKIP] missing AWS credentials for demo live test\n'
 	@exit 3
 EOF
 
@@ -57,5 +57,8 @@ set -e
 
 [[ "${skip_rc}" -eq 0 ]] || fail "direct scenario skip should not fail the wrapper"
 assert_contains "${skip_output}" "[SKIP] demo test-live-skip"
+skip_manifest="$(find "${ARTIFACTS_DIR}/infra-runs" -maxdepth 1 -type f -name '*-demo-*.json' | sort | tail -n 1)"
+skip_reason="$(jq -r '.skip_reason // empty' "${skip_manifest}")"
+[[ "${skip_reason}" == "missing AWS credentials for demo live test" ]] || fail "expected skip_reason in scenario artifact"
 
 printf '[PASS] direct scenario test runs emit artifacts consumable by checkstatus\n'

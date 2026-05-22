@@ -1,3 +1,4 @@
+runs/
 .codex
 docs/superpowers/
 superpowers/
@@ -19,6 +20,7 @@ docs/src/assets/images/favicon.ico
 .live-onprem-basic-github-host.*/
 scenarios/*/generated/
 test-artifacts/
+.wrangler/
 
 # Terraform/OpenTofu
 .terraform/

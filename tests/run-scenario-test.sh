@@ -66,6 +66,56 @@ telemetry_endpoint_configured_json() {
   fi
 }
 
+json_bool() {
+  if [[ "${1:-false}" == "true" ]]; then
+    printf 'true'
+  else
+    printf 'false'
+  fi
+}
+
+extract_skip_reason() {
+  local log_path="$1"
+  local skip_line
+  skip_line="$(grep -m1 '^\[SKIP\]' "${log_path}" 2>/dev/null || true)"
+  if [[ -z "${skip_line}" ]]; then
+    return 0
+  fi
+
+  skip_line="${skip_line#\[SKIP\] }"
+  if [[ "${skip_line}" == "${SCENARIO} ${TARGET}"* ]]; then
+    skip_line="${skip_line#${SCENARIO} ${TARGET}}"
+    skip_line="${skip_line#[: -]}"
+    skip_line="${skip_line# }"
+  fi
+  skip_line="$(printf '%s' "${skip_line}" | tr -d '\r')"
+
+  printf '%s' "${skip_line}"
+}
+
+resolve_effective_productive_k3s_metadata() {
+  local cluster_json="${SCENARIO_DIR}/generated/cluster.json"
+
+  EFFECTIVE_PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE:-}"
+  EFFECTIVE_PRODUCTIVE_K3S_VERSION="${PRODUCTIVE_K3S_VERSION:-}"
+  EFFECTIVE_PRODUCTIVE_K3S_RELEASE_REPO="${PRODUCTIVE_K3S_RELEASE_REPO:-jemacchi/productive-k3s-core}"
+  EFFECTIVE_PRODUCTIVE_K3S_ENGINE="${PRODUCTIVE_K3S_ENGINE:-native}"
+  EFFECTIVE_PRODUCTIVE_K3S_FROM_CLUSTER_JSON="false"
+
+  if [[ -f "${cluster_json}" ]]; then
+    EFFECTIVE_PRODUCTIVE_K3S_SOURCE="$(jq -r '.productive_k3s.source // empty' "${cluster_json}")"
+    EFFECTIVE_PRODUCTIVE_K3S_VERSION="$(jq -r '.productive_k3s.version // empty' "${cluster_json}")"
+    EFFECTIVE_PRODUCTIVE_K3S_RELEASE_REPO="$(jq -r '.productive_k3s.release_repo // empty' "${cluster_json}")"
+    EFFECTIVE_PRODUCTIVE_K3S_ENGINE="$(jq -r '.productive_k3s.engine // empty' "${cluster_json}")"
+    EFFECTIVE_PRODUCTIVE_K3S_FROM_CLUSTER_JSON="true"
+  fi
+
+  EFFECTIVE_PRODUCTIVE_K3S_SOURCE="${EFFECTIVE_PRODUCTIVE_K3S_SOURCE:-default}"
+  EFFECTIVE_PRODUCTIVE_K3S_VERSION="${EFFECTIVE_PRODUCTIVE_K3S_VERSION:-unspecified}"
+  EFFECTIVE_PRODUCTIVE_K3S_RELEASE_REPO="${EFFECTIVE_PRODUCTIVE_K3S_RELEASE_REPO:-jemacchi/productive-k3s-core}"
+  EFFECTIVE_PRODUCTIVE_K3S_ENGINE="${EFFECTIVE_PRODUCTIVE_K3S_ENGINE:-native}"
+}
+
 scenario_metadata() {
   case "${SCENARIO}:${LEVEL}" in
     multipass:*)
@@ -112,12 +162,10 @@ write_run_manifest() {
   local finished_at="$3"
   local duration_seconds="$4"
   local output_file="$5"
-  local source_mode="${PRODUCTIVE_K3S_SOURCE:-}"
-  local source_version="${PRODUCTIVE_K3S_VERSION:-}"
-  local release_repo="${PRODUCTIVE_K3S_RELEASE_REPO:-jemacchi/productive-k3s-core}"
-  local engine_mode="${PRODUCTIVE_K3S_ENGINE:-native}"
+  local skip_reason="${6:-}"
 
   scenario_metadata
+  resolve_effective_productive_k3s_metadata
 
   mkdir -p "${RUNS_DIR}"
   {
@@ -132,11 +180,15 @@ write_run_manifest() {
     printf '  "started_at": "%s",\n' "$(json_escape "${started_at}")"
     printf '  "finished_at": "%s",\n' "$(json_escape "${finished_at}")"
     printf '  "duration_seconds": %s,\n' "${duration_seconds}"
+    if [[ -n "${skip_reason}" ]]; then
+      printf '  "skip_reason": "%s",\n' "$(json_escape "${skip_reason}")"
+    fi
     printf '  "productive_k3s": {\n'
-    printf '    "source": "%s",\n' "$(json_escape "${source_mode:-default}")"
-    printf '    "version": "%s",\n' "$(json_escape "${source_version:-unspecified}")"
-    printf '    "release_repo": "%s",\n' "$(json_escape "${release_repo}")"
-    printf '    "engine": "%s"\n' "$(json_escape "${engine_mode}")"
+    printf '    "source": "%s",\n' "$(json_escape "${EFFECTIVE_PRODUCTIVE_K3S_SOURCE}")"
+    printf '    "version": "%s",\n' "$(json_escape "${EFFECTIVE_PRODUCTIVE_K3S_VERSION}")"
+    printf '    "release_repo": "%s",\n' "$(json_escape "${EFFECTIVE_PRODUCTIVE_K3S_RELEASE_REPO}")"
+    printf '    "engine": "%s",\n' "$(json_escape "${EFFECTIVE_PRODUCTIVE_K3S_ENGINE}")"
+    printf '    "resolved_from_cluster_json": %s\n' "$(json_bool "${EFFECTIVE_PRODUCTIVE_K3S_FROM_CLUSTER_JSON}")"
     printf '  },\n'
     printf '  "installation": {\n'
     printf '    "environment": "%s",\n' "$(json_escape "${ENVIRONMENT}")"
@@ -205,7 +257,8 @@ if [[ "${rc}" == "0" ]]; then
 fi
 
 if [[ "${rc}" == "3" ]] || grep -q '^\[SKIP\]' "${log_file}"; then
-  write_run_manifest "skip" "${started_at}" "${finished_at}" "${duration_seconds}" "${manifest_file}"
+  skip_reason="$(extract_skip_reason "${log_file}")"
+  write_run_manifest "skip" "${started_at}" "${finished_at}" "${duration_seconds}" "${manifest_file}" "${skip_reason}"
   printf '[SKIP] %s %s\n' "${SCENARIO}" "${TARGET}"
   if [[ "${LEVEL}" != "live" ]]; then
     cat "${log_file}"

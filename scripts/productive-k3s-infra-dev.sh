@@ -22,6 +22,7 @@ Development commands:
   test-checkstatus
   test-static
   test-contract
+  test-telemetry
   test-live
   test-live-gha-onprem
   test-k3s-engine-propagation
@@ -33,6 +34,12 @@ if (($# == 0)); then
   usage >&2
   exit 1
 fi
+
+default_test_telemetry_disabled() {
+  if [[ -z "${TELEMETRY_ENABLED:-}" ]]; then
+    export TELEMETRY_ENABLED="false"
+  fi
+}
 
 COMMAND="$1"
 shift || true
@@ -60,8 +67,10 @@ case "$COMMAND" in
     exec bash "${TESTS_DIR}/check-test-status.sh" "$@"
     ;;
   test-static)
+    default_test_telemetry_disabled
     "${TESTS_DIR}/run-matrix.sh" static ${SCENARIOS}
     bash "${TESTS_DIR}/test-artifact-tools.sh"
+    bash "${TESTS_DIR}/test-matrix-artifacts.sh"
     bash "${TESTS_DIR}/test-k3s-engine-artifacts.sh"
     bash "${TESTS_DIR}/test-scenario-test-artifacts.sh"
     bash "${TESTS_DIR}/test-scripts-executable.sh"
@@ -78,12 +87,20 @@ case "$COMMAND" in
     bash "${TESTS_DIR}/test-live-multipass-cleanup-timeout.sh"
     bash "${TESTS_DIR}/test-live-onprem-basic-noninteractive.sh"
     bash "${TESTS_DIR}/test-live-onprem-basic-cleanup-timeout.sh"
+    bash "${TESTS_DIR}/test-multipass-exec-timeout-retry.sh"
     exec bash -n "${TESTS_DIR}/live-onprem-basic-github-host.sh"
     ;;
   test-contract)
+    default_test_telemetry_disabled
     exec "${TESTS_DIR}/run-matrix.sh" contract ${SCENARIOS}
     ;;
+  test-telemetry)
+    bash "${TESTS_DIR}/test-multipass-telemetry-propagation.sh"
+    bash "${TESTS_DIR}/test-multipass-infra-command-telemetry.sh"
+    exec bash "${TESTS_DIR}/test-remote-cluster-up-preserves-telemetry.sh"
+    ;;
   test-live)
+    default_test_telemetry_disabled
     exec "${TESTS_DIR}/run-matrix.sh" live ${SCENARIOS}
     ;;
   test-live-gha-onprem)
