@@ -42,6 +42,13 @@ jobs:
         with:
           tofu_wrapper: false
 
+      - name: Install Multipass
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo snap install multipass
+          multipass version
+
       - name: Run static checks
         working-directory: productive-k3s-infra
         run: make test-static
@@ -86,6 +93,13 @@ jobs:
           ref: main
           path: productive-k3s-core
           fetch-depth: 0
+
+      - name: Install Multipass
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo snap install multipass
+          multipass version
 
       - name: Run GitHub-host on-prem live test
         working-directory: productive-k3s-infra
