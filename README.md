@@ -36,7 +36,8 @@ For local operator convenience, the root `Makefile` now also exposes:
 - `make infra-validate-profile PROFILE=profiles/on-prem/basic.env`
 - `make infra-validate PROFILE=profiles/on-prem/basic.env`
 - `make infra-apply PROFILE=profiles/multipass/1-server-2-agents.env`
-- scenario shortcuts such as `make multipass`, `make onprem`, and `make aws-single-node` for direct scenario-oriented workflows
+- generic scenario dispatch such as `make scenario-up SCENARIO=aws-single-node`
+- scenario shortcuts such as `make multipass`, `make onprem`, and `make aws-single-node` for direct `up` workflows
 
 ## Documentation
 

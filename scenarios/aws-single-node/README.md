@@ -1,43 +1,65 @@
 # AWS Single-Node Scenario
 
-This scenario provisions a basic AWS `EC2` instance with `OpenTofu`, then bootstraps `productive-k3s-core` onto it over `SSH`.
+`aws-single-node` is the simplest public AWS path in this repository.
 
-It is the public AWS entry point of this repository: one machine, one cluster, one control path. The goal is to make evaluation easy, not to model a hardened production AWS layout.
+It creates one public `EC2` instance with `OpenTofu`, bootstraps `productive-k3s-core` over `SSH`, and leaves you with a working single-node cluster that exposes Rancher and the in-cluster registry.
 
-Its post-provision bootstrap path reuses the same remote cluster layer under `ansible/roles/remote_cluster` that `onprem-basic` also consumes, so the `SSH`, bundle copy, bootstrap phases, and validation logic stay aligned across both scenarios.
+This scenario is intentionally simple. It is for validation and operator testing, not as a hardened production AWS reference architecture.
 
-## What This Scenario Does
+## Quick Start
 
-`aws-single-node` is meant for a simple public cloud validation flow:
+1. Copy the example env file:
 
-- create a single `EC2` instance
-- create a basic security group that exposes `22`, `80`, `443`, and `6443`
-- use either the default `VPC` path or an explicitly provided `VPC/Subnet`
-- resolve a public Ubuntu `24.04` LTS AMI unless an explicit AMI id is provided
-- copy a `productive-k3s-core` bundle from a local checkout or a published GitHub Release
-- run `productive-k3s-core` in `server` mode and then `stack` mode on the same node
-- validate that the resulting single-node cluster is reachable and the shared stack is working
-
-## Structure
-
-```text
-scenarios/aws-single-node/
-  Makefile
-  README.md
-  after-provisioning.md
-  aws.env.example
-  generated/
-  opentofu/
-  scripts/
+```bash
+cp scenarios/aws-single-node/aws.env.example scenarios/aws-single-node/aws.env
 ```
 
-Generated files:
+2. Fill at least these values in `scenarios/aws-single-node/aws.env`:
 
-- `generated/cluster.json`: resolved public IP, SSH settings, Rancher/registry hostnames, and AWS metadata
-- `generated/hosts.yml`: inventory-style view of the single node
-- `generated/tofu-outputs.json`: raw `OpenTofu` outputs used to render local metadata
+- `AWS_REGION`
+- `AWS_PROFILE` or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`
+- `AWS_KEY_PAIR_NAME`
+- `AWS_SSH_KEY_PATH`
 
-## Prerequisites
+3. Run the scenario:
+
+```bash
+make aws-single-node
+```
+
+4. Inspect the generated metadata:
+
+```bash
+make scenario-status SCENARIO=aws-single-node
+```
+
+5. Tear it down when you finish:
+
+```bash
+make scenario-down SCENARIO=aws-single-node
+```
+
+## Recommended Commands
+
+The root `Makefile` exposes a generic scenario entrypoint:
+
+```bash
+make scenario-up SCENARIO=aws-single-node
+make scenario-status SCENARIO=aws-single-node
+make scenario-down SCENARIO=aws-single-node
+make scenario-infra-up SCENARIO=aws-single-node
+make scenario-infra-down SCENARIO=aws-single-node
+```
+
+There is also a short alias for the common `up` case:
+
+```bash
+make aws-single-node
+```
+
+Use the generic form in documentation, scripts, and CI. Use the short alias when you just want to run the scenario manually.
+
+## What You Need
 
 Required on the control machine:
 
@@ -54,132 +76,131 @@ Required on the control machine:
 
 Required in AWS:
 
-- valid AWS credentials available to `OpenTofu`
-- an existing AWS `EC2` key pair name
-- the matching private key available on the control machine
-- permission to create `EC2`, `security groups`, and use a `VPC/Subnet`
+- valid AWS credentials
+- an existing EC2 key pair
+- the matching `.pem` file on your machine
+- permissions to create and destroy `EC2`, `security groups`, and related networking resources
 
-## Configuration
+## Files In This Scenario
 
-Copy the example file:
+```text
+scenarios/aws-single-node/
+  README.md
+  aws.env.example
+  aws-env-guide.md
+  aws-credentials-guide.md
+  after-provisioning.md
+  Makefile
+  opentofu/
+  scripts/
+  generated/
+```
+
+Useful generated files:
+
+- `generated/cluster.json`: public IP, hostnames, SSH settings, and AWS metadata
+- `generated/hosts.yml`: inventory-style host view
+- `generated/tofu-outputs.json`: raw `OpenTofu` outputs
+
+## Fill `aws.env`
+
+The minimum working configuration is small, but you should fill it carefully.
+
+Start here:
+
+- [aws.env.example](./aws.env.example)
+- [AWS env guide](./aws-env-guide.md)
+- [AWS credentials and key pair guide](./aws-credentials-guide.md)
+
+At minimum, review:
+
+- authentication method
+- AWS region
+- EC2 key pair name
+- local path to the `.pem`
+- allowed CIDRs for `22`, `80`, `443`, and `6443`
+
+## Typical Manual Flow
+
+If you want the shortest practical operator flow:
 
 ```bash
 cp scenarios/aws-single-node/aws.env.example scenarios/aws-single-node/aws.env
+$EDITOR scenarios/aws-single-node/aws.env
+make aws-single-node
+make scenario-status SCENARIO=aws-single-node
+make scenario-down SCENARIO=aws-single-node
 ```
 
-Then edit `aws.env`.
+## What `up` Does
 
-Minimum required variables:
+`make scenario-up SCENARIO=aws-single-node` performs these phases:
 
-- `AWS_REGION`
-- `AWS_KEY_PAIR_NAME`
-- `AWS_SSH_KEY_PATH`
+1. Initializes `OpenTofu`.
+2. Creates the `EC2` instance and security group.
+3. Renders local metadata into `generated/`.
+4. Validates remote reachability and platform support.
+5. Copies `productive-k3s-core` from a local checkout or a published release.
+6. Runs the remote `server` bootstrap on the same node.
+7. Synchronizes Rancher and registry host aliases inside the instance.
+8. Runs the remote `stack` bootstrap on the same node.
+9. Validates nodes, ingress, and storage behavior.
 
-Common variables:
+## What You Should Expect After `up`
 
-- `AWS_CLUSTER_NAME`
-- `AWS_INSTANCE_TYPE`
-- `AWS_ROOT_VOLUME_SIZE_GB`
-- `AWS_SSH_ALLOWED_CIDR`
-- `AWS_HTTP_ALLOWED_CIDR`
-- `AWS_API_ALLOWED_CIDR`
-- `AWS_AMI_ID`
-- `AWS_VPC_ID`
-- `AWS_SUBNET_ID`
-- `AWS_BASE_DOMAIN`
-- `AWS_RANCHER_HOST`
-- `AWS_REGISTRY_HOST`
-- `AWS_REMOTE_DIR`
-- `PRODUCTIVE_K3S_SOURCE=local|remote`
-- `PRODUCTIVE_K3S_VERSION=X.Y.Z`
+When the scenario finishes successfully:
 
-When this scenario is executed through a published `productive-k3s-infra-cli.sh` release, the CLI already forces `PRODUCTIVE_K3S_SOURCE=remote` and binds `PRODUCTIVE_K3S_VERSION` to the `A.B.C` segment of the infra release tag `X.Y.Z-A.B.C`.
+- AWS shows one `EC2` instance created for the scenario
+- Rancher is reachable on `https://<rancher-host>`
+- the registry is reachable on `https://<registry-host>`
+- `generated/cluster.json` contains the public IP and connection metadata
 
-Authentication variables can be supplied through the same `aws.env` file:
+The post-provision usage flow is documented in:
 
-- `AWS_PROFILE`
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `AWS_SESSION_TOKEN`
+- [After provisioning](./after-provisioning.md)
 
-## Network Model
+## Useful Variants
 
-This scenario supports two simple network inputs:
+Provision only the AWS infrastructure:
 
-- leave both `AWS_VPC_ID` and `AWS_SUBNET_ID` empty to use the default `VPC` path
-- set both `AWS_VPC_ID` and `AWS_SUBNET_ID` to target an existing network explicitly
+```bash
+make scenario-infra-up SCENARIO=aws-single-node
+```
 
-Setting only one of them is rejected before apply.
-
-## Usage
-
-Initialize and provision only the infrastructure:
+Run directly inside the scenario directory if you need lower-level control:
 
 ```bash
 make -C scenarios/aws-single-node infra-up
+make -C scenarios/aws-single-node validate
+make -C scenarios/aws-single-node clean
 ```
 
-Run the full cluster path:
+Use the local checkout of `productive-k3s-core` instead of a remote release:
 
 ```bash
-make -C scenarios/aws-single-node up
+make scenario-up SCENARIO=aws-single-node PRODUCTIVE_K3S_SOURCE=local
 ```
 
-Run the full cluster path using the latest remote release:
+Use a remote release explicitly:
 
 ```bash
-make -C scenarios/aws-single-node up PRODUCTIVE_K3S_SOURCE=remote
+make scenario-up SCENARIO=aws-single-node PRODUCTIVE_K3S_SOURCE=remote PRODUCTIVE_K3S_VERSION=0.9.1
 ```
 
-Run the full cluster path using a pinned release:
+## Network Model
 
-```bash
-make -C scenarios/aws-single-node up PRODUCTIVE_K3S_SOURCE=remote PRODUCTIVE_K3S_VERSION=0.9.1
-```
+This scenario supports two simple network modes:
 
-Inspect the resolved metadata:
+- leave both `AWS_VPC_ID` and `AWS_SUBNET_ID` empty to use the default VPC path
+- set both to target an existing VPC and subnet explicitly
 
-```bash
-make -C scenarios/aws-single-node status
-```
-
-Destroy the AWS resources and clean local generated files:
-
-```bash
-make -C scenarios/aws-single-node down
-```
-
-## After Provisioning
-
-Once `make up` and `make validate` pass, you have a working cluster on the EC2 instance that `OpenTofu` created.
-
-For a concrete example, see `after-provisioning.md`. It shows how to:
-
-- connect to the instance over `SSH`
-- verify the `single-node` cluster from the server host
-- access `Rancher` from the control machine
-- deploy a public Helm chart and reach it through the public instance IP
-
-That document is only an example workflow, but it is the practical proof that the provisioned infrastructure behaves like a usable cluster.
-
-## Execution Flow
-
-`make up` performs these phases:
-
-1. Initialize `OpenTofu` and create the EC2 instance plus security group.
-2. Pull `OpenTofu` outputs into local generated metadata.
-3. Validate `SSH`, `sudo`, `systemd`, and the supported Ubuntu/Debian matrix through the shared remote bootstrap flow.
-4. Copy a `productive-k3s-core` bundle to the instance.
-5. Run `productive-k3s-core` in `server` mode on the same node.
-6. Synchronize Rancher and registry host aliases locally on the instance.
-7. Run `productive-k3s-core` in `stack` mode on the same node.
-8. Validate nodes, shared services, ingress, and default storage.
+Setting only one of them is invalid.
 
 ## Notes
 
-- This scenario is intentionally public and basic; it uses `SSH`, not `SSM`.
+- This path uses public `SSH`, not `SSM`.
 - It creates a single-node cluster only.
-- The security group is deliberately simple and should be narrowed before any non-evaluation use.
-- `AWS_VPC_ID` and `AWS_SUBNET_ID` are optional, but they must be set together.
-- The default AMI path targets Ubuntu `24.04` LTS, which is within the currently supported `productive-k3s-core` runtime matrix.
-- A real AWS account run still depends on credentials, quotas, and an existing key pair supplied by the operator.
+- The default security group is intentionally simple; narrow it before any non-evaluation use.
+- `AWS_VPC_ID` and `AWS_SUBNET_ID` are optional, but must be set together.
+- The default AMI path resolves Ubuntu `24.04` LTS unless you force `AWS_AMI_ID`.
+- A real run still depends on account quotas, permissions, and a valid key pair.

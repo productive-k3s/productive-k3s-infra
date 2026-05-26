@@ -33,10 +33,24 @@ curl -fsSL https://github.com/<owner>/<repo>/releases/download/X.Y.Z-A.B.C/produ
 | `make infra-apply PROFILE=...` | Aplicar el profile elegido delegando al escenario correspondiente |
 | `make infra-destroy PROFILE=...` | Destruir o desarmar el profile elegido cuando esté soportado |
 | `make infra-status PROFILE=...` | Imprimir el estado generado para el profile elegido |
+| `make scenario-up SCENARIO=...` | Ejecutar `up` sobre el escenario elegido mediante una única entrada genérica |
+| `make scenario-down SCENARIO=...` | Ejecutar `down` sobre el escenario elegido cuando ese escenario lo soporte |
+| `make scenario-status SCENARIO=...` | Ejecutar `status` sobre el escenario elegido |
+| `make scenario-infra-up SCENARIO=...` | Ejecutar `infra-up` sobre el escenario elegido cuando ese escenario lo soporte |
+| `make scenario-infra-down SCENARIO=...` | Ejecutar `infra-down` sobre el escenario elegido cuando ese escenario lo soporte |
 | `make multipass` | Ejecutar el flujo público default de `multipass` (`up`) |
 | `make onprem` | Ejecutar el flujo público default de `onprem-basic` (`up`) |
 | `make onprem-arm` | Ejecutar el flujo público default de `onprem-basic-arm` (`up`) |
 | `make aws-single-node` | Ejecutar el flujo público default de AWS single-node (`up`) |
+
+Valores aceptados para `SCENARIO`:
+
+- `multipass`
+- `onprem`
+- `onprem-arm`
+- `aws-single-node`
+
+Los aliases cortos de arriba son sólo wrappers de conveniencia para `up`. Los targets `scenario-...` son la interfaz genérica recomendada.
 
 ## Targets de Multipass
 

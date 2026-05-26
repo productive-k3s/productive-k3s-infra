@@ -33,10 +33,24 @@ curl -fsSL https://github.com/<owner>/<repo>/releases/download/X.Y.Z-A.B.C/produ
 | `make infra-apply PROFILE=...` | Apply the selected profile by delegating to the matching scenario |
 | `make infra-destroy PROFILE=...` | Destroy or tear down the selected profile when supported |
 | `make infra-status PROFILE=...` | Print the generated status for the selected profile |
+| `make scenario-up SCENARIO=...` | Run `up` on the selected scenario through one generic entrypoint |
+| `make scenario-down SCENARIO=...` | Run `down` on the selected scenario when that scenario supports it |
+| `make scenario-status SCENARIO=...` | Run `status` on the selected scenario |
+| `make scenario-infra-up SCENARIO=...` | Run `infra-up` on the selected scenario when that scenario supports it |
+| `make scenario-infra-down SCENARIO=...` | Run `infra-down` on the selected scenario when that scenario supports it |
 | `make multipass` | Run the default public `multipass` flow (`up`) |
 | `make onprem` | Run the default public `onprem-basic` flow (`up`) |
 | `make onprem-arm` | Run the default public `onprem-basic-arm` flow (`up`) |
 | `make aws-single-node` | Run the default public AWS single-node flow (`up`) |
+
+Accepted `SCENARIO` values:
+
+- `multipass`
+- `onprem`
+- `onprem-arm`
+- `aws-single-node`
+
+The short aliases above are only convenience wrappers for `up`. The `scenario-...` targets are the recommended generic interface.
 
 ## Multipass targets
 

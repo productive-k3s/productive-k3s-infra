@@ -13,12 +13,13 @@ Provisiona una instancia `EC2` con `OpenTofu` y luego hace bootstrap de `product
 ## Comandos principales
 
 ```bash
-make -C scenarios/aws-single-node infra-up
-make -C scenarios/aws-single-node up
-make -C scenarios/aws-single-node validate
-make -C scenarios/aws-single-node status
-make -C scenarios/aws-single-node down
+make aws-single-node
+make scenario-status SCENARIO=aws-single-node
+make scenario-down SCENARIO=aws-single-node
+make scenario-infra-up SCENARIO=aws-single-node
 ```
+
+Los comandos locales del scenario siguen existiendo, pero los targets raíz `scenario-...` son la interfaz recomendada para operadores.
 
 ## Qué hace `make up`
 

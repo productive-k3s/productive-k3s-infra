@@ -1,6 +1,6 @@
 # After Provisioning
 
-This is an example workflow that shows how to use the `aws-single-node` cluster after `make up` finishes successfully.
+This is an example workflow that shows how to use the `aws-single-node` cluster after `make aws-single-node` or `make scenario-up SCENARIO=aws-single-node` finishes successfully.
 
 It is not a separate guarantee beyond the scenario itself. Its purpose is to demonstrate that the provisioned EC2 instance is usable as a real `productive-k3s-core` cluster.
 
@@ -9,7 +9,7 @@ It is not a separate guarantee beyond the scenario itself. Its purpose is to dem
 Read the generated metadata:
 
 ```bash
-make -C scenarios/aws-single-node status
+make scenario-status SCENARIO=aws-single-node
 ```
 
 The server public IP is available in:
