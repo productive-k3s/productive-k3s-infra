@@ -132,7 +132,15 @@ scenario_metadata() {
       BOOTSTRAP_MODES_JSON='["server","agent","stack"]'
       FEATURES_JSON='{"cert_manager":true,"longhorn":true,"rancher":true,"registry":true}'
       ;;
+    onprem-basic-arm:live)
+      ENVIRONMENT="on-prem"
+      TOPOLOGY="single-node-arm"
+      NODE_COUNT_EXPECTED="1"
+      BOOTSTRAP_MODES_JSON='["single-node","server","stack"]'
+      FEATURES_JSON='{"cert_manager":true,"longhorn":true,"rancher":true,"registry":true}'
+      ;;
     onprem-basic:*)
+    onprem-basic-arm:*)
       ENVIRONMENT="on-prem"
       TOPOLOGY="single-or-multi"
       NODE_COUNT_EXPECTED="variable"

@@ -152,6 +152,7 @@ Profile-driven commands:
 Legacy compatibility:
   multipass [command]
   onprem | onprem-basic [command]
+  onprem-arm | onprem-basic-arm [command]
   aws-single-node [command]
 
 Supported global flags:
@@ -247,6 +248,9 @@ resolve_scenario() {
     multipass)
       printf 'multipass\n'
       ;;
+    onprem-arm|onprem-basic-arm|on-prem-arm)
+      printf 'onprem-basic-arm\n'
+      ;;
     onprem|onprem-basic|on-prem)
       printf 'onprem-basic\n'
       ;;
@@ -261,7 +265,7 @@ resolve_scenario() {
 
 profile_env_var_name() {
   case "$1" in
-    onprem-basic)
+    onprem-basic|onprem-basic-arm)
       printf 'ONPREM_ENV_FILE\n'
       ;;
     aws-single-node)
@@ -291,7 +295,7 @@ command_to_target() {
         multipass|aws-single-node)
           printf 'down\n'
           ;;
-        onprem-basic)
+        onprem-basic|onprem-basic-arm)
           return 1
           ;;
       esac
@@ -356,9 +360,9 @@ validate_profile() {
       require_env TF_VAR_agent_memory
       require_env TF_VAR_agent_disk
       ;;
-    onprem-basic)
+    onprem-basic|onprem-basic-arm)
       if [[ "${PK3S_INFRA_ENGINE}" != "ansible" && "${PK3S_INFRA_ENGINE}" != "shell" ]]; then
-        die 4 "onprem-basic profiles must use PK3S_INFRA_ENGINE=ansible or shell"
+        die 4 "${PK3S_INFRA_SCENARIO} profiles must use PK3S_INFRA_ENGINE=ansible or shell"
       fi
       require_env ONPREM_SERVER_IP
       require_env ONPREM_SSH_USER
@@ -468,8 +472,8 @@ profile_command_dispatch() {
     esac
   fi
 
-  if [[ "${command}" == "destroy" && "${PK3S_INFRA_SCENARIO}" == "onprem-basic" && "${GLOBAL_YES}" -ne 1 ]]; then
-    die 2 "destroy is not supported for onprem-basic in the stage-1 profile contract"
+  if [[ "${command}" == "destroy" && ( "${PK3S_INFRA_SCENARIO}" == "onprem-basic" || "${PK3S_INFRA_SCENARIO}" == "onprem-basic-arm" ) && "${GLOBAL_YES}" -ne 1 ]]; then
+    die 2 "destroy is not supported for ${PK3S_INFRA_SCENARIO} in the stage-1 profile contract"
   fi
 
   env_file_var="$(profile_env_var_name "${PK3S_INFRA_SCENARIO}")"
@@ -614,7 +618,7 @@ case "${COMMAND}" in
     [[ -n "${PROFILE_PATH}" ]] || die 3 "the '${COMMAND}' command requires --profile <file>"
     profile_command_dispatch "${COMMAND}" "${PROFILE_PATH}" || RC=$?
     ;;
-  multipass|onprem|onprem-basic|on-prem|aws-single-node)
+  multipass|onprem|onprem-basic|on-prem|onprem-arm|onprem-basic-arm|on-prem-arm|aws-single-node)
     TELEMETRY_SCENARIO="$(resolve_scenario "${COMMAND}")"
     legacy_dispatch "$@" || RC=$?
     ;;

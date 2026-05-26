@@ -4,7 +4,7 @@ This scenario bootstraps `productive-k3s-core` onto machines that already exist 
 
 Unlike `multipass`, this path does not provision infrastructure. The user provides the machine IPs, chooses which node is the `server`, and optionally provides one or more `agent` IPs.
 
-Internally, `onprem-basic` now consumes the reusable remote bootstrap layer under [ansible/roles/remote_cluster](/home/jmacchi/prg/jemacchi/productive-k3s-env/productive-k3s-infra/ansible/roles/remote_cluster/README.md:1), which is also reused by the public AWS single-node path.
+Internally, `onprem-basic` now consumes the reusable remote bootstrap layer under `ansible/roles/remote_cluster`, which is also reused by the public AWS single-node path.
 
 ## What This Scenario Does
 
@@ -175,7 +175,7 @@ make -C scenarios/onprem-basic clean
 
 Once `make up` and `make validate` pass, you have a working cluster on top of the declared `server` machine and optional `agent` nodes.
 
-For a concrete example, see [after-provisioning.md](/home/jmacchi/prg/jemacchi/productive-k3s-env/productive-k3s-infra/scenarios/onprem-basic/after-provisioning.md:1). It shows how to:
+For a concrete example, see `after-provisioning.md`. It shows how to:
 
 - connect to the `server` using the same SSH values used by `onprem.env`
 - install a public Helm chart into the cluster

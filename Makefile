@@ -1,6 +1,6 @@
-.PHONY: docs-build docs-serve docs-up docs-down docs-clean test-clean test-checkstatus test-static test-contract test-telemetry test-live test-live-gha-onprem test-k3s-engine-propagation test-matrix test-productive-k3s-infra-cli infra-help infra-doctor infra-list-profiles infra-validate-profile infra-validate infra-plan infra-apply infra-destroy infra-status tag-release set-core-version multipass onprem aws-single-node
+.PHONY: docs-build docs-serve docs-up docs-down docs-clean test-clean test-checkstatus test-static test-contract test-telemetry test-live test-live-onprem-arm test-live-gha-onprem test-k3s-engine-propagation test-matrix test-productive-k3s-infra-cli infra-help infra-doctor infra-list-profiles infra-validate-profile infra-validate infra-plan infra-apply infra-destroy infra-status tag-release set-core-version multipass onprem onprem-arm aws-single-node
 
-SCENARIOS := multipass onprem-basic aws-single-node
+SCENARIOS := multipass onprem-basic onprem-basic-arm aws-single-node
 TESTS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))/tests
 SCRIPTS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))/scripts
 PUBLIC_CLI := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))/productive-k3s-infra.sh
@@ -46,6 +46,9 @@ test-telemetry:
 
 test-live:
 	$(SCRIPTS_DIR)/productive-k3s-infra-dev.sh test-live
+
+test-live-onprem-arm:
+	$(MAKE) -C scenarios/onprem-basic-arm test-live
 
 test-live-gha-onprem:
 	$(SCRIPTS_DIR)/productive-k3s-infra-dev.sh test-live-gha-onprem
@@ -96,6 +99,9 @@ multipass:
 
 onprem:
 	$(PUBLIC_CLI) onprem up
+
+onprem-arm:
+	$(PUBLIC_CLI) onprem-arm up
 
 aws-single-node:
 	$(PUBLIC_CLI) aws-single-node up

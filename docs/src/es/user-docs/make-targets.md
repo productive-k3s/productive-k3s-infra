@@ -21,6 +21,7 @@ curl -fsSL https://github.com/<owner>/<repo>/releases/download/X.Y.Z-A.B.C/produ
 | `make test-static` | Ejecutar checks static sobre todos los escenarios públicos |
 | `make test-contract` | Ejecutar checks contract sobre todos los escenarios públicos |
 | `make test-live` | Ejecutar validaciones live sobre todos los escenarios públicos |
+| `make test-live-onprem-arm` | Ejecutar sólo la validación live pública ARM mediante `scenarios/onprem-basic-arm` |
 | `make test-live-gha-onprem` | Ejecutar la validación live single-node de `onprem-basic` sobre un runner hospedado por GitHub |
 | `make test-matrix` | Ejecutar `static`, `contract` y `live` en secuencia |
 | `make infra-help` | Mostrar el uso del CLI público orientado a profiles |
@@ -34,6 +35,7 @@ curl -fsSL https://github.com/<owner>/<repo>/releases/download/X.Y.Z-A.B.C/produ
 | `make infra-status PROFILE=...` | Imprimir el estado generado para el profile elegido |
 | `make multipass` | Ejecutar el flujo público default de `multipass` (`up`) |
 | `make onprem` | Ejecutar el flujo público default de `onprem-basic` (`up`) |
+| `make onprem-arm` | Ejecutar el flujo público default de `onprem-basic-arm` (`up`) |
 | `make aws-single-node` | Ejecutar el flujo público default de AWS single-node (`up`) |
 
 ## Targets de Multipass
@@ -71,6 +73,23 @@ curl -fsSL https://github.com/<owner>/<repo>/releases/download/X.Y.Z-A.B.C/produ
 | `test-live` | Ejecutar sólo la validación live de `onprem-basic` y registrar un manifest local de test |
 | `test-clean` | Borrar sólo los artifacts registrados de tests de matriz para `onprem-basic` |
 | `test-checkstatus` | Resumir sólo los resultados registrados de tests de matriz para `onprem-basic` |
+
+## Targets de On-prem basic ARM
+
+| Target | Propósito |
+| --- | --- |
+| `preflight` | Validar reachability remoto y soporte de runtime, copiar el bundle y ejecutar el host preflight remoto de Productive K3S Core cuando esté disponible |
+| `cluster-up` | Ejecutar el bootstrap remoto sobre los nodos ARM declarados |
+| `stack-up` | Reejecutar la instalación del stack compartido |
+| `validate` | Ejecutar validación remota |
+| `up` | `cluster-up + validate` |
+| `status` | Re-renderizar e imprimir `generated/cluster.json` |
+| `clean` | Borrar metadata generada local |
+| `test-static` | Ejecutar sólo la validación static de `onprem-basic-arm` y registrar un manifest local de test |
+| `test-contract` | Ejecutar sólo la validación contract de `onprem-basic-arm` y registrar un manifest local de test |
+| `test-live` | Ejecutar sólo la validación live de `onprem-basic-arm` y registrar un manifest local de test |
+| `test-clean` | Borrar sólo los artifacts registrados de tests de matriz para `onprem-basic-arm` |
+| `test-checkstatus` | Resumir sólo los resultados registrados de tests de matriz para `onprem-basic-arm` |
 
 ## Targets de AWS single-node
 

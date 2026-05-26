@@ -21,9 +21,9 @@ This workflow assumes the `server` IP comes from `onprem.env`.
 Example:
 
 ```bash
-ONPREM_SERVER_IP=10.162.98.21
-ONPREM_SSH_USER=ubuntu
-ONPREM_SSH_KEY_PATH=/home/jmacchi/.ssh/id_ed25519
+ONPREM_SERVER_IP=<server-ip>
+ONPREM_SSH_USER=<user>
+ONPREM_SSH_KEY_PATH=/path/to/id_ed25519
 ```
 
 Use your own values if your `onprem.env` differs.
@@ -33,7 +33,7 @@ Use your own values if your `onprem.env` differs.
 Open a shell on the `server` machine:
 
 ```bash
-ssh -i /home/jmacchi/.ssh/id_ed25519 ubuntu@10.162.98.21
+ssh -i /path/to/id_ed25519 <user>@<server-ip>
 ```
 
 Confirm the cluster is up:
@@ -80,16 +80,16 @@ In that example, the host can reach the service over HTTP on port `30658`.
 
 Use the same `server` IP from `onprem.env`.
 
-If the `server` IP is `10.162.98.21` and the service exposes `80:30658/TCP`, test it from the host:
+If the `server` IP is `<server-ip>` and the service exposes `80:30658/TCP`, test it from the host:
 
 ```bash
-curl http://10.162.98.21:30658
+curl http://<server-ip>:30658
 ```
 
 You can also open the same URL in a browser:
 
 ```text
-http://10.162.98.21:30658
+http://<server-ip>:30658
 ```
 
 ## Notes

@@ -66,13 +66,16 @@ case "${SCENARIO}" in
       expect_output "${SCENARIO_DIR}/opentofu/outputs.tf" "${output_name}"
     done
     ;;
-  onprem-basic)
+  onprem-basic|onprem-basic-arm)
     need_file "${ROOT_DIR}/profiles/on-prem/basic.env"
     need_file "${SCENARIO_DIR}/onprem.env.example"
     need_file "${ROOT_DIR}/ansible/roles/remote_cluster/files/common.sh"
     need_file "${ROOT_DIR}/ansible/roles/remote_cluster/files/refresh-generated-artifacts.sh"
     need_file "${ROOT_DIR}/ansible/roles/remote_cluster/files/run_remote_bootstrap_session.py"
     has_pattern '^onprem\.env$' "${SCENARIO_DIR}/.gitignore" || fail "onprem.env should be ignored"
+    if [[ "${SCENARIO}" == "onprem-basic-arm" ]]; then
+      need_file "${ROOT_DIR}/profiles/on-prem/arm.env"
+    fi
     ;;
   aws-single-node)
     need_file "${ROOT_DIR}/profiles/aws-single-node/basic.env"

@@ -70,16 +70,16 @@ Find the `server` IP if needed:
 multipass list
 ```
 
-If the `server` IP is `10.162.98.39` and the service exposes `80:30658/TCP`, test it from the host:
+If the `server` IP is `<server-ip>` and the service exposes `80:30658/TCP`, test it from the host:
 
 ```bash
-curl http://10.162.98.39:30658
+curl http://<server-ip>:30658
 ```
 
 You can also open the same URL in a browser:
 
 ```text
-http://10.162.98.39:30658
+http://<server-ip>:30658
 ```
 
 Because this is a `NodePort`, the same service should also be reachable through the IP of either agent VM on the same exposed port.

@@ -39,6 +39,11 @@ grep -q '^PRODUCTIVE_K3S_SOURCE ?= remote$' "${ROOT_DIR}/scenarios/onprem-basic/
   exit 1
 }
 
+grep -q '^PRODUCTIVE_K3S_SOURCE ?= remote$' "${ROOT_DIR}/scenarios/onprem-basic-arm/Makefile" || {
+  printf '[FAIL] onprem-basic-arm Makefile should default PRODUCTIVE_K3S_SOURCE to remote\n' >&2
+  exit 1
+}
+
 (
   unset PRODUCTIVE_K3S_SOURCE PRODUCTIVE_K3S_VERSION PRODUCTIVE_K3S_RELEASE_REPO
   # shellcheck disable=SC1090
@@ -56,6 +61,16 @@ grep -q '^PRODUCTIVE_K3S_SOURCE ?= remote$' "${ROOT_DIR}/scenarios/onprem-basic/
   assert_eq "${PRODUCTIVE_K3S_SOURCE}" "local" "onprem local override source"
   assert_eq "${PRODUCTIVE_K3S_VERSION}" "" "onprem local override core version"
   assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO}" "jemacchi/productive-k3s-core" "onprem default release repo"
+)
+
+(
+  export PRODUCTIVE_K3S_SOURCE="local"
+  unset PRODUCTIVE_K3S_VERSION PRODUCTIVE_K3S_RELEASE_REPO
+  # shellcheck disable=SC1090
+  source "${ROOT_DIR}/scenarios/onprem-basic-arm/scripts/common.sh"
+  assert_eq "${PRODUCTIVE_K3S_SOURCE}" "local" "onprem arm local override source"
+  assert_eq "${PRODUCTIVE_K3S_VERSION}" "" "onprem arm local override core version"
+  assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO}" "jemacchi/productive-k3s-core" "onprem arm default release repo"
 )
 
 (

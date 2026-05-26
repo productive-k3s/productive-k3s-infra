@@ -21,6 +21,7 @@ curl -fsSL https://github.com/<owner>/<repo>/releases/download/X.Y.Z-A.B.C/produ
 | `make test-static` | Run static checks across all public scenarios |
 | `make test-contract` | Run contract checks across all public scenarios |
 | `make test-live` | Run live validations across all public scenarios |
+| `make test-live-onprem-arm` | Run only the public ARM live validation through `scenarios/onprem-basic-arm` |
 | `make test-live-gha-onprem` | Run the GitHub-hosted single-node `onprem-basic` live validation |
 | `make test-matrix` | Run `static`, `contract`, and `live` in sequence |
 | `make infra-help` | Show the public profile-driven CLI usage |
@@ -34,6 +35,7 @@ curl -fsSL https://github.com/<owner>/<repo>/releases/download/X.Y.Z-A.B.C/produ
 | `make infra-status PROFILE=...` | Print the generated status for the selected profile |
 | `make multipass` | Run the default public `multipass` flow (`up`) |
 | `make onprem` | Run the default public `onprem-basic` flow (`up`) |
+| `make onprem-arm` | Run the default public `onprem-basic-arm` flow (`up`) |
 | `make aws-single-node` | Run the default public AWS single-node flow (`up`) |
 
 ## Multipass targets
@@ -71,6 +73,23 @@ curl -fsSL https://github.com/<owner>/<repo>/releases/download/X.Y.Z-A.B.C/produ
 | `test-live` | Run only the `onprem-basic` live validation path and record a local test manifest |
 | `test-clean` | Remove only the recorded matrix test artifacts for `onprem-basic` |
 | `test-checkstatus` | Summarize only the recorded matrix test outcomes for `onprem-basic` |
+
+## On-prem basic ARM targets
+
+| Target | Purpose |
+| --- | --- |
+| `preflight` | Validate remote reachability and runtime support, copy the bundle, and run the remote Productive K3S Core host preflight when available |
+| `cluster-up` | Run remote bootstrap across the declared ARM nodes |
+| `stack-up` | Re-run the shared stack installation |
+| `validate` | Run remote validation |
+| `up` | `cluster-up + validate` |
+| `status` | Re-render and print `generated/cluster.json` |
+| `clean` | Remove local generated metadata |
+| `test-static` | Run only the `onprem-basic-arm` static validation path and record a local test manifest |
+| `test-contract` | Run only the `onprem-basic-arm` contract validation path and record a local test manifest |
+| `test-live` | Run only the `onprem-basic-arm` live validation path and record a local test manifest |
+| `test-clean` | Remove only the recorded matrix test artifacts for `onprem-basic-arm` |
+| `test-checkstatus` | Summarize only the recorded matrix test outcomes for `onprem-basic-arm` |
 
 ## AWS single-node targets
 

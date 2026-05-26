@@ -4,7 +4,7 @@ This scenario provisions a basic AWS `EC2` instance with `OpenTofu`, then bootst
 
 It is the public AWS entry point of this repository: one machine, one cluster, one control path. The goal is to make evaluation easy, not to model a hardened production AWS layout.
 
-Its post-provision bootstrap path reuses the same remote cluster layer under [ansible/roles/remote_cluster](/home/jmacchi/prg/jemacchi/productive-k3s-env/productive-k3s-infra/ansible/roles/remote_cluster/README.md:1) that `onprem-basic` also consumes, so the `SSH`, bundle copy, bootstrap phases, and validation logic stay aligned across both scenarios.
+Its post-provision bootstrap path reuses the same remote cluster layer under `ansible/roles/remote_cluster` that `onprem-basic` also consumes, so the `SSH`, bundle copy, bootstrap phases, and validation logic stay aligned across both scenarios.
 
 ## What This Scenario Does
 
@@ -153,7 +153,7 @@ make -C scenarios/aws-single-node down
 
 Once `make up` and `make validate` pass, you have a working cluster on the EC2 instance that `OpenTofu` created.
 
-For a concrete example, see [after-provisioning.md](/home/jmacchi/prg/jemacchi/productive-k3s-env/productive-k3s-infra/scenarios/aws-single-node/after-provisioning.md:1). It shows how to:
+For a concrete example, see `after-provisioning.md`. It shows how to:
 
 - connect to the instance over `SSH`
 - verify the `single-node` cluster from the server host

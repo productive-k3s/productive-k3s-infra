@@ -64,6 +64,7 @@ HELP_OUTPUT="$(bash "$CLI" --help)"
 assert_contains "$HELP_OUTPUT" "Usage:"
 assert_contains "$HELP_OUTPUT" "multipass"
 assert_contains "$HELP_OUTPUT" "onprem | onprem-basic"
+assert_contains "$HELP_OUTPUT" "onprem-arm | onprem-basic-arm"
 assert_contains "$HELP_OUTPUT" "--profile"
 
 BUNDLE_INFO="$(bash "$CLI" bundle info --json)"
@@ -91,6 +92,12 @@ PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
 PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
 bash "$CLI" aws-single-node
 assert_contains "$(cat "$OUTPUT_FILE")" "-C ${REPO_DIR}/scenarios/aws-single-node up"
+
+OUTPUT_FILE="${TMP_DIR}/onprem-arm.out"
+PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
+PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
+bash "$CLI" onprem-arm preflight
+assert_contains "$(cat "$OUTPUT_FILE")" "-C ${REPO_DIR}/scenarios/onprem-basic-arm preflight"
 
 PROFILE_DIR="${TMP_DIR}/profiles"
 mkdir -p "${PROFILE_DIR}"
@@ -121,6 +128,16 @@ TF_VAR_agent_memory=4G
 TF_VAR_agent_disk=30G
 EOF
 
+cat > "${PROFILE_DIR}/onprem-arm.env" <<'EOF'
+PK3S_INFRA_PROFILE_NAME=onprem-arm-example
+PK3S_INFRA_SCENARIO=onprem-basic-arm
+PK3S_INFRA_ENGINE=ansible
+ONPREM_SERVER_IP=rp-arm.local
+ONPREM_AGENT_IPS=
+ONPREM_SSH_USER=ubuntu
+ONPREM_SSH_KEY_PATH=/tmp/id_ed25519
+EOF
+
 OUTPUT_FILE="${TMP_DIR}/profile-validate.out"
 PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
 PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
@@ -140,6 +157,19 @@ PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
 bash "$CLI" apply --profile "${PROFILE_DIR}/onprem.env"
 assert_contains "$(cat "$OUTPUT_FILE")" "-C ${REPO_DIR}/scenarios/onprem-basic up"
 assert_contains "$(cat "$OUTPUT_FILE")" "ONPREM_ENV_FILE=${PROFILE_DIR}/onprem.env"
+
+OUTPUT_FILE="${TMP_DIR}/profile-arm-validate.out"
+PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
+PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
+bash "$CLI" validate --profile "${PROFILE_DIR}/onprem-arm.env"
+assert_contains "$(cat "$OUTPUT_FILE")" "-C ${REPO_DIR}/scenarios/onprem-basic-arm validate"
+assert_contains "$(cat "$OUTPUT_FILE")" "ONPREM_ENV_FILE=${PROFILE_DIR}/onprem-arm.env"
+
+PROFILE_ARM_VALIDATE_ONLY_OUTPUT="$(bash "$CLI" validate-profile --profile "${PROFILE_DIR}/onprem-arm.env")"
+assert_contains "$PROFILE_ARM_VALIDATE_ONLY_OUTPUT" "Loading profile: ${PROFILE_DIR}/onprem-arm.env"
+assert_contains "$PROFILE_ARM_VALIDATE_ONLY_OUTPUT" "Scenario: onprem-basic-arm"
+assert_contains "$PROFILE_ARM_VALIDATE_ONLY_OUTPUT" "Engine: ansible"
+assert_contains "$PROFILE_ARM_VALIDATE_ONLY_OUTPUT" "Profile validation passed"
 
 OUTPUT_FILE="${TMP_DIR}/profile-plan.out"
 PRODUCTIVE_K3S_INFRA_TOFU_BIN="$STUB_TOFU" \
@@ -161,12 +191,19 @@ assert_contains "$DOCTOR_OUTPUT" "Profile engine: ansible"
 LIST_OUTPUT="$(bash "$CLI" list-profiles)"
 assert_contains "$LIST_OUTPUT" "profiles/multipass/1-server-2-agents.env"
 assert_contains "$LIST_OUTPUT" "profiles/on-prem/basic.env"
+assert_contains "$LIST_OUTPUT" "profiles/on-prem/arm.env"
 
 ROOT_MULTIPASS="$(make -C "$REPO_DIR" -n multipass)"
 assert_contains "$ROOT_MULTIPASS" "${REPO_DIR}/productive-k3s-infra.sh multipass up"
 
 ROOT_ONPREM="$(make -C "$REPO_DIR" -n onprem)"
 assert_contains "$ROOT_ONPREM" "${REPO_DIR}/productive-k3s-infra.sh onprem up"
+
+ROOT_ONPREM_ARM="$(make -C "$REPO_DIR" -n onprem-arm)"
+assert_contains "$ROOT_ONPREM_ARM" "${REPO_DIR}/productive-k3s-infra.sh onprem-arm up"
+
+ROOT_TEST_LIVE_ONPREM_ARM="$(make -C "$REPO_DIR" -n test-live-onprem-arm)"
+assert_contains "$ROOT_TEST_LIVE_ONPREM_ARM" "make -C scenarios/onprem-basic-arm test-live"
 
 ROOT_INFRA_VALIDATE="$(make -C "$REPO_DIR" -n infra-validate PROFILE=${PROFILE_DIR}/onprem.env)"
 assert_contains "$ROOT_INFRA_VALIDATE" "${REPO_DIR}/productive-k3s-infra.sh validate --profile ${PROFILE_DIR}/onprem.env"

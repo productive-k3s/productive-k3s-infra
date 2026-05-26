@@ -129,7 +129,7 @@ make clean
 
 Once `make up` and `make validate` pass, you have a working three-node cluster that can accept workloads from the `server` VM.
 
-For a concrete example, see [after-provisioning.md](/home/jmacchi/prg/jemacchi/productive-k3s-env/productive-k3s-infra/scenarios/multipass/after-provisioning.md:1). It shows how to:
+For a concrete example, see `after-provisioning.md`. It shows how to:
 
 - install a public Helm chart into the cluster
 - verify that the workload is running

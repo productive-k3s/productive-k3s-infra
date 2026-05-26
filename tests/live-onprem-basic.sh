@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCENARIO_DIR="${ROOT_DIR}/scenarios/onprem-basic"
+SCENARIO_DIR="${SCENARIO_DIR:-${ROOT_DIR}/scenarios/onprem-basic}"
 WORK_DIR="$(mktemp -d "${ROOT_DIR}/.live-onprem-basic.XXXXXX")"
 STAMP="$(date +%Y%m%d%H%M%S)"
 SERVER_NAME="productive-k3s-core-test-onprem-server-${STAMP}"

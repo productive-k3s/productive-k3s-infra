@@ -75,7 +75,9 @@ nav:
           - Scenarios:
               - Multipass: en/user-docs/multipass.md
               - On-prem basic: en/user-docs/onprem-basic.md
+              - On-prem basic ARM: en/user-docs/onprem-basic-arm.md
               - AWS single-node: en/user-docs/aws-single-node.md
+          - ARM Support: en/user-docs/arm-support.md
           - Make targets: en/user-docs/make-targets.md
           - Productive K3S Core modes: en/user-docs/productive-k3s-modes.md
           - Privacy and telemetry: en/user-docs/privacy-and-telemetry.md
@@ -102,7 +104,9 @@ nav:
           - Escenarios:
               - Multipass: es/user-docs/multipass.md
               - On-prem basic: es/user-docs/onprem-basic.md
+              - On-prem basic ARM: es/user-docs/onprem-basic-arm.md
               - AWS single-node: es/user-docs/aws-single-node.md
+          - ARM Support: es/user-docs/arm-support.md
           - Targets de Make: es/user-docs/make-targets.md
           - Modos de Productive K3S Core: es/user-docs/productive-k3s-modes.md
           - Privacidad y telemetría: es/user-docs/privacy-and-telemetry.md
