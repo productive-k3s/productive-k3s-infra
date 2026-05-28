@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCENARIO_DIR="${ROOT_DIR}/scenarios/onprem-basic"
+SCENARIO_SCRIPTS_DIR="${SCENARIO_DIR}/scripts"
 WORK_DIR="$(mktemp -d "${ROOT_DIR}/.live-onprem-basic-github-host.XXXXXX")"
 ENV_FILE="${WORK_DIR}/onprem.env"
 SSH_KEY_PATH="${WORK_DIR}/id_ed25519"
@@ -73,6 +74,43 @@ TELEMETRY_ENABLED=false
 EOF
 }
 
+run_basic_remote_bootstrap() {
+  (
+    set -euo pipefail
+    set -a
+    # shellcheck disable=SC1090
+    source "${ENV_FILE}"
+    set +a
+    export SCENARIO_DIR
+
+    "${SCENARIO_SCRIPTS_DIR}/refresh-generated-artifacts.sh"
+    "${SCENARIO_SCRIPTS_DIR}/preflight.sh"
+    "${SCENARIO_SCRIPTS_DIR}/push-productive-k3s-core.sh"
+    "${SCENARIO_SCRIPTS_DIR}/bootstrap-server.sh"
+    "${SCENARIO_SCRIPTS_DIR}/bootstrap-agents.sh"
+  )
+}
+
+validate_basic_remote_cluster() {
+  local ssh_opts=(
+    -o BatchMode=yes
+    -o StrictHostKeyChecking=accept-new
+    -o ConnectTimeout=10
+    -i "${SSH_KEY_PATH}"
+  )
+  local expected_nodes=1
+  local actual_nodes
+
+  actual_nodes="$(
+    ssh "${ssh_opts[@]}" "${CURRENT_USER}@${LOCALHOST_IP}" \
+      "sudo k3s kubectl wait --for=condition=Ready node --all --timeout=10m >/dev/null && sudo k3s kubectl get nodes --no-headers | wc -l"
+  )"
+  actual_nodes="$(printf '%s' "${actual_nodes}" | tr -d '[:space:]')"
+  [[ "${actual_nodes}" == "${expected_nodes}" ]] || fail "expected ${expected_nodes} ready node, got ${actual_nodes}"
+
+  ssh "${ssh_opts[@]}" "${CURRENT_USER}@${LOCALHOST_IP}" "sudo k3s kubectl get nodes -o wide"
+}
+
 need_cmd sudo
 need_cmd ssh
 need_cmd ssh-keygen
@@ -92,7 +130,7 @@ wait_for_ssh
 write_env_file
 
 make -C "${SCENARIO_DIR}" clean
-make -C "${SCENARIO_DIR}" ONPREM_ENV_FILE="${ENV_FILE}" up
-make -C "${SCENARIO_DIR}" ONPREM_ENV_FILE="${ENV_FILE}" validate
+run_basic_remote_bootstrap
+validate_basic_remote_cluster
 
-printf '[PASS] onprem-basic GitHub-host live test completed\n'
+printf '[PASS] onprem-basic GitHub-host live bootstrap completed\n'
