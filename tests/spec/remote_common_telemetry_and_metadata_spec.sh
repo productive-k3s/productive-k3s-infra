@@ -38,6 +38,7 @@ EOF
 
   It 'enables telemetry after a tty consent prompt'
     When run /usr/bin/bash "$RUNNER" "$COMMON" '
+      unset TELEMETRY_ENABLED
       can_use_tty() { return 0; }
       prompt_yesno() { printf -v "$1" '%s' 'y'; }
       resolve_telemetry_enabled

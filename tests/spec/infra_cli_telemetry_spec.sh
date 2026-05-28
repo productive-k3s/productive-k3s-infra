@@ -13,6 +13,7 @@ Describe 'productive-k3s-infra cli telemetry helpers'
 
   It 'enables telemetry when the tty prompt is accepted'
     When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
+      unset TELEMETRY_ENABLED
       can_use_tty() { return 0; }
       prompt_yesno() { printf -v "$1" '%s' 'y'; }
       resolve_telemetry_enabled
