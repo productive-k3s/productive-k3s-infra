@@ -7,7 +7,7 @@ TMP_DIR="$(mktemp -d)"
 WORKTREE="${TMP_DIR}/infra"
 CORE_REMOTE="${TMP_DIR}/core-remote.git"
 NO_GIT_CONFIG_HOME="${TMP_DIR}/home-without-git-config"
-TAG_NAME="1.2.3-0.9.2"
+TAG_NAME="1.2.3-0.9.3"
 
 cleanup() {
   rm -rf "${TMP_DIR}"
@@ -55,9 +55,9 @@ git -C "${core_seed}" config user.email tester@example.com
 printf 'core\n' > "${core_seed}/README.md"
 git -C "${core_seed}" add README.md
 git -C "${core_seed}" commit -m "seed" >/dev/null
-git -C "${core_seed}" tag 0.9.2
+git -C "${core_seed}" tag 0.9.3
 git -C "${core_seed}" remote add origin "${CORE_REMOTE}"
-git -C "${core_seed}" push --quiet origin HEAD refs/tags/0.9.2
+git -C "${core_seed}" push --quiet origin HEAD refs/tags/0.9.3
 
 output="$(
   cd "${WORKTREE}" && \

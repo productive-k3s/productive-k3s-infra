@@ -20,7 +20,7 @@ case "$1" in
     fi
     ;;
   ls-remote)
-    printf 'abc123\trefs/tags/0.9.2\n'
+    printf 'abc123\trefs/tags/0.9.3\n'
     exit 0
     ;;
   config)
@@ -40,7 +40,7 @@ EOF
 
     When run bash -lc 'PATH="$1:$PATH" MOCK_GIT_LOG="$2" PRODUCTIVE_K3S_INFRA_REPO_DIR="$3" "$4" 1.2.3' bash "${mock_bin}" "${log_file}" "${repo_dir}" "${SCRIPT}"
     The status should equal 0
-    The output should include 'Created tag 1.2.3-0.9.2'
+    The output should include 'Created tag 1.2.3-0.9.3'
 
     rm -rf "${repo_dir}" "${mock_bin}"
     rm -f "${log_file}"

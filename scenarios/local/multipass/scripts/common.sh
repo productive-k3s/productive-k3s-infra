@@ -12,7 +12,7 @@ if [[ -r "${REPO_ROOT}/scripts/release-config.sh" ]]; then
   source "${REPO_ROOT}/scripts/release-config.sh"
 else
   : "${PRODUCTIVE_K3S_SOURCE_DEFAULT:=remote}"
-  : "${PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=0.9.2}"
+  : "${PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=0.9.3}"
   : "${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT:=jemacchi/productive-k3s-core}"
 fi
 PRODUCTIVE_K3S_REPO="${PRODUCTIVE_K3S_REPO:-$(cd "${SCENARIO_DIR}/../../../../productive-k3s-core" && pwd)}"

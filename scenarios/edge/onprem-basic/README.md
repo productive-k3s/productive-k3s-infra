@@ -156,7 +156,7 @@ make -C scenarios/edge/onprem-basic up PRODUCTIVE_K3S_SOURCE=remote
 Run the full cluster path using a pinned release:
 
 ```bash
-make -C scenarios/edge/onprem-basic up PRODUCTIVE_K3S_SOURCE=remote PRODUCTIVE_K3S_VERSION=0.9.2
+make -C scenarios/edge/onprem-basic up PRODUCTIVE_K3S_SOURCE=remote PRODUCTIVE_K3S_VERSION=0.9.3
 ```
 
 Inspect the resolved metadata:

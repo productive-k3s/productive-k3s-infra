@@ -184,7 +184,7 @@ make scenario-up SCENARIO=aws-single-node PRODUCTIVE_K3S_SOURCE=local
 Use a remote release explicitly:
 
 ```bash
-make scenario-up SCENARIO=aws-single-node PRODUCTIVE_K3S_SOURCE=remote PRODUCTIVE_K3S_VERSION=0.9.2
+make scenario-up SCENARIO=aws-single-node PRODUCTIVE_K3S_SOURCE=remote PRODUCTIVE_K3S_VERSION=0.9.3
 ```
 
 ## Network Model
