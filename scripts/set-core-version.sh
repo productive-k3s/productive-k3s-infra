@@ -79,6 +79,8 @@ files=(
   "tests/test-create-release-tag.sh"
   "tests/test-core-release-bundle-contract.sh"
   "tests/test-release-versioning.sh"
+  "tests/test-productive-k3s-infra-cli.sh"
+  "tests/spec/create_release_tag_spec.sh"
 )
 
 replace_in_file "${REPO_ROOT}/scripts/release-config.sh" 'PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
@@ -108,6 +110,9 @@ replace_in_file "${REPO_ROOT}/tests/test-core-release-bundle-contract.sh" 'produ
 replace_in_file "${REPO_ROOT}/tests/test-release-versioning.sh" '"\K[0-9]+\.[0-9]+\.[0-9]+(?=" "default core version")' "${CORE_VERSION}"
 replace_in_file "${REPO_ROOT}/tests/test-release-versioning.sh" '"\K[0-9]+\.[0-9]+\.[0-9]+(?=" "multipass default core version")' "${CORE_VERSION}"
 replace_in_file "${REPO_ROOT}/tests/test-release-versioning.sh" '"\K[0-9]+\.[0-9]+\.[0-9]+(?=" "shared remote-cluster default core version")' "${CORE_VERSION}"
+replace_in_file "${REPO_ROOT}/tests/test-productive-k3s-infra-cli.sh" "'.productive_k3s.default_core_version' '\\K[0-9]+\\.[0-9]+\\.[0-9]+(?=')" "${CORE_VERSION}"
+replace_in_file "${REPO_ROOT}/tests/spec/create_release_tag_spec.sh" 'refs/tags/\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${REPO_ROOT}/tests/spec/create_release_tag_spec.sh" 'Created tag 1\.2\.3-\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
 
 printf 'Updated productive-k3s-core default version to %s in:\n' "${CORE_VERSION}"
 for path in "${files[@]}"; do

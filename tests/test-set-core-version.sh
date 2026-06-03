@@ -77,9 +77,12 @@ assert_contains_file "${WORKTREE}/scenarios/cloud/aws-single-node/README.md" "PR
 assert_contains_file "${WORKTREE}/tests/test-release-versioning.sh" "\"${TARGET_VERSION}\" \"default core version\""
 assert_contains_file "${WORKTREE}/tests/test-release-versioning.sh" "\"${TARGET_VERSION}\" \"multipass default core version\""
 assert_contains_file "${WORKTREE}/tests/test-release-versioning.sh" "\"${TARGET_VERSION}\" \"shared remote-cluster default core version\""
+assert_contains_file "${WORKTREE}/tests/test-productive-k3s-infra-cli.sh" "'.productive_k3s.default_core_version' '${TARGET_VERSION}'"
 assert_contains_file "${WORKTREE}/tests/test-create-release-tag.sh" "TAG_NAME=\"1.2.3-${TARGET_VERSION}\""
 assert_contains_file "${WORKTREE}/tests/test-create-release-tag.sh" "tag ${TARGET_VERSION}"
 assert_contains_file "${WORKTREE}/tests/test-create-release-tag.sh" "refs/tags/${TARGET_VERSION}"
+assert_contains_file "${WORKTREE}/tests/spec/create_release_tag_spec.sh" "refs/tags/${TARGET_VERSION}"
+assert_contains_file "${WORKTREE}/tests/spec/create_release_tag_spec.sh" "Created tag 1.2.3-${TARGET_VERSION}"
 assert_contains_file "${WORKTREE}/tests/test-core-release-bundle-contract.sh" "productive-k3s-core-${TARGET_VERSION}"
 
 printf '[PASS] set-core-version updates repo defaults and examples consistently\n'
