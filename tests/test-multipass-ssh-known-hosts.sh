@@ -3,6 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+HELPERS_DIR="${REPO_DIR}/tests/helpers"
+# shellcheck disable=SC1090
+source "${HELPERS_DIR}/profiles-source.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -25,7 +28,7 @@ chmod +x "${FAKE_BIN_DIR}/ssh-keygen"
   export MULTIPASS_SSH_KNOWN_HOSTS_PATH="${KNOWN_HOSTS_PATH}"
   export SSH_PORT="22"
   # shellcheck disable=SC1091
-  source "${REPO_DIR}/scenarios/local/multipass/scripts/common.sh"
+  source "$(profiles_scenario_dir multipass)/scripts/common.sh"
   refresh_ssh_known_host "10.0.0.55"
 )
 

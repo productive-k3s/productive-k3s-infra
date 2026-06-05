@@ -25,6 +25,17 @@ if [[ -z "${REPO_ROOT}" ]]; then
   fi
 fi
 
+PROFILES_REPO_ROOT="${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}"
+if [[ -z "${PROFILES_REPO_ROOT}" ]]; then
+  if [[ -L "${REPO_ROOT}/profiles" ]]; then
+    PROFILES_REPO_ROOT="$(dirname "$(readlink -f "${REPO_ROOT}/profiles")")"
+  elif [[ -d "${REPO_ROOT}/../productive-k3s-profiles/profiles" ]]; then
+    PROFILES_REPO_ROOT="$(cd "${REPO_ROOT}/../productive-k3s-profiles" && pwd)"
+  else
+    PROFILES_REPO_ROOT="${REPO_ROOT}"
+  fi
+fi
+
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/release-config.sh"
 
@@ -61,47 +72,47 @@ replace_in_file() {
 files=(
   "scripts/release-config.sh"
   "scripts/create-release-tag.sh"
-  "scenarios/local/multipass/scripts/common.sh"
-  "scenarios/edge/onprem-basic/scripts/common.sh"
-  "scenarios/edge/onprem-basic-arm/scripts/common.sh"
   "ansible/roles/remote_cluster/files/common.sh"
-  "profiles/cloud/aws-single-node/basic.env"
-  "profiles/local/multipass/1-server-2-agents.env"
-  "profiles/edge/on-prem/basic.env"
-  "profiles/edge/on-prem/arm.env"
-  "scenarios/cloud/aws-single-node/aws.env.example"
-  "scenarios/local/multipass/README.md"
-  "scenarios/edge/onprem-basic/README.md"
-  "scenarios/edge/onprem-basic-arm/README.md"
-  "scenarios/edge/onprem-basic/onprem.env.example"
-  "scenarios/edge/onprem-basic-arm/onprem.env.example"
-  "scenarios/cloud/aws-single-node/README.md"
   "tests/test-create-release-tag.sh"
   "tests/test-core-release-bundle-contract.sh"
   "tests/test-release-versioning.sh"
   "tests/test-productive-k3s-infra-cli.sh"
   "tests/spec/create_release_tag_spec.sh"
+  "../productive-k3s-profiles/scenarios/local/multipass/scripts/common.sh"
+  "../productive-k3s-profiles/scenarios/edge/onprem-basic/scripts/common.sh"
+  "../productive-k3s-profiles/scenarios/edge/onprem-basic-arm/scripts/common.sh"
+  "../productive-k3s-profiles/profiles/cloud/aws-single-node/basic.env"
+  "../productive-k3s-profiles/profiles/local/multipass/1-server-2-agents.env"
+  "../productive-k3s-profiles/profiles/edge/on-prem/basic.env"
+  "../productive-k3s-profiles/profiles/edge/on-prem/arm.env"
+  "../productive-k3s-profiles/scenarios/cloud/aws-single-node/aws.env.example"
+  "../productive-k3s-profiles/scenarios/local/multipass/README.md"
+  "../productive-k3s-profiles/scenarios/edge/onprem-basic/README.md"
+  "../productive-k3s-profiles/scenarios/edge/onprem-basic-arm/README.md"
+  "../productive-k3s-profiles/scenarios/edge/onprem-basic/onprem.env.example"
+  "../productive-k3s-profiles/scenarios/edge/onprem-basic-arm/onprem.env.example"
+  "../productive-k3s-profiles/scenarios/cloud/aws-single-node/README.md"
 )
 
 replace_in_file "${REPO_ROOT}/scripts/release-config.sh" 'PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
 replace_in_file "${REPO_ROOT}/scripts/create-release-tag.sh" '\./scripts/create-release-tag\.sh \K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
-replace_in_file "${REPO_ROOT}/scenarios/local/multipass/scripts/common.sh" 'PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
-replace_in_file "${REPO_ROOT}/scenarios/edge/onprem-basic/scripts/common.sh" 'PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
-replace_in_file "${REPO_ROOT}/scenarios/edge/onprem-basic-arm/scripts/common.sh" 'PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/scenarios/local/multipass/scripts/common.sh" 'PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/scenarios/edge/onprem-basic/scripts/common.sh" 'PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/scenarios/edge/onprem-basic-arm/scripts/common.sh" 'PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
 replace_in_file "${REPO_ROOT}/ansible/roles/remote_cluster/files/common.sh" 'PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
 
-replace_in_file "${REPO_ROOT}/profiles/cloud/aws-single-node/basic.env" '^PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
-replace_in_file "${REPO_ROOT}/profiles/local/multipass/1-server-2-agents.env" '^# PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
-replace_in_file "${REPO_ROOT}/profiles/edge/on-prem/basic.env" '^# PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
-replace_in_file "${REPO_ROOT}/profiles/edge/on-prem/arm.env" '^# PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
-replace_in_file "${REPO_ROOT}/scenarios/cloud/aws-single-node/aws.env.example" '^PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
-replace_in_file "${REPO_ROOT}/scenarios/edge/onprem-basic/onprem.env.example" '^# PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
-replace_in_file "${REPO_ROOT}/scenarios/edge/onprem-basic-arm/onprem.env.example" '^# PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/profiles/cloud/aws-single-node/basic.env" '^PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/profiles/local/multipass/1-server-2-agents.env" '^# PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/profiles/edge/on-prem/basic.env" '^# PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/profiles/edge/on-prem/arm.env" '^# PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/scenarios/cloud/aws-single-node/aws.env.example" '^PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/scenarios/edge/onprem-basic/onprem.env.example" '^# PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/scenarios/edge/onprem-basic-arm/onprem.env.example" '^# PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
 
-replace_in_file "${REPO_ROOT}/scenarios/local/multipass/README.md" 'PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
-replace_in_file "${REPO_ROOT}/scenarios/edge/onprem-basic/README.md" 'PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
-replace_in_file "${REPO_ROOT}/scenarios/edge/onprem-basic-arm/README.md" 'PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
-replace_in_file "${REPO_ROOT}/scenarios/cloud/aws-single-node/README.md" 'PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/scenarios/local/multipass/README.md" 'PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/scenarios/edge/onprem-basic/README.md" 'PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/scenarios/edge/onprem-basic-arm/README.md" 'PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${PROFILES_REPO_ROOT}/scenarios/cloud/aws-single-node/README.md" 'PRODUCTIVE_K3S_VERSION=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
 
 replace_in_file "${REPO_ROOT}/tests/test-create-release-tag.sh" 'TAG_NAME="1\.2\.3-\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
 replace_in_file "${REPO_ROOT}/tests/test-create-release-tag.sh" 'tag \K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"

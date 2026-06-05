@@ -35,6 +35,15 @@ JSON
   exit 0
 fi
 
+if [[ "$1" == "delete" ]]; then
+  : > "${LIVE_MULTIPASS_STUB_DELETED_FILE:?}"
+  exit 0
+fi
+
+if [[ "$1" == "purge" ]]; then
+  exit 0
+fi
+
 exit 0
 EOF
 chmod +x "${STUB_DIR}/multipass"
@@ -56,6 +65,7 @@ cat >"${WORK_DIR}/state" <<'EOF'
 2
 EOF
 : > "${WORK_DIR}/calls"
+: > "${WORK_DIR}/deleted"
 
 source "${ROOT_DIR}/tests/live-multipass.sh"
 
@@ -71,5 +81,22 @@ if [[ "${list_calls}" -lt 3 ]]; then
   printf '[FAIL] expected wait_for_instance_removal to poll multipass list until instances disappeared\n' >&2
   exit 1
 fi
+
+printf '1\n' > "${WORK_DIR}/state"
+PATH="${STUB_DIR}:$PATH" \
+LIVE_MULTIPASS_STUB_STATE_FILE="${WORK_DIR}/state" \
+LIVE_MULTIPASS_STUB_CALLS_FILE="${WORK_DIR}/calls" \
+LIVE_MULTIPASS_STUB_DELETED_FILE="${WORK_DIR}/deleted" \
+force_delete_instances_by_prefix productive-k3s-mp
+
+grep -F 'delete productive-k3s-mp-server productive-k3s-mp-agent-1' "${WORK_DIR}/calls" >/dev/null || {
+  printf '[FAIL] expected force_delete_instances_by_prefix to delete matching multipass instances\n' >&2
+  exit 1
+}
+
+grep -F 'purge' "${WORK_DIR}/calls" >/dev/null || {
+  printf '[FAIL] expected force_delete_instances_by_prefix to purge after delete\n' >&2
+  exit 1
+}
 
 printf '[PASS] live multipass cleanup waits for instance removal before returning\n'

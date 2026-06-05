@@ -14,11 +14,13 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 FAKE_REPO="${TMP_DIR}/repo"
 FAKE_TESTS_DIR="${FAKE_REPO}/tests"
+FAKE_HELPERS_DIR="${FAKE_TESTS_DIR}/helpers"
 FAKE_SCENARIOS_DIR="${FAKE_REPO}/scenarios"
 ARTIFACTS_DIR="${TMP_DIR}/test-artifacts"
 
-mkdir -p "${FAKE_TESTS_DIR}" "${FAKE_SCENARIOS_DIR}/demo-pass/generated" "${FAKE_SCENARIOS_DIR}/demo-skip"
+mkdir -p "${FAKE_TESTS_DIR}" "${FAKE_HELPERS_DIR}" "${FAKE_SCENARIOS_DIR}/demo-pass/generated" "${FAKE_SCENARIOS_DIR}/demo-skip"
 cp "${REPO_DIR}/tests/run-matrix.sh" "${FAKE_TESTS_DIR}/run-matrix.sh"
+cp "${REPO_DIR}/tests/helpers/profiles-source.sh" "${FAKE_HELPERS_DIR}/profiles-source.sh"
 chmod +x "${FAKE_TESTS_DIR}/run-matrix.sh"
 
 cat > "${FAKE_SCENARIOS_DIR}/demo-pass/Makefile" <<'EOF'
@@ -48,6 +50,7 @@ cat > "${FAKE_SCENARIOS_DIR}/demo-pass/generated/cluster.json" <<'EOF'
 EOF
 
 TEST_ARTIFACTS_DIR="${ARTIFACTS_DIR}" \
+PRODUCTIVE_K3S_PROFILES_REPO_DIR="" \
 PRODUCTIVE_K3S_SOURCE="" \
 PRODUCTIVE_K3S_VERSION="" \
 PRODUCTIVE_K3S_ENGINE="" \

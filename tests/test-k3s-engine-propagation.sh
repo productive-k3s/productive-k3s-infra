@@ -2,6 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HELPERS_DIR="${ROOT_DIR}/tests/helpers"
+# shellcheck disable=SC1090
+source "${HELPERS_DIR}/profiles-source.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -29,7 +32,7 @@ setup_multipass_fixture() {
   local repo_dir="$1"
   local scenario_dir="${repo_dir}/scenarios/local/multipass"
   mkdir -p "${scenario_dir}"
-  cp -R "${ROOT_DIR}/scenarios/local/multipass/scripts" "${scenario_dir}/scripts"
+  cp -R "$(profiles_scenario_dir multipass)/scripts" "${scenario_dir}/scripts"
   mkdir -p "${repo_dir}/scripts"
   cp "${ROOT_DIR}/scripts/release-config.sh" "${repo_dir}/scripts/release-config.sh"
   mkdir -p "${scenario_dir}/generated/logs"
@@ -111,7 +114,7 @@ setup_onprem_fixture() {
   local repo_dir="$1"
   local scenario_dir="${repo_dir}/scenarios/edge/onprem-basic"
   mkdir -p "${scenario_dir}"
-  cp -R "${ROOT_DIR}/scenarios/edge/onprem-basic/scripts" "${scenario_dir}/scripts"
+  cp -R "$(profiles_scenario_dir onprem-basic)/scripts" "${scenario_dir}/scripts"
   mkdir -p "${repo_dir}/scripts"
   cp "${ROOT_DIR}/scripts/release-config.sh" "${repo_dir}/scripts/release-config.sh"
   mkdir -p "${scenario_dir}/generated/logs"

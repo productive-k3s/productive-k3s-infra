@@ -2,7 +2,7 @@
 
 This is the default documentation entry point for Productive K3S Infra.
 
-Use this tree when you want the product framing, the operational scenario docs, and the developer-oriented repository guides in English.
+Use this tree when you want the engine-facing documentation for packaged profile execution, runtime behavior, and integration guidance with `productive-k3s-profiles`.
 
 ## Start here
 
@@ -13,8 +13,8 @@ Use this tree when you want the product framing, the operational scenario docs, 
 ## Direct links
 
 - [How to use Productive K3S Infra](product/how-to-use.md)
-- [Open vs Pro](product/open-vs-pro.md)
-- [Multipass scenario](user-docs/multipass.md)
+- [Relationship with Productive K3S Profiles and Core](product/productive-k3s-relationship.md)
 - [Make targets](user-docs/make-targets.md)
+- [Privacy and telemetry](user-docs/privacy-and-telemetry.md)
 - [Testing and matrix](developer-docs/guides/testing-and-matrix.md)
 - [Documentation workflow](developer-docs/guides/documentation-workflow.md)

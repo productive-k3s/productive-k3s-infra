@@ -1,6 +1,6 @@
 # Razones Del Diseño De `productive-k3s-infra`
 
-`productive-k3s-infra` existe porque `productive-k3s-core` y la orquestación de infraestructura resuelven problemas distintos.
+`productive-k3s-infra` existe porque la ejecución de profiles empaquetados y el authoring de contenido fuente resuelven problemas distintos.
 
 ## Por qué no alcanza con `productive-k3s-core`
 
@@ -12,69 +12,56 @@ Eso alcanza cuando:
 - el operador puede trabajar directamente sobre esa máquina
 - la topología del clúster es lo bastante simple como para armarla a mano
 
-No alcanza cuando además necesitás estandarizar:
+No alcanza cuando además necesitás un contrato reutilizable de runtime para:
 
-- cómo se provisionan las máquinas
-- cómo se declaran los roles de nodos
-- cómo se renderizan inventarios y hostnames
-- cómo se secuencian los pasos de bootstrap multinodo
-- cómo debería correrse una validación específica de infraestructura
+- extracción de paquetes
+- merge de env y validación de inputs
+- persistencia y restauración del state de runtime
+- propagación de telemetría
+- dispatch de comandos entre operaciones repetidas sobre profiles
 
-## Por qué los escenarios son el entrypoint público
+## Por qué separar el engine del contenido público de profiles
 
-Este repositorio está centrado intencionalmente en `scenarios/` en lugar de snippets genéricos.
+Este repositorio está centrado intencionalmente en el engine de runtime, no en ser dueño del árbol público `profiles/` y `scenarios/`.
 
-El objetivo de diseño es ofrecer caminos de despliegue que sean:
+La separación existe para que:
 
-- reutilizables
-- evaluables
-- explícitos
-- cercanos a lo que un equipo realmente ejecutaría
+- cambiar un profile público no fuerce un nuevo bundle de Infra
+- `productive-k3s-infra` pueda validar compatibilidad contra `productive-k3s-profiles` sin ser dueño del contenido
+- `productive-k3s-ops` pueda empaquetar artefactos públicos `profile.tgz` desde un repositorio fuente limpio
 
-Por eso los entrypoints públicos son cosas como:
+## Por qué sigue existiendo el engine
 
-- clústeres locales con Multipass
-- bootstrap on-premises por SSH
-- un camino básico single-node sobre AWS
+Incluso después del split fuente, los profiles publicados siguen necesitando una capa compartida de ejecución en la que todos puedan apoyarse:
 
-y no una colección de helpers desconectados.
+- extracción de `profile.tgz`
+- merge de env y validación de inputs
+- persistencia y restauración de state de runtime
+- propagación de telemetría
+- dispatch de comandos y comportamiento de recuperación
 
-## Por qué mantener capas compartidas por debajo
+Sin esa capa, el engine volvería a volverse específico por scenario o cada profile empaquetado tendría que reimplementar la misma lógica de runtime.
 
-Aun cuando la interfaz pública está orientada a escenarios, la implementación igual necesita fronteras de reutilización.
+## Por qué sigue importando la separación explícita por modos
 
-Por eso el repositorio mantiene lógica compartida en capas como:
+Los modos `server`, `agent`, `stack` y `single-node` expuestos por `productive-k3s-core` siguen siendo lo que vuelve realista la ejecución de profiles.
 
-- `ansible/roles/remote_cluster` para bootstrap y validación del lado SSH
-- `opentofu/` para concerns de provisioning
-- `tests/` para validación static, contract y live
+Le permiten a Infra:
 
-Esa separación hace más fácil evolucionar un camino público sin copiar y pegar todo en cada uno de los demás.
-
-## Por qué importa la separación explícita por modos
-
-Los modos `server`, `agent`, `stack` y `single-node` expuestos por `productive-k3s-core` son lo que vuelve realista la orquestación de infraestructura.
-
-Le permiten a este repositorio:
-
-1. crear o apuntar máquinas primero
-2. ensamblar el clúster después
-3. instalar el stack compartido al final
-
-Sin esa separación, la automatización de infraestructura tendría que pelear contra un bootstrap más monolítico.
+1. entregar el state de runtime correcto al profile empaquetado
+2. delegar el bootstrap del clúster a Core en fases estables
+3. preservar un modelo reutilizable de ejecución entre distintos artefactos de profile
 
 ## Racional general
 
-Tomado como conjunto, el repositorio busca ubicarse entre scripting crudo de infraestructura y una plataforma privada totalmente productizada.
+Tomado como conjunto, el repositorio busca ofrecer:
 
-Apunta a ofrecer:
-
-- flujos de infraestructura que sigan siendo públicos y entendibles
-- escenarios más realistas que ejemplos de juguete
-- un puente estable hacia entornos K3S reales, remotos o multinodo
+- un contrato reutilizable de runtime para todos los profiles publicados
+- puntos de integración explícitos con `productive-k3s-profiles`
+- un puente estable de ejecución hacia entornos K3S reales, remotos o multinodo
 
 ## Ver también
 
 - [Resumen del producto](index.md)
 - [Cómo usar Productive K3S Infra](how-to-use.md)
-- [Relación con Productive K3S Core](productive-k3s-relationship.md)
+- [Relación con Productive K3S Profiles y Core](productive-k3s-relationship.md)

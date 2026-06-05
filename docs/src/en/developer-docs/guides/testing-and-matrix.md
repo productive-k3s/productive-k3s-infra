@@ -1,12 +1,12 @@
 # Testing And Matrix
 
-The repository exposes a three-level validation model.
+The repository exposes a split validation model: fast engine checks inside `productive-k3s-infra`, plus integration checks against an external checkout of `productive-k3s-profiles`.
 
 ## Root matrix levels
 
-- `static`: shell syntax, Python compile checks, OpenTofu validation, and selected behavior tests
-- `contract`: checks that each public scenario exposes the expected files, outputs, ignores, and targets
-- `live`: executes the real environment flow when the environment allows it
+- `static`: shell syntax, Python compile checks, runtime helper validation, and selected behavior tests
+- `contract`: checks the engine-side package/runtime contract
+- `live`: executes real integration flows when the environment allows it
 
 ## Root commands
 
@@ -25,95 +25,33 @@ make test-matrix
 make test-checkstatus
 ```
 
-## Local tooling for fast shell tests
-
-The repo now exposes a local fast layer in addition to `static`, `contract`, and `live`.
-
-- `make test-unit`: `ShellSpec` specs under `tests/spec/`
-- `make test-lint`: shell lint for the testing harness
-- `make test-format`: `shfmt` check for the testing harness
-- `make test-spell`: lightweight spell checks
-- `make test-coverage`: shell coverage through `kcov`
-
-If you install tools without root, keep `~/.local/bin` in `PATH`:
-
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-User-local install commands used during development on Ubuntu:
-
-```bash
-mkdir -p "$HOME/.local/bin" "$HOME/.local/share"
-curl -fsSLO https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz
-tar -xJf shellcheck-v0.11.0.linux.x86_64.tar.xz
-install shellcheck-v0.11.0/shellcheck "$HOME/.local/bin/shellcheck"
-
-curl -fsSLo "$HOME/.local/bin/shfmt" https://github.com/mvdan/sh/releases/download/v3.13.1/shfmt_v3.13.1_linux_amd64
-chmod +x "$HOME/.local/bin/shfmt"
-
-curl -fsSLO https://github.com/shellspec/shellspec/releases/download/0.28.1/shellspec-dist.tar.gz
-mkdir -p "$HOME/.local/share/shellspec"
-tar -xzf shellspec-dist.tar.gz -C "$HOME/.local/share/shellspec"
-cat > "$HOME/.local/bin/shellspec" <<'EOF'
-#!/usr/bin/env bash
-exec "$HOME/.local/share/shellspec/shellspec/shellspec" "$@"
-EOF
-chmod +x "$HOME/.local/bin/shellspec"
-
-python3 -m pip install --user codespell
-```
-
-`kcov` still needs system development headers on Ubuntu:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y kcov libelf-dev libdw-dev
-```
-
-## Current local coverage baseline
-
-The current maintainer baseline from the latest local `make test-coverage` run is:
-
-- total ShellSpec coverage: `75.14%`
-- `ansible/roles/remote_cluster/files/common.sh`: `77.60%`
-- `scripts/productive-k3s-infra.sh`: `75.89%`
-- `scripts/release-versioning.sh`: `64.29%`
-- `scenarios/cloud/aws-single-node/scripts/refresh-generated-artifacts.sh`: `67.92%`
-- `scripts/create-release-tag.sh`: `59.09%`
-
-This baseline is intended to guide future additions and refactors. It is not yet enforced as a CI threshold.
-
 ## Main test entry points
 
-- `tests/run-matrix.sh`
-- `tests/run-scenario-test.sh`
 - `tests/check-test-status.sh`
 - `tests/clean-test-state.sh`
-- `tests/contract-check.sh`
-- `tests/live-multipass.sh`
-- `tests/live-onprem-basic.sh`
+- engine-side package/runtime regression scripts under `tests/`
+- compatibility/integration scripts that clone `productive-k3s-profiles` into a temporary workspace
 - telemetry-specific regression scripts under `tests/`
 
 ## Artifact model
 
-All test entrypoints write JSON artifacts under `test-artifacts/`.
+Engine test entrypoints write JSON artifacts under `test-artifacts/`.
 
 The layout is:
 
-- `test-artifacts/infra-runs/`: one manifest per scenario execution, produced by both matrix runs and direct scenario runs
+- `test-artifacts/infra-runs/`: one manifest per engine integration execution
 - `test-artifacts/*-summary.json`: one root summary per matrix layer such as `static`, `contract`, or `live`
 
 Those artifacts record:
 
-- scenario
+- profile or integration target
 - level
 - result
-- skip reason when a scenario is intentionally skipped
+- skip reason when a live path is intentionally skipped
 - duration
 - aggregate matrix start/end timestamps and total duration in the root summary
-- topology and environment class
-- selected Productive K3S Core source details, preferring the effective resolved values from generated scenario metadata when available
+- topology and environment class when a live profile is exercised
+- selected Productive K3S Core source details
 - anonymous telemetry-related metadata
 
 ## Local review workflow
@@ -126,31 +64,18 @@ make test-matrix
 make test-checkstatus
 ```
 
-`make test-checkstatus` reads the recorded JSON manifests and prints a short status report instead of forcing you to inspect each file manually.
-
-If you want to inspect only one scenario, run the same targets from the scenario directory:
-
-```bash
-make -C scenarios/local/multipass test-clean
-make -C scenarios/local/multipass test-static
-make -C scenarios/local/multipass test-checkstatus
-```
-
-The scenario-local `test-static`, `test-contract`, and `test-live` targets go through `tests/run-scenario-test.sh`, which means they also emit manifests that `make -C scenarios/<name> test-checkstatus` can summarize immediately afterward.
-
-The scenario-local `test-clean` and `test-checkstatus` targets filter the shared `test-artifacts/infra-runs/` state down to the current scenario only.
+If you want scenario-local validation, that now belongs in `productive-k3s-profiles`, using its own `make -C scenarios/...` entrypoints and CI.
 
 ## Development guidance
 
-When changing a public scenario, review whether you need to update:
+When changing the Infra engine, review whether you need to update:
 
-- the scenario-local `test-static` target
-- the contract expectations in `tests/contract-check.sh`
+- engine-side package execution tests
 - `tests/test-k3s-engine-propagation.sh` when the bootstrap wrapper contract changes
-- any telemetry propagation tests
-- the generated metadata contract consumed by matrix manifests
+- telemetry propagation tests
+- integration wiring that clones `productive-k3s-profiles`
 
 ## Notes
 
 !!! note
-    `aws-single-node` intentionally skips the public `live` test unless AWS credentials and an account are available. That skip behavior is part of the current public contract.
+    Public scenario compatibility still matters, but the source-of-truth scenario tests now belong to `productive-k3s-profiles`. Infra should validate compatibility by cloning that repo, not by vendoring its contents.

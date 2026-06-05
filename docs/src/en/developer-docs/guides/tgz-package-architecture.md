@@ -5,7 +5,7 @@
 Define a unified, symmetrical architecture for:
 
 - installing add-ons in Core
-- installing profiles and scenarios in Infra
+- installing profiles in Infra from decoupled scenario sources
 - distributing decoupled `.tgz` packages
 - supporting public and private catalogs
 - executing packages as self-contained artifacts
@@ -16,7 +16,7 @@ Define a unified, symmetrical architecture for:
 This applies to:
 
 - Add-ons (`productive-k3s-addons`)
-- Profiles/Scenarios (`productive-k3s-infra`)
+- Profiles/Scenarios (`productive-k3s-profiles`)
 
 ## Core concepts
 
@@ -118,8 +118,9 @@ That means:
 - `productive-k3s-core`: runtime for add-on installation
 - `productive-k3s-addons`: public add-ons catalog
 - `productive-k3s-addons-pro`: paid/private add-ons
-- `productive-k3s-infra`: public profiles and scenarios
-- `productive-k3s-infra-pro`: paid/private profiles and scenarios
+- `productive-k3s-infra`: runtime/packaging engine for profile execution
+- `productive-k3s-profiles`: public profiles and scenarios
+- `productive-k3s-profiles-pro`: paid/private profiles and scenarios
 - `productive-k3s-cli`: orchestrator
 - `productive-k3s-catalogs`: published package indexes
 

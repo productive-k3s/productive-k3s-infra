@@ -5,6 +5,8 @@ Describe 'productive-k3s-infra top-level cli paths'
   It 'runs doctor for an OpenTofu profile with top-level flag parsing'
     profile="$(mktemp)"
     mock_bin="$(mktemp -d)"
+    profiles_repo="$(mktemp -d)"
+    mkdir -p "${profiles_repo}/profiles" "${profiles_repo}/scenarios/local/multipass"
     cat >"${profile}" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_ENGINE=opentofu
@@ -26,9 +28,9 @@ exit 0
 EOF
     chmod +x "${mock_bin}/tofu"
 
-    When run bash -lc 'PATH="$1:$PATH" "$2" doctor --debug --profile "$3"' bash "$mock_bin" "$SCRIPT" "$profile"
+    When run bash -lc 'PATH="$1:$PATH" PRODUCTIVE_K3S_PROFILES_REPO_DIR="$4" "$2" doctor --debug --profile "$3"' bash "$mock_bin" "$SCRIPT" "$profile" "$profiles_repo"
     The status should equal 0
-    The output should include 'profiles directory found:'
+    The output should include 'productive-k3s-profiles checkout found:'
     The output should include 'Profile file is readable:'
     The output should include 'Profile scenario: multipass'
     The output should include 'OpenTofu-compatible binary is available'
@@ -62,6 +64,8 @@ EOF
     profile="$(mktemp)"
     mock_bin="$(mktemp -d)"
     log_file="$(mktemp)"
+    profiles_repo="$(mktemp -d)"
+    mkdir -p "${profiles_repo}/profiles" "${profiles_repo}/scenarios/local/multipass"
     cat >"${profile}" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_ENGINE=opentofu
@@ -84,7 +88,7 @@ exit 0
 EOF
     chmod +x "${mock_bin}/make"
 
-    When run bash -lc 'PATH="$1:$PATH" MOCK_MAKE_LOG="$2" "$3" status --yes --profile "$4"; printf "\n__MAKE__\n"; cat "$2"' bash "$mock_bin" "$log_file" "$SCRIPT" "$profile"
+    When run bash -lc 'PATH="$1:$PATH" MOCK_MAKE_LOG="$2" PRODUCTIVE_K3S_PROFILES_REPO_DIR="$5" "$3" status --yes --profile "$4"; printf "\n__MAKE__\n"; cat "$2"' bash "$mock_bin" "$log_file" "$SCRIPT" "$profile" "$profiles_repo"
     The status should equal 0
     The output should include '__MAKE__'
     The output should include 'scenarios/local/multipass'

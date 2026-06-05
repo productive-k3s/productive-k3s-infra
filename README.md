@@ -1,6 +1,6 @@
 # Productive K3S Infra
 
-**Productive K3S Infra** provides pre-assembled infrastructure scenarios for running [Productive K3S Core](https://github.com/jemacchi/productive-k3s-core) in repeatable local, cloud, and on-premises environments.
+**Productive K3S Infra** provides the infrastructure runtime and packaging engine used to execute Productive K3S profiles in repeatable local, cloud, and on-premises environments.
 
 It does not replace `productive-k3s-core`. It acts as the infrastructure companion project: it prepares machines, inventories, networking assumptions, and orchestration flows so that `productive-k3s-core` can bootstrap a usable K3S environment on top.
 
@@ -8,20 +8,20 @@ It does not replace `productive-k3s-core`. It acts as the infrastructure compani
 
 The current public scope includes:
 
-- local virtual machines with Multipass
-- basic AWS single-node provisioning
-- basic on-premises provisioning over SSH
+- package-oriented profile execution
 - reusable OpenTofu modules
 - reusable Ansible-side bootstrap assets
+- runtime state persistence and restore
+- telemetry, validation, and CLI dispatch for packaged profiles
 
-The main implementation units are still organized as `scenarios/`, but public distribution is now package-first through self-contained `profile.tgz` artifacts. Source-based profiles under `profiles/` remain part of the repository authoring and testing workflow.
+Public profile/scenario source content now lives in the sibling repository [`productive-k3s-profiles`](https://github.com/jemacchi/productive-k3s-profiles). This repository keeps the engine/runtime responsibilities needed to execute those profiles once they are packaged as self-contained `profile.tgz` artifacts.
 
 The repository now exposes two distinct surfaces:
 
 - public runtime surface: packaged `profile.tgz`
-- development surface: source-based `.env` profiles plus the scenario tree
+- development surface: engine authoring, testing, and sibling-checkout integration with `productive-k3s-profiles`
 
-Published release bundles now ship only the package-oriented runtime surface. They do not carry source authoring assets such as `profiles/`, `scenarios/`, or the embedded Ansible scenario tree; those live in the repository and in the generated `profile.tgz` artifacts instead.
+Published release bundles now ship only the package-oriented runtime surface. They do not carry source authoring assets such as public `profiles/`, public `scenarios/`, or the embedded authoring tree; those live in `productive-k3s-profiles` and in the generated `profile.tgz` artifacts instead.
 
 Public runtime examples:
 
@@ -42,7 +42,7 @@ Release tags are composite:
 
 When you execute `productive-k3s-infra-cli.sh` from a GitHub Release, it defaults to `PRODUCTIVE_K3S_SOURCE=remote` and enforces the bound `productive-k3s-core` version from the tag.
 
-For local development convenience, the root `Makefile` still exposes source-based flows such as:
+For local development convenience, the root `Makefile` still exposes source-based flows against the sibling `productive-k3s-profiles` checkout, such as:
 
 - `make infra-list-profiles`
 - `make infra-validate-profile PROFILE=profiles/edge/on-prem/basic.env`

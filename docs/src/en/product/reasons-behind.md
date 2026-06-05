@@ -1,6 +1,6 @@
 # Reasons Behind `productive-k3s-infra`
 
-`productive-k3s-infra` exists because `productive-k3s-core` and infrastructure orchestration solve different problems.
+`productive-k3s-infra` exists because packaged profile execution and source-content authoring solve different problems.
 
 ## Why not stop at `productive-k3s-core`
 
@@ -12,69 +12,56 @@ That is enough when:
 - the operator can work directly on that machine
 - the cluster topology is simple enough to assemble by hand
 
-It is not enough when you also need to standardize:
+It is not enough when you also need one reusable runtime contract for:
 
-- how machines are provisioned
-- how node roles are declared
-- how inventories and hostnames are rendered
-- how multi-node bootstrap steps are sequenced
-- how infrastructure-specific validation should run
+- package extraction
+- env merge and input validation
+- runtime state persistence and restoration
+- telemetry propagation
+- command dispatch across repeated profile operations
 
-## Why scenarios are the public entry point
+## Why split the engine from public profile content
 
-This repository is intentionally centered on `scenarios/` instead of generic snippets.
+This repository is intentionally centered on the runtime engine instead of owning the public `profiles/` and `scenarios/` tree.
 
-The design goal is to provide deployment paths that are:
+The split exists so that:
 
-- reusable
-- evaluable
-- explicit
-- close to what a team would actually run
+- changing a public profile does not force a new Infra bundle
+- `productive-k3s-infra` can validate compatibility against `productive-k3s-profiles` without owning its content
+- `productive-k3s-ops` can package public `profile.tgz` artifacts from a clean source-of-truth repository
 
-That is why the public entry points are things like:
+## Why the engine still exists
 
-- local Multipass clusters
-- on-premises SSH bootstrap
-- a basic AWS single-node path
+Even after the source split, published profiles still need one shared execution layer they can all rely on:
 
-instead of a collection of disconnected helper fragments.
+- `profile.tgz` extraction
+- env merge and input validation
+- runtime state persistence and restoration
+- telemetry propagation
+- command dispatch and recovery behavior
 
-## Why keep shared layers underneath
+Without that layer, the engine would become scenario-specific again or every profile package would need to reimplement the same runtime logic.
 
-Even though the public interface is scenario driven, the implementation still needs reuse boundaries.
+## Why the explicit mode split still matters
 
-The repository therefore keeps shared logic in layers such as:
+The `server`, `agent`, `stack`, and `single-node` modes exposed by `productive-k3s-core` are still what make profile execution realistic.
 
-- `ansible/roles/remote_cluster` for SSH-side bootstrap and validation
-- `opentofu/` for infrastructure provisioning concerns
-- `tests/` for static, contract, and live validation
+They let Infra:
 
-That split makes it easier to evolve one public path without copy-pasting everything into every other path.
-
-## Why the explicit mode split matters
-
-The `server`, `agent`, `stack`, and `single-node` modes exposed by `productive-k3s-core` are what make infrastructure orchestration realistic.
-
-They let this repository:
-
-1. create or target machines first
-2. assemble the cluster second
-3. install the shared stack last
-
-Without that split, infrastructure automation would have to fight a more monolithic bootstrap flow.
+1. hand the right runtime state to the packaged profile
+2. delegate cluster bootstrap to Core in stable phases
+3. preserve a reusable execution model across different profile artifacts
 
 ## Overall rationale
 
-Taken together, the repository is meant to sit between raw infrastructure scripting and a fully productized private platform.
+Taken together, the repository is meant to provide:
 
-It aims to provide:
-
-- infrastructure flows that are still public and understandable
-- scenarios that are more realistic than toy examples
-- a stable bridge into real multi-node or remote K3S environments
+- one reusable runtime contract for all published profiles
+- explicit integration points with `productive-k3s-profiles`
+- a stable execution bridge into real multi-node or remote K3S environments
 
 ## See also
 
 - [Product overview](index.md)
 - [How to use Productive K3S Infra](how-to-use.md)
-- [Relationship with Productive K3S Core](productive-k3s-relationship.md)
+- [Relationship with Productive K3S Profiles and Core](productive-k3s-relationship.md)

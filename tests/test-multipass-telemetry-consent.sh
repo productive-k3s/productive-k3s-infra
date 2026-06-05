@@ -2,7 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMMON_SCRIPT="${ROOT_DIR}/scenarios/local/multipass/scripts/common.sh"
+HELPERS_DIR="${ROOT_DIR}/tests/helpers"
+# shellcheck disable=SC1090
+source "${HELPERS_DIR}/profiles-source.sh"
+COMMON_SCRIPT="$(profiles_scenario_dir multipass)/scripts/common.sh"
 
 # shellcheck disable=SC1090
 source "${COMMON_SCRIPT}"

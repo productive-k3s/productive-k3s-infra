@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TESTS_DIR="${REPO_DIR}/tests"
 SCENARIOS="multipass onprem-basic onprem-basic-arm aws-single-node"
+TEMP_PROFILES_CLONE_DIR=""
 
 usage() {
   cat <<'EOF'
@@ -24,6 +25,8 @@ Development commands:
   test-contract
   test-telemetry
   test-live
+  test-live-onprem-basic
+  test-live-onprem-basic-arm
   test-live-gha-onprem
   test-k3s-engine-propagation
   test-productive-k3s-infra-cli
@@ -38,6 +41,51 @@ fi
 default_test_telemetry_disabled() {
   if [[ -z "${TELEMETRY_ENABLED:-}" ]]; then
     export TELEMETRY_ENABLED="false"
+  fi
+}
+
+cleanup_temp_profiles_clone() {
+  if [[ -n "${TEMP_PROFILES_CLONE_DIR}" && -d "${TEMP_PROFILES_CLONE_DIR}" ]]; then
+    rm -rf "${TEMP_PROFILES_CLONE_DIR}"
+  fi
+}
+
+prepare_profiles_repo_checkout() {
+  TEMP_PROFILES_CLONE_DIR="$(mktemp -d)"
+  trap cleanup_temp_profiles_clone EXIT
+  if [[ -n "${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}" ]]; then
+    [[ -d "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/profiles" && -d "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/scenarios" ]] || {
+      printf 'invalid PRODUCTIVE_K3S_PROFILES_REPO_DIR: %s\n' "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}" >&2
+      exit 1
+    }
+    git clone --depth 1 "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}" \
+      "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles" >/dev/null 2>&1
+  else
+    if [[ -z "${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}" ]]; then
+      printf 'tests that use productive-k3s-profiles require PRODUCTIVE_K3S_PROFILES_REPO_DIR or PRODUCTIVE_K3S_PROFILES_REPO_URL\n' >&2
+      exit 1
+    fi
+    git clone --depth 1 --branch "${PRODUCTIVE_K3S_PROFILES_REPO_REF:-main}" \
+      "${PRODUCTIVE_K3S_PROFILES_REPO_URL}" \
+      "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles" >/dev/null 2>&1
+  fi
+
+  mkdir -p "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/ansible"
+  mkdir -p "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/scripts"
+  mkdir -p "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/tests"
+  cp -a "${REPO_DIR}/ansible/." "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/ansible/"
+  cp -a "${REPO_DIR}/scripts/." "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/scripts/"
+  cp -a "${REPO_DIR}/tests/." "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/tests/"
+  cat >> "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/.gitignore" <<'EOF'
+test-artifacts/
+.tmp/
+.tmp-*/
+.live-*/
+EOF
+
+  export PRODUCTIVE_K3S_PROFILES_REPO_DIR="${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles"
+  if [[ -z "${PRODUCTIVE_K3S_REPO:-}" && -d "${REPO_DIR}/../productive-k3s-core" ]]; then
+    export PRODUCTIVE_K3S_REPO="${REPO_DIR}/../productive-k3s-core"
   fi
 }
 
@@ -68,6 +116,7 @@ case "$COMMAND" in
     ;;
   test-static)
     default_test_telemetry_disabled
+    prepare_profiles_repo_checkout
     "${TESTS_DIR}/run-matrix.sh" static ${SCENARIOS}
     bash "${TESTS_DIR}/test-artifact-tools.sh"
     bash "${TESTS_DIR}/test-matrix-artifacts.sh"
@@ -92,18 +141,34 @@ case "$COMMAND" in
     ;;
   test-contract)
     default_test_telemetry_disabled
+    prepare_profiles_repo_checkout
     exec "${TESTS_DIR}/run-matrix.sh" contract ${SCENARIOS}
     ;;
   test-telemetry)
+    prepare_profiles_repo_checkout
     bash "${TESTS_DIR}/test-multipass-telemetry-propagation.sh"
     bash "${TESTS_DIR}/test-multipass-infra-command-telemetry.sh"
     exec bash "${TESTS_DIR}/test-remote-cluster-up-preserves-telemetry.sh"
     ;;
   test-live)
     default_test_telemetry_disabled
+    prepare_profiles_repo_checkout
     exec "${TESTS_DIR}/run-matrix.sh" live ${SCENARIOS}
     ;;
+  test-live-onprem-basic)
+    default_test_telemetry_disabled
+    prepare_profiles_repo_checkout
+    export SCENARIO_DIR="${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/scenarios/edge/onprem-basic"
+    exec "${TESTS_DIR}/live-onprem-basic.sh" "$@"
+    ;;
+  test-live-onprem-basic-arm)
+    default_test_telemetry_disabled
+    prepare_profiles_repo_checkout
+    export SCENARIO_DIR="${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/scenarios/edge/onprem-basic-arm"
+    exec "${TESTS_DIR}/live-onprem-basic.sh" "$@"
+    ;;
   test-live-gha-onprem)
+    prepare_profiles_repo_checkout
     exec "${TESTS_DIR}/live-onprem-basic-github-host.sh" "$@"
     ;;
   test-k3s-engine-propagation)

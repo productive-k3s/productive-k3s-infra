@@ -1,17 +1,23 @@
 # Tests Y Matriz
 
-El repositorio expone un modelo de validación en tres niveles.
+El repositorio expone un modelo de validación dividido: checks rápidos del engine dentro de `productive-k3s-infra` más checks de integración contra un checkout externo de `productive-k3s-profiles`.
 
 ## Niveles de la matriz raíz
 
-- `static`: sintaxis de shell, compilación de Python, validación de OpenTofu y ciertos tests de comportamiento
-- `contract`: verifica que cada escenario público exponga los archivos, outputs, ignores y targets esperados
-- `live`: ejecuta el flujo real del entorno cuando el ambiente lo permite
+- `static`: sintaxis de shell, compilación de Python, validación de helpers de runtime y ciertos tests de comportamiento
+- `contract`: verifica el contrato engine-side de paquetes/runtime
+- `live`: ejecuta flujos reales de integración cuando el ambiente lo permite
 
 ## Comandos raíz
 
 ```bash
 make test-clean
+make test
+make test-unit
+make test-lint
+make test-format
+make test-spell
+make test-coverage
 make test-static
 make test-contract
 make test-live
@@ -21,34 +27,31 @@ make test-checkstatus
 
 ## Entry points principales de tests
 
-- `tests/run-matrix.sh`
-- `tests/run-scenario-test.sh`
 - `tests/check-test-status.sh`
 - `tests/clean-test-state.sh`
-- `tests/contract-check.sh`
-- `tests/live-multipass.sh`
-- `tests/live-onprem-basic.sh`
+- scripts de regresión engine-side de paquetes/runtime bajo `tests/`
+- scripts de compatibilidad/integración que clonan `productive-k3s-profiles` en un workspace temporal
 - scripts de regresión específicos de telemetría bajo `tests/`
 
 ## Modelo de artefactos
 
-Todos los entrypoints de tests escriben artefactos JSON bajo `test-artifacts/`.
+Los entrypoints de tests del engine escriben artefactos JSON bajo `test-artifacts/`.
 
 El layout es:
 
-- `test-artifacts/infra-runs/`: un manifest por ejecución de escenario, producido tanto por corridas de matriz como por corridas directas por escenario
+- `test-artifacts/infra-runs/`: un manifest por ejecución de integración del engine
 - `test-artifacts/*-summary.json`: un summary raíz por capa de matriz como `static`, `contract` o `live`
 
 Esos artefactos registran:
 
-- escenario
+- profile o target de integración
 - nivel
 - resultado
-- motivo de skip cuando un escenario se saltea intencionalmente
+- motivo de skip cuando un camino live se saltea intencionalmente
 - duración
 - timestamps agregados de inicio/fin de la matriz y duración total en el summary raíz
-- topología y clase de entorno
-- detalles seleccionados de la fuente de Productive K3S Core, priorizando los valores efectivos resueltos desde metadata generada del escenario cuando exista
+- topología y clase de entorno cuando se ejercita un profile live
+- detalles seleccionados de la fuente de Productive K3S Core
 - metadata anónima relacionada con telemetría
 
 ## Flujo local de revisión
@@ -61,31 +64,18 @@ make test-matrix
 make test-checkstatus
 ```
 
-`make test-checkstatus` lee los manifests JSON registrados e imprime un reporte corto, sin obligarte a inspeccionar cada archivo manualmente.
-
-Si querés revisar sólo un escenario, corré los mismos targets desde el directorio del escenario:
-
-```bash
-make -C scenarios/local/multipass test-clean
-make -C scenarios/local/multipass test-static
-make -C scenarios/local/multipass test-checkstatus
-```
-
-Los targets locales `test-static`, `test-contract` y `test-live` pasan por `tests/run-scenario-test.sh`, así que también generan manifests que `make -C scenarios/<name> test-checkstatus` puede resumir inmediatamente después.
-
-Los targets locales `test-clean` y `test-checkstatus` filtran el estado compartido bajo `test-artifacts/infra-runs/` para dejar sólo el escenario actual.
+Si querés validación local por scenario, eso ahora pertenece a `productive-k3s-profiles`, usando sus propios entrypoints `make -C scenarios/...` y su CI.
 
 ## Guía de desarrollo
 
-Cuando cambies un escenario público, revisá si tenés que actualizar:
+Cuando cambies el engine de Infra, revisá si tenés que actualizar:
 
-- el target `test-static` local del escenario
-- las expectativas de contrato en `tests/contract-check.sh`
+- tests engine-side de ejecución de paquetes
 - `tests/test-k3s-engine-propagation.sh` cuando cambie el contrato de los wrappers de bootstrap
-- algún test de propagación de telemetría
-- el contrato de metadata generada consumido por los manifests de matriz
+- tests de propagación de telemetría
+- el wiring de integración que clona `productive-k3s-profiles`
 
 ## Notas
 
 !!! note
-    `aws-single-node` saltea intencionalmente el test público `live` salvo que existan credenciales y una cuenta de AWS disponibles. Ese comportamiento de skip forma parte del contrato público actual.
+    La compatibilidad con scenarios públicos sigue importando, pero los tests fuente de esos scenarios ahora pertenecen a `productive-k3s-profiles`. Infra debería validar compatibilidad clonando ese repo, no versionando su contenido.

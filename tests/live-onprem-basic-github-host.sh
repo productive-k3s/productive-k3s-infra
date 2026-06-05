@@ -2,7 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCENARIO_DIR="${ROOT_DIR}/scenarios/edge/onprem-basic"
+HELPERS_DIR="${ROOT_DIR}/tests/helpers"
+# shellcheck disable=SC1090
+source "${HELPERS_DIR}/profiles-source.sh"
+SCENARIO_DIR="$(profiles_scenario_dir onprem-basic)"
 SCENARIO_SCRIPTS_DIR="${SCENARIO_DIR}/scripts"
 WORK_DIR="$(mktemp -d "${ROOT_DIR}/.live-onprem-basic-github-host.XXXXXX")"
 ENV_FILE="${WORK_DIR}/onprem.env"
