@@ -22,9 +22,12 @@ Development commands:
   test-clean
   test-checkstatus
   test-static
+  test-static-scenario
   test-contract
+  test-contract-scenario
   test-telemetry
   test-live
+  test-live-scenario
   test-live-onprem-basic
   test-live-onprem-basic-arm
   test-live-gha-onprem
@@ -90,6 +93,23 @@ EOF
   fi
 }
 
+run_prepared_scenario_test() {
+  local level="$1"
+  local scenario_rel_dir="$2"
+  local scenario_dir="${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/${scenario_rel_dir}"
+  local scenario_name
+  local target
+
+  [[ -d "${scenario_dir}" ]] || {
+    printf 'scenario directory not found in prepared profiles checkout: %s\n' "${scenario_rel_dir}" >&2
+    exit 1
+  }
+
+  scenario_name="$(basename "${scenario_dir}")"
+  target="scenario-test-${level}"
+  exec bash "${TESTS_DIR}/run-scenario-test.sh" "${level}" "${scenario_name}" "${scenario_dir}" "${target}"
+}
+
 COMMAND="$1"
 shift || true
 
@@ -140,10 +160,20 @@ case "$COMMAND" in
     bash "${TESTS_DIR}/test-multipass-exec-timeout-retry.sh"
     exec bash -n "${TESTS_DIR}/live-onprem-basic-github-host.sh"
     ;;
+  test-static-scenario)
+    default_test_telemetry_disabled
+    prepare_profiles_repo_checkout
+    run_prepared_scenario_test static "${1:?scenario relative path is required}"
+    ;;
   test-contract)
     default_test_telemetry_disabled
     prepare_profiles_repo_checkout
     exec "${TESTS_DIR}/run-matrix.sh" contract ${SCENARIOS}
+    ;;
+  test-contract-scenario)
+    default_test_telemetry_disabled
+    prepare_profiles_repo_checkout
+    run_prepared_scenario_test contract "${1:?scenario relative path is required}"
     ;;
   test-telemetry)
     prepare_profiles_repo_checkout
@@ -155,6 +185,11 @@ case "$COMMAND" in
     default_test_telemetry_disabled
     prepare_profiles_repo_checkout
     exec "${TESTS_DIR}/run-matrix.sh" live ${SCENARIOS}
+    ;;
+  test-live-scenario)
+    default_test_telemetry_disabled
+    prepare_profiles_repo_checkout
+    run_prepared_scenario_test live "${1:?scenario relative path is required}"
     ;;
   test-live-onprem-basic)
     default_test_telemetry_disabled
