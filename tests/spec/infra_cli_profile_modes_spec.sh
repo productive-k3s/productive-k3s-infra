@@ -7,7 +7,7 @@ Describe 'productive-k3s-infra profile-driven commands'
     mkdir -p "${repo_dir}/profiles/team"
     printf 'PK3S_INFRA_PROFILE_NAME=demo\n' >"${repo_dir}/profiles/team/demo.env"
 
-    When run bash -lc 'PRODUCTIVE_K3S_INFRA_REPO_DIR="$1" "$2" list-profiles' bash "$repo_dir" "$SCRIPT"
+    When run bash -lc 'PRODUCTIVE_K3S_INFRA_REPO_DIR="$1" PRODUCTIVE_K3S_PROFILES_REPO_DIR="$1" "$2" list-profiles' bash "$repo_dir" "$SCRIPT"
     The status should equal 0
     The output should equal 'profiles/team/demo.env'
   End
@@ -21,11 +21,11 @@ exit 0
 EOF
     chmod +x "${mock_bin}/make"
 
-    When run bash -lc 'PATH="$1:$PATH" PRODUCTIVE_K3S_INFRA_REPO_DIR="$2" "$3" doctor' bash "$mock_bin" "$repo_dir" "$SCRIPT"
+    When run bash -lc 'PATH="$1:$PATH" unset PRODUCTIVE_K3S_PROFILES_REPO_DIR; PRODUCTIVE_K3S_INFRA_REPO_DIR="$2" "$3" doctor' bash "$mock_bin" "$repo_dir" "$SCRIPT"
     The status should equal 0
     The output should include 'bash is available'
     The output should include 'make is available'
-    The output should include 'profiles directory not found yet'
+    The output should include 'productive-k3s-profiles checkout not configured'
   End
 
   It 'requires --profile for validate-profile'
@@ -56,6 +56,8 @@ EOF
     profile="$(mktemp)"
     mock_bin="$(mktemp -d)"
     log_file="$(mktemp)"
+    profiles_repo="$(mktemp -d)"
+    mkdir -p "${profiles_repo}/profiles" "${profiles_repo}/scenarios/edge/onprem-basic"
     cat >"${profile}" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=onprem
 PK3S_INFRA_ENGINE=ansible
@@ -72,7 +74,7 @@ exit 0
 EOF
     chmod +x "${mock_bin}/make"
 
-    When run bash -lc 'PATH="$1:$PATH" MOCK_MAKE_LOG="$2" "$3" plan --profile "$4"; printf "\n__MAKE__\n"; cat "$2"' bash "$mock_bin" "$log_file" "$SCRIPT" "$profile"
+    When run bash -lc 'PATH="$1:$PATH" MOCK_MAKE_LOG="$2" PRODUCTIVE_K3S_PROFILES_REPO_DIR="$5" "$3" plan --profile "$4"; printf "\n__MAKE__\n"; cat "$2"' bash "$mock_bin" "$log_file" "$SCRIPT" "$profile" "$profiles_repo"
     The status should equal 0
     The output should include "Plan mode delegates to 'make -n'"
     The output should include '__MAKE__'
@@ -907,6 +909,8 @@ EOF
     profile="$(mktemp)"
     mock_bin="$(mktemp -d)"
     log_file="$(mktemp)"
+    profiles_repo="$(mktemp -d)"
+    mkdir -p "${profiles_repo}/profiles" "${profiles_repo}/scenarios/cloud/aws-single-node"
     cat >"${profile}" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=aws
 PK3S_INFRA_ENGINE=opentofu
@@ -926,7 +930,7 @@ exit 0
 EOF
     chmod +x "${mock_bin}/make"
 
-    When run bash -lc 'PATH="$1:$PATH" MOCK_MAKE_LOG="$2" "$3" apply --profile "$4"; printf "\n__MAKE__\n"; cat "$2"' bash "$mock_bin" "$log_file" "$SCRIPT" "$profile"
+    When run bash -lc 'PATH="$1:$PATH" MOCK_MAKE_LOG="$2" PRODUCTIVE_K3S_PROFILES_REPO_DIR="$5" "$3" apply --profile "$4"; printf "\n__MAKE__\n"; cat "$2"' bash "$mock_bin" "$log_file" "$SCRIPT" "$profile" "$profiles_repo"
     The status should equal 0
     The output should include '__MAKE__'
     The output should include "AWS_ENV_FILE=${profile}"

@@ -6,6 +6,9 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 CLI="${REPO_DIR}/productive-k3s-infra.sh"
+SOURCE_REPO_DIR="${TMP_DIR}/productive-k3s-profiles"
+SOURCE_SCENARIOS_DIR="${SOURCE_REPO_DIR}/scenarios"
+SOURCE_PROFILES_DIR="${SOURCE_REPO_DIR}/profiles"
 
 assert_contains() {
   local haystack="$1"
@@ -60,6 +63,28 @@ printf '%s\n' "$*" > "${PRODUCTIVE_K3S_INFRA_TEST_OUTPUT}"
 EOF
 chmod +x "$STUB_TOFU"
 
+mkdir -p \
+  "${SOURCE_SCENARIOS_DIR}/local/multipass/opentofu" \
+  "${SOURCE_SCENARIOS_DIR}/edge/onprem-basic" \
+  "${SOURCE_SCENARIOS_DIR}/edge/onprem-basic-arm" \
+  "${SOURCE_SCENARIOS_DIR}/cloud/aws-single-node" \
+  "${SOURCE_PROFILES_DIR}/cloud/aws-single-node" \
+  "${SOURCE_PROFILES_DIR}/edge/on-prem" \
+  "${SOURCE_PROFILES_DIR}/local/multipass"
+
+: > "${SOURCE_PROFILES_DIR}/cloud/aws-single-node/basic.env"
+: > "${SOURCE_PROFILES_DIR}/edge/on-prem/basic.env"
+: > "${SOURCE_PROFILES_DIR}/edge/on-prem/arm.env"
+: > "${SOURCE_PROFILES_DIR}/local/multipass/1-server-2-agents.env"
+
+cat > "${SOURCE_SCENARIOS_DIR}/local/multipass/Makefile" <<'EOF'
+validate preflight up down status infra-up infra-down test-live:
+	@true
+EOF
+cp "${SOURCE_SCENARIOS_DIR}/local/multipass/Makefile" "${SOURCE_SCENARIOS_DIR}/edge/onprem-basic/Makefile"
+cp "${SOURCE_SCENARIOS_DIR}/local/multipass/Makefile" "${SOURCE_SCENARIOS_DIR}/edge/onprem-basic-arm/Makefile"
+cp "${SOURCE_SCENARIOS_DIR}/local/multipass/Makefile" "${SOURCE_SCENARIOS_DIR}/cloud/aws-single-node/Makefile"
+
 HELP_OUTPUT="$(bash "$CLI" --help)"
 assert_contains "$HELP_OUTPUT" "Usage:"
 assert_contains "$HELP_OUTPUT" "multipass"
@@ -96,28 +121,32 @@ assert_contains "$BOM_INFO" '"onprem-basic"'
 assert_contains "$BOM_INFO" '"aws-single-node"'
 
 OUTPUT_FILE="${TMP_DIR}/multipass.out"
+PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" \
 PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
 PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
 bash "$CLI" multipass validate TELEMETRY_ENABLED=false
-assert_contains "$(cat "$OUTPUT_FILE")" "-C ${REPO_DIR}/scenarios/local/multipass validate TELEMETRY_ENABLED=false"
+assert_contains "$(cat "$OUTPUT_FILE")" "-C ${SOURCE_REPO_DIR}/scenarios/local/multipass validate TELEMETRY_ENABLED=false"
 
 OUTPUT_FILE="${TMP_DIR}/onprem.out"
+PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" \
 PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
 PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
 bash "$CLI" onprem preflight
-assert_contains "$(cat "$OUTPUT_FILE")" "-C ${REPO_DIR}/scenarios/edge/onprem-basic preflight"
+assert_contains "$(cat "$OUTPUT_FILE")" "-C ${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic preflight"
 
 OUTPUT_FILE="${TMP_DIR}/aws.out"
+PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" \
 PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
 PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
 bash "$CLI" aws-single-node
-assert_contains "$(cat "$OUTPUT_FILE")" "-C ${REPO_DIR}/scenarios/cloud/aws-single-node up"
+assert_contains "$(cat "$OUTPUT_FILE")" "-C ${SOURCE_REPO_DIR}/scenarios/cloud/aws-single-node up"
 
 OUTPUT_FILE="${TMP_DIR}/onprem-arm.out"
+PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" \
 PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
 PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
 bash "$CLI" onprem-arm preflight
-assert_contains "$(cat "$OUTPUT_FILE")" "-C ${REPO_DIR}/scenarios/edge/onprem-basic-arm preflight"
+assert_contains "$(cat "$OUTPUT_FILE")" "-C ${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic-arm preflight"
 
 PROFILE_DIR="${TMP_DIR}/profiles"
 mkdir -p "${PROFILE_DIR}"
@@ -159,92 +188,100 @@ ONPREM_SSH_KEY_PATH=/tmp/id_ed25519
 EOF
 
 OUTPUT_FILE="${TMP_DIR}/profile-validate.out"
+PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" \
 PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
 PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
 bash "$CLI" validate --profile "${PROFILE_DIR}/onprem.env"
-assert_contains "$(cat "$OUTPUT_FILE")" "-C ${REPO_DIR}/scenarios/edge/onprem-basic validate"
+assert_contains "$(cat "$OUTPUT_FILE")" "-C ${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic validate"
 assert_contains "$(cat "$OUTPUT_FILE")" "ONPREM_ENV_FILE=${PROFILE_DIR}/onprem.env"
 
-PROFILE_VALIDATE_ONLY_OUTPUT="$(bash "$CLI" validate-profile --profile "${PROFILE_DIR}/onprem.env")"
+PROFILE_VALIDATE_ONLY_OUTPUT="$(PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" bash "$CLI" validate-profile --profile "${PROFILE_DIR}/onprem.env")"
 assert_contains "$PROFILE_VALIDATE_ONLY_OUTPUT" "Loading profile: ${PROFILE_DIR}/onprem.env"
 assert_contains "$PROFILE_VALIDATE_ONLY_OUTPUT" "Scenario: onprem-basic"
 assert_contains "$PROFILE_VALIDATE_ONLY_OUTPUT" "Engine: ansible"
 assert_contains "$PROFILE_VALIDATE_ONLY_OUTPUT" "Profile validation passed"
 
 OUTPUT_FILE="${TMP_DIR}/profile-apply.out"
+PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" \
 PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
 PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
 bash "$CLI" apply --profile "${PROFILE_DIR}/onprem.env"
-assert_contains "$(cat "$OUTPUT_FILE")" "-C ${REPO_DIR}/scenarios/edge/onprem-basic up"
+assert_contains "$(cat "$OUTPUT_FILE")" "-C ${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic up"
 assert_contains "$(cat "$OUTPUT_FILE")" "ONPREM_ENV_FILE=${PROFILE_DIR}/onprem.env"
 
 OUTPUT_FILE="${TMP_DIR}/profile-arm-validate.out"
+PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" \
 PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
 PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
 bash "$CLI" validate --profile "${PROFILE_DIR}/onprem-arm.env"
-assert_contains "$(cat "$OUTPUT_FILE")" "-C ${REPO_DIR}/scenarios/edge/onprem-basic-arm validate"
+assert_contains "$(cat "$OUTPUT_FILE")" "-C ${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic-arm validate"
 assert_contains "$(cat "$OUTPUT_FILE")" "ONPREM_ENV_FILE=${PROFILE_DIR}/onprem-arm.env"
 
-PROFILE_ARM_VALIDATE_ONLY_OUTPUT="$(bash "$CLI" validate-profile --profile "${PROFILE_DIR}/onprem-arm.env")"
+PROFILE_ARM_VALIDATE_ONLY_OUTPUT="$(PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" bash "$CLI" validate-profile --profile "${PROFILE_DIR}/onprem-arm.env")"
 assert_contains "$PROFILE_ARM_VALIDATE_ONLY_OUTPUT" "Loading profile: ${PROFILE_DIR}/onprem-arm.env"
 assert_contains "$PROFILE_ARM_VALIDATE_ONLY_OUTPUT" "Scenario: onprem-basic-arm"
 assert_contains "$PROFILE_ARM_VALIDATE_ONLY_OUTPUT" "Engine: ansible"
 assert_contains "$PROFILE_ARM_VALIDATE_ONLY_OUTPUT" "Profile validation passed"
 
 OUTPUT_FILE="${TMP_DIR}/profile-plan.out"
+PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" \
 PRODUCTIVE_K3S_INFRA_TOFU_BIN="$STUB_TOFU" \
 PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
 bash "$CLI" plan --profile "${PROFILE_DIR}/multipass.env"
-assert_contains "$(cat "$OUTPUT_FILE")" "-chdir=${REPO_DIR}/scenarios/local/multipass/opentofu plan"
+assert_contains "$(cat "$OUTPUT_FILE")" "-chdir=${SOURCE_REPO_DIR}/scenarios/local/multipass/opentofu plan"
 
 OUTPUT_FILE="${TMP_DIR}/profile-apply-dry-run.out"
+PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" \
 PRODUCTIVE_K3S_INFRA_TOFU_BIN="$STUB_TOFU" \
 PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
 bash "$CLI" apply --dry-run --profile "${PROFILE_DIR}/multipass.env"
-assert_contains "$(cat "$OUTPUT_FILE")" "-chdir=${REPO_DIR}/scenarios/local/multipass/opentofu plan"
+assert_contains "$(cat "$OUTPUT_FILE")" "-chdir=${SOURCE_REPO_DIR}/scenarios/local/multipass/opentofu plan"
 
-DOCTOR_OUTPUT="$(bash "$CLI" doctor --profile "${PROFILE_DIR}/onprem.env")"
+DOCTOR_OUTPUT="$(PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" bash "$CLI" doctor --profile "${PROFILE_DIR}/onprem.env")"
 assert_contains "$DOCTOR_OUTPUT" "Profile file is readable"
 assert_contains "$DOCTOR_OUTPUT" "Profile scenario: onprem-basic"
 assert_contains "$DOCTOR_OUTPUT" "Profile engine: ansible"
 
-LIST_OUTPUT="$(bash "$CLI" list-profiles)"
+LIST_OUTPUT="$(PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" bash "$CLI" list-profiles)"
 assert_contains "$LIST_OUTPUT" "profiles/cloud/aws-single-node/basic.env"
 assert_contains "$LIST_OUTPUT" "profiles/edge/on-prem/basic.env"
 assert_contains "$LIST_OUTPUT" "profiles/edge/on-prem/arm.env"
 assert_contains "$LIST_OUTPUT" "profiles/local/multipass/1-server-2-agents.env"
 
-ROOT_MULTIPASS="$(make -C "$REPO_DIR" -n multipass)"
+ROOT_MULTIPASS="$(make -C "$REPO_DIR" -n multipass PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
 assert_contains "$ROOT_MULTIPASS" "make scenario-up SCENARIO=multipass"
 assert_contains "$ROOT_MULTIPASS" "make -C \"\$scenario_dir\" up"
+assert_contains "$ROOT_MULTIPASS" "${SOURCE_REPO_DIR}/scenarios/local/multipass"
 
-ROOT_ONPREM="$(make -C "$REPO_DIR" -n onprem)"
+ROOT_ONPREM="$(make -C "$REPO_DIR" -n onprem PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
 assert_contains "$ROOT_ONPREM" "make scenario-up SCENARIO=onprem"
 assert_contains "$ROOT_ONPREM" "make -C \"\$scenario_dir\" up"
+assert_contains "$ROOT_ONPREM" "${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic"
 
-ROOT_ONPREM_ARM="$(make -C "$REPO_DIR" -n onprem-arm)"
+ROOT_ONPREM_ARM="$(make -C "$REPO_DIR" -n onprem-arm PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
 assert_contains "$ROOT_ONPREM_ARM" "make scenario-up SCENARIO=onprem-arm"
 assert_contains "$ROOT_ONPREM_ARM" "make -C \"\$scenario_dir\" up"
+assert_contains "$ROOT_ONPREM_ARM" "${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic-arm"
 
-ROOT_TEST_LIVE_ONPREM_ARM="$(make -C "$REPO_DIR" -n test-live-onprem-arm)"
-assert_contains "$ROOT_TEST_LIVE_ONPREM_ARM" "make -C scenarios/edge/onprem-basic-arm test-live"
+ROOT_TEST_LIVE_ONPREM_ARM="$(make -C "$REPO_DIR" -n test-live-onprem-arm PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
+assert_contains "$ROOT_TEST_LIVE_ONPREM_ARM" "make -C ${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic-arm test-live"
 
-ROOT_INFRA_VALIDATE="$(make -C "$REPO_DIR" -n infra-validate PROFILE=${PROFILE_DIR}/onprem.env)"
+ROOT_INFRA_VALIDATE="$(make -C "$REPO_DIR" -n infra-validate PROFILE=${PROFILE_DIR}/onprem.env PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
 assert_contains "$ROOT_INFRA_VALIDATE" "${REPO_DIR}/productive-k3s-infra.sh validate --profile ${PROFILE_DIR}/onprem.env"
 
-ROOT_INFRA_VALIDATE_PROFILE="$(make -C "$REPO_DIR" -n infra-validate-profile PROFILE=${PROFILE_DIR}/onprem.env)"
+ROOT_INFRA_VALIDATE_PROFILE="$(make -C "$REPO_DIR" -n infra-validate-profile PROFILE=${PROFILE_DIR}/onprem.env PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
 assert_contains "$ROOT_INFRA_VALIDATE_PROFILE" "${REPO_DIR}/productive-k3s-infra.sh validate-profile --profile ${PROFILE_DIR}/onprem.env"
 
-ROOT_INFRA_APPLY="$(make -C "$REPO_DIR" -n infra-apply PROFILE=${PROFILE_DIR}/onprem.env)"
+ROOT_INFRA_APPLY="$(make -C "$REPO_DIR" -n infra-apply PROFILE=${PROFILE_DIR}/onprem.env PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
 assert_contains "$ROOT_INFRA_APPLY" "${REPO_DIR}/productive-k3s-infra.sh apply --profile ${PROFILE_DIR}/onprem.env"
 
-ROOT_INFRA_PLAN="$(make -C "$REPO_DIR" -n infra-plan PROFILE=${PROFILE_DIR}/onprem.env)"
+ROOT_INFRA_PLAN="$(make -C "$REPO_DIR" -n infra-plan PROFILE=${PROFILE_DIR}/onprem.env PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
 assert_contains "$ROOT_INFRA_PLAN" "${REPO_DIR}/productive-k3s-infra.sh plan --profile ${PROFILE_DIR}/onprem.env"
 
 ROOT_TAG_RELEASE="$(make -C "$REPO_DIR" -n tag-release VERSION=1.2.3)"
 assert_contains "$ROOT_TAG_RELEASE" "${REPO_DIR}/scripts/create-release-tag.sh 1.2.3"
 
-if bash "$CLI" invalid-case >/dev/null 2>&1; then
+if PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" bash "$CLI" invalid-case >/dev/null 2>&1; then
   echo "[FAIL] Invalid scenario unexpectedly succeeded" >&2
   exit 1
 fi
@@ -267,6 +304,7 @@ EOF
 
 OUTPUT_FILE="${TMP_DIR}/release-bound.out"
 PRODUCTIVE_K3S_INFRA_REPO_DIR="${RELEASE_REPO}" \
+PRODUCTIVE_K3S_PROFILES_REPO_DIR="${RELEASE_REPO}" \
 PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
 PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
 bash "${RELEASE_REPO}/productive-k3s-infra.sh" multipass status

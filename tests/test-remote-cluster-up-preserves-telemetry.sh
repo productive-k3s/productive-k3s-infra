@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_DIR="${ROOT_DIR}/ansible/roles/remote_cluster/files"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
+FAKE_CORE_REPO="${TMP_DIR}/productive-k3s-core"
+mkdir -p "${FAKE_CORE_REPO}"
 
 TEST_SCENARIO_DIR="${TMP_DIR}/remote-cluster"
 mkdir -p "${TEST_SCENARIO_DIR}"
@@ -105,7 +107,7 @@ done
 export SCENARIO_DIR="${TEST_SCENARIO_DIR}"
 export REMOTE_CLUSTER_REFRESH_SCRIPT="${TEST_SCENARIO_DIR}/scripts/refresh-generated-artifacts.sh"
 export CAPTURE_FILE="${TMP_DIR}/remote-cluster-up-env.json"
-export PRODUCTIVE_K3S_REPO="${ROOT_DIR}/../productive-k3s-core"
+export PRODUCTIVE_K3S_REPO="${FAKE_CORE_REPO}"
 export TELEMETRY_ENABLED=""
 export TELEMETRY_ENDPOINT=""
 export TELEMETRY_MAX_RETRIES="3"

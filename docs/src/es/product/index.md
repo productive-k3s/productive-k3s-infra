@@ -1,20 +1,22 @@
 # Resumen Del Producto
 
-`Productive K3S Infra` es el repositorio compañero de infraestructura para `Productive K3S Core`.
+`Productive K3S Infra` es el engine de runtime para los profiles empaquetados de Productive K3S.
 
-No reemplaza la lógica de bootstrap del clúster que vive en `productive-k3s-core`. En cambio, empaqueta las preocupaciones de infraestructura alrededor de ese bootstrap como escenarios públicos y reutilizables:
+No reemplaza:
 
-- provisioning de máquinas cuando hace falta
-- renderizado de inventarios y metadata generada
-- orquestación por `SSH` y bootstrap
-- supuestos de red entre nodos
-- validación del entorno resultante
+- `productive-k3s-core`, que sigue siendo dueño del bootstrap del clúster
+- `productive-k3s-profiles`, que sigue siendo dueño del árbol fuente público de profiles y scenarios
 
-En las páginas siguientes podés ver para qué sirve este repositorio, cómo está pensado para usarse y dónde está hoy el límite entre lo público/open y lo Pro.
+En cambio, ejecuta artefactos autocontenidos `profile.tgz` encargándose de:
+
+- extracción y dispatch del paquete
+- merge entre defaults del paquete y overrides locales
+- persistencia y restauración del state de runtime
+- telemetría, correlación de comandos y comportamiento operator-facing del runtime
 
 ## Páginas
 
 - [Cómo usar Productive K3S Infra](how-to-use.md)
 - [Razones del diseño](reasons-behind.md)
 - [Open vs Pro](open-vs-pro.md)
-- [Relación con Productive K3S Core](productive-k3s-relationship.md)
+- [Relación con Productive K3S Profiles y Core](productive-k3s-relationship.md)

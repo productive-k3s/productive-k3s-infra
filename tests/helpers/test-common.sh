@@ -27,7 +27,7 @@ shell_files() {
 spell_files() {
   (
     cd "${REPO_DIR}"
-    rg --files README.md scripts tests scenarios ansible profiles docs/src/en -g '*.md' -g '*.sh' -g '*.env' -g '*.yml' -g '*.yaml' \
+    rg --files README.md scripts tests ansible docs/src/en -g '*.md' -g '*.sh' -g '*.env' -g '*.yml' -g '*.yaml' \
       -g '!tests/artifacts/**' \
       -g '!tests/coverage/**' \
       -g '!tests/bin/run-spellcheck.sh'

@@ -2,6 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HELPERS_DIR="${ROOT_DIR}/tests/helpers"
+# shellcheck disable=SC1090
+source "${HELPERS_DIR}/profiles-source.sh"
 LEVEL="${1:-}"
 shift || true
 ARTIFACTS_DIR="${TEST_ARTIFACTS_DIR:-${ROOT_DIR}/test-artifacts}"
@@ -33,13 +36,23 @@ scenario_rel_dir() {
     onprem-basic-arm) printf 'scenarios/edge/onprem-basic-arm\n' ;;
     aws-single-node) printf 'scenarios/cloud/aws-single-node\n' ;;
     *)
-      if [[ -d "${ROOT_DIR}/scenarios/$1" ]]; then
+      if [[ -n "${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}" && -d "$(profiles_repo_dir)/scenarios/$1" ]]; then
+        printf 'scenarios/%s\n' "$1"
+      elif [[ -d "${ROOT_DIR}/scenarios/$1" ]]; then
         printf 'scenarios/%s\n' "$1"
       else
         return 1
       fi
       ;;
   esac
+}
+
+scenario_root_dir() {
+  if [[ -n "${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}" ]]; then
+    printf '%s\n' "$(profiles_repo_dir)"
+  else
+    printf '%s\n' "${ROOT_DIR}"
+  fi
 }
 
 json_escape() {
@@ -237,7 +250,7 @@ write_run_manifest() {
   local skip_reason="${7:-}"
 
   scenario_metadata "${scenario}" "${LEVEL}"
-  resolve_effective_productive_k3s_metadata "${ROOT_DIR}/$(scenario_rel_dir "${scenario}")"
+  resolve_effective_productive_k3s_metadata "$(scenario_root_dir)/$(scenario_rel_dir "${scenario}")"
 
   mkdir -p "${RUNS_DIR}"
   {
@@ -295,7 +308,7 @@ write_run_manifest() {
 
 for scenario in "$@"; do
   target="scenario-test-${LEVEL}"
-  scenario_dir="${ROOT_DIR}/$(scenario_rel_dir "${scenario}")"
+  scenario_dir="$(scenario_root_dir)/$(scenario_rel_dir "${scenario}")"
   log_file="$(mktemp)"
   manifest_file="${RUNS_DIR}/${MATRIX_RUN_ID}-${scenario}.json"
   started_at="$(date -Iseconds)"
@@ -366,7 +379,7 @@ summary_engine_mode="native"
 summary_resolved_from_cluster_json="false"
 first_pass_scenario="${passes[0]:-}"
 if [[ -n "${first_pass_scenario}" ]]; then
-  resolve_effective_productive_k3s_metadata "${ROOT_DIR}/$(scenario_rel_dir "${first_pass_scenario}")"
+  resolve_effective_productive_k3s_metadata "$(scenario_root_dir)/$(scenario_rel_dir "${first_pass_scenario}")"
   summary_source_mode="${EFFECTIVE_PRODUCTIVE_K3S_SOURCE}"
   summary_source_version="${EFFECTIVE_PRODUCTIVE_K3S_VERSION}"
   summary_release_repo="${EFFECTIVE_PRODUCTIVE_K3S_RELEASE_REPO}"

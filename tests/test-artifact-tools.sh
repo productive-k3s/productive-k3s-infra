@@ -3,6 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+HELPERS_DIR="${REPO_DIR}/tests/helpers"
+# shellcheck disable=SC1090
+source "${HELPERS_DIR}/profiles-source.sh"
 
 fail() {
   printf '[FAIL] %s\n' "$1" >&2
@@ -116,11 +119,11 @@ assert_contains "${root_clean_recipe}" "scripts/productive-k3s-infra-dev.sh test
 root_checkstatus_recipe="$(make -C "${REPO_DIR}" -n test-checkstatus)"
 assert_contains "${root_checkstatus_recipe}" "scripts/productive-k3s-infra-dev.sh test-checkstatus"
 
-scenario_clean_recipe="$(make -C "${REPO_DIR}/scenarios/local/multipass" -n test-clean)"
+scenario_clean_recipe="$(make -C "$(profiles_scenario_dir multipass)" -n test-clean)"
 assert_contains "${scenario_clean_recipe}" "TEST_SCENARIO=multipass"
 assert_contains "${scenario_clean_recipe}" "../../scripts/productive-k3s-infra-dev.sh test-clean"
 
-scenario_checkstatus_recipe="$(make -C "${REPO_DIR}/scenarios/local/multipass" -n test-checkstatus)"
+scenario_checkstatus_recipe="$(make -C "$(profiles_scenario_dir multipass)" -n test-checkstatus)"
 assert_contains "${scenario_checkstatus_recipe}" "TEST_SCENARIO=multipass"
 assert_contains "${scenario_checkstatus_recipe}" "../../scripts/productive-k3s-infra-dev.sh test-checkstatus"
 

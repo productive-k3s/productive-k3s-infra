@@ -1,56 +1,38 @@
 # Project Layout
 
-The repository is organized around versioned profiles as the public configuration entrypoint, plus scenario implementations and shared infrastructure layers.
+The repository is organized around a runtime engine that executes packaged profiles and integrates with an external checkout of `productive-k3s-profiles` during development and CI.
 
 ## Top-level structure
 
 ```text
 productive-k3s-infra/
-  profiles/
-    cloud/
-    edge/
-    local/
-  scenarios/
-    cloud/
-      aws-single-node/
-    edge/
-      onprem-basic/
-      onprem-basic-arm/
-    local/
-      multipass/
-  ansible/
-    roles/
-      remote_cluster/
-  opentofu/
-    modules/
+  scripts/
   tests/
+  test-artifacts/
   docs/
 ```
 
 ## Responsibility split
 
-- `profiles/`: versioned public configuration examples for the profile-driven CLI
-- `scenarios/`: scenario implementations and operator-facing workflows
-- `ansible/roles/remote_cluster`: shared remote bootstrap and validation assets
-- `opentofu/`: shared infrastructure building blocks and forward-looking module space
-- `tests/`: static, contract, and live validation entry points
+- `scripts/`: runtime engine entrypoints, release helpers, telemetry wiring, and package execution logic
+- `tests/`: engine-side validation entrypoints
+- `test-artifacts/`: local JSON evidence emitted by engine-side tests
 - `docs/`: bilingual documentation site
+- external `productive-k3s-profiles` checkout: public profile/scenario source tree consumed only when source-based validation is needed
 
-## Generated artifacts
+## Runtime artifacts
 
-Each scenario writes generated metadata under its own `generated/` directory, typically including:
+When Infra executes a packaged profile, it persists runtime state under cache directories such as:
 
-- `cluster.json`
-- `hosts.yml`
-- `server-token.txt`
-- logs or provider-specific outputs when applicable
+- `~/.cache/pk3s/profiles/<name>.json`
+- `~/.cache/pk3s/profiles/<name>.runtime/`
 
-These artifacts are part of the workflow because they expose the resolved runtime view of the scenario.
+Those artifacts let `status`, `plan`, `destroy`, and addon-to-profile workflows operate against the same resolved runtime state.
 
 ## Notes
 
 !!! note
-    Public users should now start from `profiles/` and the profile-driven CLI. `scenarios/` remains the implementation layer behind those entry points.
+    Public users should start from published `profile.tgz` artifacts or from `pk3s`, not from a source checkout of this repo.
 
 !!! note
-    Canonical paths are now category-oriented, such as `profiles/cloud/...` or `scenarios/edge/...`. Legacy top-level paths remain available as compatibility aliases.
+    Canonical public source paths now live in `productive-k3s-profiles`, not in this repository.

@@ -32,6 +32,14 @@ jobs:
           path: productive-k3s-infra
           fetch-depth: 0
 
+      - name: Checkout productive-k3s-profiles
+        uses: actions/checkout@v4
+        with:
+          repository: jemacchi/productive-k3s-profiles
+          ref: main
+          path: productive-k3s-profiles
+          fetch-depth: 0
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -67,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          make test-unit
+          PRODUCTIVE_K3S_PROFILES_REPO_DIR="${GITHUB_WORKSPACE}/productive-k3s-profiles" make test-unit
           make test-lint
           make test-format
           make test-spell
@@ -94,6 +102,14 @@ jobs:
           path: productive-k3s-core
           fetch-depth: 0
 
+      - name: Checkout productive-k3s-profiles
+        uses: actions/checkout@v4
+        with:
+          repository: jemacchi/productive-k3s-profiles
+          ref: main
+          path: productive-k3s-profiles
+          fetch-depth: 0
+
       - name: Set up OpenTofu
         uses: opentofu/setup-opentofu@v1
         with:
@@ -118,15 +134,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          PRODUCTIVE_K3S_PROFILES_REPO_DIR="${GITHUB_WORKSPACE}/productive-k3s-profiles" \
           TOFU_BIN="$(command -v tofu)" make test-static
 
       - name: Run contract checks
         working-directory: productive-k3s-infra
-        run: make test-contract
+        run: PRODUCTIVE_K3S_PROFILES_REPO_DIR="${GITHUB_WORKSPACE}/productive-k3s-profiles" make test-contract
 
       - name: Run telemetry regressions
         working-directory: productive-k3s-infra
-        run: make test-telemetry
+        run: PRODUCTIVE_K3S_PROFILES_REPO_DIR="${GITHUB_WORKSPACE}/productive-k3s-profiles" make test-telemetry
 
       - name: Upload matrix artifacts
         if: always()
@@ -135,7 +152,7 @@ jobs:
           name: pr-validation-artifacts
           path: |
             productive-k3s-infra/test-artifacts
-            productive-k3s-infra/scenarios/*/generated
+            productive-k3s-profiles/scenarios/*/generated
           if-no-files-found: ignore
 
   aws-localstack-contract:
@@ -154,6 +171,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: productive-k3s-infra
+          fetch-depth: 0
+
+      - name: Checkout productive-k3s-profiles
+        uses: actions/checkout@v4
+        with:
+          repository: jemacchi/productive-k3s-profiles
+          ref: main
+          path: productive-k3s-profiles
           fetch-depth: 0
 
       - name: Set up OpenTofu
@@ -190,6 +215,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          PRODUCTIVE_K3S_PROFILES_REPO_DIR="${GITHUB_WORKSPACE}/productive-k3s-profiles" \
           TOFU_BIN="$(command -v tofu)" make test-aws-localstack-contract
 
       - name: Dump LocalStack logs
@@ -221,6 +247,14 @@ jobs:
           path: productive-k3s-core
           fetch-depth: 0
 
+      - name: Checkout productive-k3s-profiles
+        uses: actions/checkout@v4
+        with:
+          repository: jemacchi/productive-k3s-profiles
+          ref: main
+          path: productive-k3s-profiles
+          fetch-depth: 0
+
       - name: Install Multipass
         shell: bash
         run: |
@@ -240,6 +274,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          PRODUCTIVE_K3S_PROFILES_REPO_DIR="${GITHUB_WORKSPACE}/productive-k3s-profiles" \
           TOFU_BIN="$(command -v tofu)" make test-live-gha-onprem
 
       - name: Upload live artifacts
@@ -249,5 +284,5 @@ jobs:
           name: pr-validation-live-onprem-github-host-artifacts
           path: |
             productive-k3s-infra/test-artifacts
-            productive-k3s-infra/scenarios/edge/onprem-basic/generated
+            productive-k3s-profiles/scenarios/edge/onprem-basic/generated
           if-no-files-found: ignore

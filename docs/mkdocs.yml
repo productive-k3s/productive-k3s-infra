@@ -1,5 +1,5 @@
 site_name: Productive K3S Infra
-site_description: Pre-assembled infrastructure scenarios for Productive K3S Core, with bilingual documentation.
+site_description: Infrastructure runtime engine and packaged profile execution for Productive K3S Core, with bilingual documentation.
 site_author: Productive K3S Infra
 site_url: https://infra.productive-k3s.io/
 repo_url: https://github.com/jemacchi/productive-k3s-infra
@@ -72,14 +72,7 @@ nav:
           - Relationship with Productive K3S Core: en/product/productive-k3s-relationship.md
       - User docs:
           - en/user-docs/index.md
-          - Scenarios:
-              - Multipass: en/user-docs/multipass.md
-              - On-prem basic: en/user-docs/onprem-basic.md
-              - On-prem basic ARM: en/user-docs/onprem-basic-arm.md
-              - AWS single-node: en/user-docs/aws-single-node.md
-          - ARM Support: en/user-docs/arm-support.md
           - Make targets: en/user-docs/make-targets.md
-          - Productive K3S Core modes: en/user-docs/productive-k3s-modes.md
           - Privacy and telemetry: en/user-docs/privacy-and-telemetry.md
       - Developer docs:
           - en/developer-docs/index.md
@@ -87,8 +80,6 @@ nav:
               - en/developer-docs/guides/index.md
               - Project layout: en/developer-docs/guides/project-layout.md
               - TGZ package architecture: en/developer-docs/guides/tgz-package-architecture.md
-              - Ansible layer: en/developer-docs/guides/ansible.md
-              - OpenTofu usage: en/developer-docs/guides/opentofu.md
               - Testing and matrix: en/developer-docs/guides/testing-and-matrix.md
               - CI/CD flow: en/developer-docs/guides/github-actions-and-cicd.md
               - Documentation workflow: en/developer-docs/guides/documentation-workflow.md
@@ -102,14 +93,7 @@ nav:
           - Relación con Productive K3S Core: es/product/productive-k3s-relationship.md
       - Documentación para usuarios:
           - es/user-docs/index.md
-          - Escenarios:
-              - Multipass: es/user-docs/multipass.md
-              - On-prem basic: es/user-docs/onprem-basic.md
-              - On-prem basic ARM: es/user-docs/onprem-basic-arm.md
-              - AWS single-node: es/user-docs/aws-single-node.md
-          - ARM Support: es/user-docs/arm-support.md
           - Targets de Make: es/user-docs/make-targets.md
-          - Modos de Productive K3S Core: es/user-docs/productive-k3s-modes.md
           - Privacidad y telemetría: es/user-docs/privacy-and-telemetry.md
       - Documentación para desarrolladores:
           - es/developer-docs/index.md
@@ -117,8 +101,6 @@ nav:
               - es/developer-docs/guides/index.md
               - Organización del proyecto: es/developer-docs/guides/project-layout.md
               - Arquitectura de paquetes TGZ: es/developer-docs/guides/tgz-package-architecture.md
-              - Capa de Ansible: es/developer-docs/guides/ansible.md
-              - Uso de OpenTofu: es/developer-docs/guides/opentofu.md
               - Tests y matriz: es/developer-docs/guides/testing-and-matrix.md
               - Flujo de CI/CD: es/developer-docs/guides/github-actions-and-cicd.md
               - Flujo de documentación: es/developer-docs/guides/documentation-workflow.md

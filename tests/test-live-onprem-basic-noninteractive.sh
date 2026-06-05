@@ -6,6 +6,7 @@ TARGET_SCRIPT="${ROOT_DIR}/tests/live-onprem-basic.sh"
 TMP_DIR="$(mktemp -d)"
 FAKEBIN="${TMP_DIR}/fakebin"
 HOME_DIR="${TMP_DIR}/home"
+SCENARIO_DIR_FIXTURE="${TMP_DIR}/scenario"
 LOG_FILE="${TMP_DIR}/make.log"
 MULTIPASS_LOG="${TMP_DIR}/multipass.log"
 SSH_KEYGEN_LOG="${TMP_DIR}/ssh-keygen.log"
@@ -15,7 +16,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "${FAKEBIN}" "${HOME_DIR}/.ssh"
+mkdir -p "${FAKEBIN}" "${HOME_DIR}/.ssh" "${SCENARIO_DIR_FIXTURE}"
 printf 'fake-private-key\n' > "${HOME_DIR}/.ssh/id_ed25519"
 printf 'ssh-ed25519 AAAATEST fake@test\n' > "${HOME_DIR}/.ssh/id_ed25519.pub"
 chmod 600 "${HOME_DIR}/.ssh/id_ed25519"
@@ -83,6 +84,7 @@ chmod +x "${FAKEBIN}/multipass" "${FAKEBIN}/jq" "${FAKEBIN}/ssh" "${FAKEBIN}/ssh
 
 PATH="${FAKEBIN}:${PATH}" \
 HOME="${HOME_DIR}" \
+SCENARIO_DIR="${SCENARIO_DIR_FIXTURE}" \
 TEST_MAKE_LOG="${LOG_FILE}" \
 TEST_MULTIPASS_LOG="${MULTIPASS_LOG}" \
 TEST_SSH_KEYGEN_LOG="${SSH_KEYGEN_LOG}" \

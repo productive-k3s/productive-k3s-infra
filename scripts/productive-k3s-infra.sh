@@ -16,7 +16,7 @@ REPO_DIR="${PRODUCTIVE_K3S_INFRA_REPO_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 MAKE_BIN="${PRODUCTIVE_K3S_INFRA_MAKE_BIN:-make}"
 TOFU_BIN="${PRODUCTIVE_K3S_INFRA_TOFU_BIN:-}"
 VERSION="${PRODUCTIVE_K3S_INFRA_VERSION:-${PK3S_INFRA_RELEASE_TAG:-dev}}"
-PROFILES_DIR="${REPO_DIR}/profiles"
+PROFILES_SOURCE_REPO_DIR="${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}"
 TELEMETRY_EVENT_SENDER="${SCRIPT_DIR}/send-telemetry-event.sh"
 TELEMETRY_MARKER="${TELEMETRY_MARKER:-pk3s-public-v1}"
 RUNTIME_SURFACE="${PK3S_INFRA_RUNTIME_SURFACE:-source-plus-package}"
@@ -244,6 +244,36 @@ require_source_surface() {
   if is_package_only_runtime; then
     die 2 "the '${command_label}' command is not available in the package-only release surface; use 'profile <validate|install|plan|apply|destroy|status> --tgz <file>' or a source checkout"
   fi
+}
+
+resolve_source_repo_dir() {
+  if [[ -z "${PROFILES_SOURCE_REPO_DIR}" ]]; then
+    die 3 "the source-based '${COMMAND:-source}' surface requires PRODUCTIVE_K3S_PROFILES_REPO_DIR to point at a productive-k3s-profiles checkout"
+  fi
+  [[ -d "${PROFILES_SOURCE_REPO_DIR}" ]] || die 3 "productive-k3s-profiles checkout not found: ${PROFILES_SOURCE_REPO_DIR}"
+  printf '%s\n' "${PROFILES_SOURCE_REPO_DIR}"
+}
+
+resolve_source_profiles_dir() {
+  local source_repo="${PROFILES_SOURCE_REPO_DIR}"
+  if [[ -z "${source_repo}" ]]; then
+    die 3 "the source-based '${COMMAND:-source}' surface requires PRODUCTIVE_K3S_PROFILES_REPO_DIR to point at a productive-k3s-profiles checkout"
+  fi
+  [[ -d "${source_repo}" ]] || die 3 "productive-k3s-profiles checkout not found: ${source_repo}"
+  [[ -d "${source_repo}/profiles" ]] || die 3 "profiles directory not found in productive-k3s-profiles checkout: ${source_repo}/profiles"
+  printf '%s\n' "${source_repo}/profiles"
+}
+
+resolve_source_scenario_dir() {
+  local scenario="$1"
+  local source_repo="${PROFILES_SOURCE_REPO_DIR}" rel_dir
+  if [[ -z "${source_repo}" ]]; then
+    die 3 "the source-based '${COMMAND:-source}' surface requires PRODUCTIVE_K3S_PROFILES_REPO_DIR to point at a productive-k3s-profiles checkout"
+  fi
+  [[ -d "${source_repo}" ]] || die 3 "productive-k3s-profiles checkout not found: ${source_repo}"
+  rel_dir="$(scenario_rel_dir "${scenario}")" || die 1 "unsupported scenario directory mapping: ${scenario}"
+  [[ -d "${source_repo}/${rel_dir}" ]] || die 1 "scenario directory not found in productive-k3s-profiles checkout: ${source_repo}/${rel_dir}"
+  printf '%s\n' "${source_repo}/${rel_dir}"
 }
 
 log() {
@@ -656,8 +686,7 @@ profile_command_dispatch() {
   validate_profile
 
   target="$(command_to_target "${command}" "${PK3S_INFRA_SCENARIO}")" || die 2 "unsupported command '${command}' for scenario '${PK3S_INFRA_SCENARIO}'"
-  scenario_dir="${REPO_DIR}/$(scenario_rel_dir "${PK3S_INFRA_SCENARIO}")"
-  [[ -d "${scenario_dir}" ]] || die 1 "scenario directory not found: ${scenario_dir}"
+  scenario_dir="$(resolve_source_scenario_dir "${PK3S_INFRA_SCENARIO}")"
 
   log "INFO" "Loading profile: ${profile}"
   log "INFO" "Scenario: ${PK3S_INFRA_SCENARIO}"
@@ -714,8 +743,8 @@ legacy_dispatch() {
     shift
   fi
 
-  local scenario_dir="${REPO_DIR}/$(scenario_rel_dir "${scenario}")"
-  [[ -d "${scenario_dir}" ]] || die 1 "scenario directory not found: ${scenario_dir}"
+  local scenario_dir
+  scenario_dir="$(resolve_source_scenario_dir "${scenario}")"
 
   export TELEMETRY_PARENT_RUN_ID="${TELEMETRY_RUN_ID:-}"
   export TELEMETRY_RUN_ID=""
@@ -729,10 +758,10 @@ run_doctor() {
   enforce_release_bound_productive_k3s_version
   log "OK" "bash is available"
   log "OK" "${MAKE_BIN} is available"
-  if [[ -d "${PROFILES_DIR}" ]]; then
-    log "OK" "profiles directory found: ${PROFILES_DIR}"
+  if [[ -n "${PROFILES_SOURCE_REPO_DIR}" && -d "${PROFILES_SOURCE_REPO_DIR}/profiles" ]]; then
+    log "OK" "productive-k3s-profiles checkout found: ${PROFILES_SOURCE_REPO_DIR}"
   else
-    log "WARN" "profiles directory not found yet: ${PROFILES_DIR}"
+    log "WARN" "productive-k3s-profiles checkout not configured; set PRODUCTIVE_K3S_PROFILES_REPO_DIR for source-based commands"
   fi
   if [[ -n "${PROFILE_PATH}" ]]; then
     run_profile_doctor "${PROFILE_PATH}"
@@ -740,12 +769,21 @@ run_doctor() {
 }
 
 run_list_profiles() {
-  if [[ ! -d "${PROFILES_DIR}" ]]; then
-    die 3 "profiles directory not found: ${PROFILES_DIR}"
+  local source_repo="${PROFILES_SOURCE_REPO_DIR}"
+  local profiles_dir
+  if [[ -z "${source_repo}" ]]; then
+    die 3 "the source-based '${COMMAND:-source}' surface requires PRODUCTIVE_K3S_PROFILES_REPO_DIR to point at a productive-k3s-profiles checkout"
   fi
+  [[ -d "${source_repo}" ]] || die 3 "productive-k3s-profiles checkout not found: ${source_repo}"
+  profiles_dir="${source_repo}/profiles"
+  [[ -d "${profiles_dir}" ]] || die 3 "profiles directory not found in productive-k3s-profiles checkout: ${profiles_dir}"
 
-  find "${PROFILES_DIR}" -type f -name '*.env' | sort | while read -r profile; do
-    printf '%s\n' "${profile#${REPO_DIR}/}"
+  (
+    cd "${profiles_dir}"
+    find . -type f -name '*.env' | sort
+  ) | while read -r profile; do
+    profile="${profile#./}"
+    printf 'profiles/%s\n' "${profile}"
   done
 }
 

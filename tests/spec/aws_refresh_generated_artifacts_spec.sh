@@ -1,5 +1,5 @@
 Describe 'AWS generated artifact refresh'
-  SCRIPT="$SHELLSPEC_PROJECT_ROOT/scenarios/cloud/aws-single-node/scripts/refresh-generated-artifacts.sh"
+  SCRIPT="${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/scenarios/cloud/aws-single-node/scripts/refresh-generated-artifacts.sh"
 
   It 'hydrates cluster metadata from tofu outputs'
     temp_root="$(mktemp -d)"

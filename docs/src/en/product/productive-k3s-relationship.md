@@ -1,6 +1,6 @@
-# Relationship With Productive K3S Core
+# Relationship With Productive K3S Profiles And Core
 
-`productive-k3s-infra` and `productive-k3s-core` have different responsibilities.
+`productive-k3s-infra`, `productive-k3s-profiles`, and `productive-k3s-core` have different responsibilities.
 
 ## What Productive K3S Core does
 
@@ -13,37 +13,41 @@
 
 ## What Productive K3S Infra does
 
-`productive-k3s-infra` prepares the infrastructure context around those bootstrap phases:
+`productive-k3s-infra` is the runtime engine. It is responsible for:
 
-- create or target the machines
-- derive node roles and service hostnames
-- render generated metadata and inventory-like files
-- move the `productive-k3s-core` bundle into place
-- orchestrate the bootstrap sequence across one or more nodes
+- executing packaged `profile.tgz` artifacts
+- merging package defaults with local overrides
+- persisting and restoring runtime state
+- command dispatch, error handling, and telemetry
+
+## What Productive K3S Profiles does
+
+`productive-k3s-profiles` owns the public source content that defines the infrastructure context around those bootstrap phases:
+
+- public `profiles/` and `scenarios/`
+- generated metadata expectations and helper scripts
+- package metadata sidecars and defaults
+- source-based scenario validation and authoring flows
 
 ## Shared bootstrap interface
 
-The infrastructure flows in this repository treat the `productive-k3s-core` execution modes as the public bootstrap interface:
+The runtime engine treats the `productive-k3s-core` execution modes as the public bootstrap interface:
 
 - `single-node`
 - `server`
 - `agent`
 - `stack`
 
-Different scenarios consume those modes differently:
-
-- `multipass`: `server`, `agent`, `stack`
-- `onprem-basic`: `single-node` or `server`, `agent`, `stack` depending on topology
-- `aws-single-node`: operationally one node, but still driven through the shared remote bootstrap layer around `productive-k3s-core`
+Published profiles consume those modes differently depending on their topology and scenario behavior.
 
 ## Why the split matters
 
-This separation keeps infrastructure automation replaceable.
+This separation keeps both sides replaceable.
 
 You can change:
 
-- how machines are provisioned
-- where inventories come from
-- which transport is used
+- how the runtime engine evolves
+- where public scenario content is authored
+- how packages are published
 
 without redefining the core cluster bootstrap contract every time.

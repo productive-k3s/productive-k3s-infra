@@ -1,19 +1,15 @@
 # Documentación Para Usuarios
 
-Esta sección agrupa los escenarios públicos, los principales entrypoints de `make` y el comportamiento orientado a operadores de Productive K3S Infra.
+Esta sección agrupa el comportamiento orientado a operadores del engine de Infra. La documentación específica de scenarios ahora vive en `productive-k3s-profiles`.
 
 ## Páginas
 
-### Escenarios
+### Referencias de runtime
 
-- [Multipass](multipass.md)
-- [On-prem basic](onprem-basic.md)
-- [On-prem basic ARM](onprem-basic-arm.md)
-- [AWS single-node](aws-single-node.md)
-
-### Referencias compartidas
-
-- [ARM Support](arm-support.md)
 - [Targets de Make](make-targets.md)
-- [Modos de Productive K3S Core](productive-k3s-modes.md)
 - [Privacidad y telemetría](privacy-and-telemetry.md)
+
+### Repos relacionados
+
+- `productive-k3s-profiles`: documentación fuente pública de profiles y scenarios
+- `productive-k3s-core`: runtime de bootstrap del clúster ejecutado debajo de los profiles empaquetados

@@ -18,11 +18,12 @@ assert_equals() {
 
 TMP_DIR="$(mktemp -d)"
 SCENARIO_NAME="artifact-engine-demo"
-SCENARIO_DIR="${REPO_DIR}/scenarios/${SCENARIO_NAME}"
+PROFILES_REPO_DIR="${TMP_DIR}/productive-k3s-profiles"
+SCENARIO_DIR="${PROFILES_REPO_DIR}/scenarios/${SCENARIO_NAME}"
 ARTIFACTS_DIR="${TMP_DIR}/test-artifacts"
-trap 'rm -rf "${TMP_DIR}" "${SCENARIO_DIR}"' EXIT
+trap 'rm -rf "${TMP_DIR}"' EXIT
 
-mkdir -p "${SCENARIO_DIR}"
+mkdir -p "${SCENARIO_DIR}" "${PROFILES_REPO_DIR}/profiles"
 cat > "${SCENARIO_DIR}/Makefile" <<'EOF'
 .PHONY: scenario-test-static
 
@@ -31,6 +32,7 @@ scenario-test-static:
 EOF
 
 PRODUCTIVE_K3S_ENGINE=k3sup \
+PRODUCTIVE_K3S_PROFILES_REPO_DIR="${PROFILES_REPO_DIR}" \
 TEST_ARTIFACTS_DIR="${ARTIFACTS_DIR}" \
 bash "${REPO_DIR}/tests/run-matrix.sh" static "${SCENARIO_NAME}" >/dev/null 2>&1
 

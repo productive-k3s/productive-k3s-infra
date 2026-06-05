@@ -2,7 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCENARIO_SRC_DIR="${ROOT_DIR}/scenarios/cloud/aws-single-node"
+HELPERS_DIR="${ROOT_DIR}/tests/helpers"
+# shellcheck disable=SC1090
+source "${HELPERS_DIR}/profiles-source.sh"
+SCENARIO_SRC_DIR="$(profiles_scenario_dir aws-single-node)"
 TOFU_BIN="${TOFU_BIN:-$(command -v tofu || command -v terraform || true)}"
 LOCALSTACK_ENDPOINT="${LOCALSTACK_ENDPOINT:-http://localhost:4566}"
 AWS_REGION="${AWS_REGION:-us-east-1}"

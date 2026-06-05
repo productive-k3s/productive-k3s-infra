@@ -2,9 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_DIR="${ROOT_DIR}/scenarios/local/multipass"
+HELPERS_DIR="${ROOT_DIR}/tests/helpers"
+# shellcheck disable=SC1090
+source "${HELPERS_DIR}/profiles-source.sh"
+SOURCE_DIR="$(profiles_scenario_dir multipass)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
+FAKE_CORE_REPO="${TMP_DIR}/productive-k3s-core"
+mkdir -p "${FAKE_CORE_REPO}"
 
 TEST_REPO_DIR="${TMP_DIR}/repo"
 TEST_SCENARIO_DIR="${TEST_REPO_DIR}/scenarios/local/multipass"
@@ -101,7 +106,7 @@ chmod +x "${TMP_DIR}/bin/multipass"
 export PATH="${TMP_DIR}/bin:${PATH}"
 export SCENARIO_DIR="${TEST_SCENARIO_DIR}"
 export CAPTURE_FILE="${TMP_DIR}/telemetry-env.json"
-export PRODUCTIVE_K3S_REPO="${ROOT_DIR}/../productive-k3s-core"
+export PRODUCTIVE_K3S_REPO="${FAKE_CORE_REPO}"
 export TELEMETRY_ENABLED="false"
 export TELEMETRY_ENDPOINT=""
 export TELEMETRY_MAX_RETRIES="3"

@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMMON_SH="${ROOT_DIR}/ansible/roles/remote_cluster/files/common.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
+FAKE_CORE_REPO="${TMP_DIR}/productive-k3s-core"
+mkdir -p "${FAKE_CORE_REPO}"
 
 SCENARIO_DIR="${TMP_DIR}/remote-cluster"
 GENERATED_DIR="${SCENARIO_DIR}/generated"
@@ -61,7 +63,7 @@ fail() {
 }
 
 export SCENARIO_DIR
-export PRODUCTIVE_K3S_REPO="${ROOT_DIR}/../productive-k3s-core"
+export PRODUCTIVE_K3S_REPO="${FAKE_CORE_REPO}"
 source "${COMMON_SH}"
 
 REMOTE_CAPTURE="${TMP_DIR}/remote-calls.log"

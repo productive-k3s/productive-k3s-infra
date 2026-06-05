@@ -24,9 +24,9 @@ Describe 'productive-k3s-infra cli top-level error paths'
 
   It 'fails when the profiles directory is missing for list-profiles'
     repo_dir="$(mktemp -d)"
-    When run bash -lc 'PRODUCTIVE_K3S_INFRA_REPO_DIR="$1" "$2" list-profiles' bash "$repo_dir" "$SCRIPT"
+    When run bash -lc 'PRODUCTIVE_K3S_INFRA_REPO_DIR="$1" PRODUCTIVE_K3S_PROFILES_REPO_DIR="$1" "$2" list-profiles' bash "$repo_dir" "$SCRIPT"
     The status should equal 3
-    The stderr should include 'profiles directory not found'
+    The stderr should include 'profiles directory not found in productive-k3s-profiles checkout'
   End
 
   It 'fails when a referenced profile file does not exist'

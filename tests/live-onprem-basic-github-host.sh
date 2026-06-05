@@ -2,7 +2,11 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCENARIO_DIR="${ROOT_DIR}/scenarios/edge/onprem-basic"
+HELPERS_DIR="${ROOT_DIR}/tests/helpers"
+# shellcheck disable=SC1090
+source "${HELPERS_DIR}/profiles-source.sh"
+PRODUCTIVE_K3S_REPO="${PRODUCTIVE_K3S_REPO:-${ROOT_DIR}/../productive-k3s-core}"
+SCENARIO_DIR="$(profiles_scenario_dir onprem-basic)"
 SCENARIO_SCRIPTS_DIR="${SCENARIO_DIR}/scripts"
 WORK_DIR="$(mktemp -d "${ROOT_DIR}/.live-onprem-basic-github-host.XXXXXX")"
 ENV_FILE="${WORK_DIR}/onprem.env"
@@ -120,7 +124,7 @@ need_cmd curl
 need_cmd tar
 need_cmd python3
 
-[[ -d "${ROOT_DIR}/../productive-k3s-core" ]] || fail "expected sibling productive-k3s-core repo at ${ROOT_DIR}/../productive-k3s-core"
+[[ -d "${PRODUCTIVE_K3S_REPO}" ]] || fail "expected productive-k3s-core repo at ${PRODUCTIVE_K3S_REPO}"
 
 trap cleanup EXIT
 

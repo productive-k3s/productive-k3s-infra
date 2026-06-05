@@ -14,7 +14,14 @@ else
   : "${PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=0.9.4}"
   : "${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT:=jemacchi/productive-k3s-core}"
 fi
-PRODUCTIVE_K3S_REPO="${PRODUCTIVE_K3S_REPO:-$(cd "${SCENARIO_DIR}/../../../../productive-k3s-core" && pwd)}"
+resolve_default_productive_k3s_repo() {
+  local candidate="${SCENARIO_DIR}/../../../../productive-k3s-core"
+  if [[ -d "${candidate}" ]]; then
+    (cd "${candidate}" && pwd)
+  fi
+}
+
+PRODUCTIVE_K3S_REPO="${PRODUCTIVE_K3S_REPO:-$(resolve_default_productive_k3s_repo)}"
 PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE:-${PRODUCTIVE_K3S_SOURCE_DEFAULT}}"
 PRODUCTIVE_K3S_VERSION="${PRODUCTIVE_K3S_VERSION:-}"
 if [[ -z "${PRODUCTIVE_K3S_VERSION}" && "${PRODUCTIVE_K3S_SOURCE}" == "remote" ]]; then

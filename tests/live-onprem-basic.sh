@@ -2,17 +2,35 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCENARIO_DIR="${SCENARIO_DIR:-${ROOT_DIR}/scenarios/edge/onprem-basic}"
-WORK_DIR="$(mktemp -d "${ROOT_DIR}/.live-onprem-basic.XXXXXX")"
+HELPERS_DIR="${ROOT_DIR}/tests/helpers"
+# shellcheck disable=SC1090
+source "${HELPERS_DIR}/profiles-source.sh"
+SCENARIO_DIR="${SCENARIO_DIR:-$(profiles_scenario_dir onprem-basic)}"
+LIVE_ONPREM_WORK_ROOT="${LIVE_ONPREM_WORK_ROOT:-${HOME}}"
+LIVE_ONPREM_PRESERVE_WORKDIR_ON_FAILURE="${LIVE_ONPREM_PRESERVE_WORKDIR_ON_FAILURE:-true}"
+WORK_DIR="$(mktemp -d "${LIVE_ONPREM_WORK_ROOT%/}/pk3s-live-onprem-basic.XXXXXX")"
 STAMP="$(date +%Y%m%d%H%M%S)"
 SERVER_NAME="productive-k3s-core-test-onprem-server-${STAMP}"
 AGENT_NAME="productive-k3s-core-test-onprem-agent-${STAMP}"
 ENV_FILE="${WORK_DIR}/onprem.env"
 SSH_KEY_PATH=""
 SSH_PUBKEY=""
-MULTIPASS_LAUNCH_RETRIES="${MULTIPASS_LAUNCH_RETRIES:-3}"
+MULTIPASS_LAUNCH_RETRIES="${MULTIPASS_LAUNCH_RETRIES:-5}"
 MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS="${MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS:-5}"
 MULTIPASS_DELETE_TIMEOUT_SECONDS="${MULTIPASS_DELETE_TIMEOUT_SECONDS:-120}"
+
+resolve_productive_k3s_source() {
+  if [[ -n "${PRODUCTIVE_K3S_SOURCE:-}" ]]; then
+    printf '%s\n' "${PRODUCTIVE_K3S_SOURCE}"
+    return 0
+  fi
+
+  if [[ -n "${PRODUCTIVE_K3S_REPO:-}" && -d "${PRODUCTIVE_K3S_REPO}" ]]; then
+    printf 'local\n'
+  else
+    printf 'remote\n'
+  fi
+}
 
 fail() {
   printf '[FAIL] %s\n' "$1" >&2
@@ -21,6 +39,18 @@ fail() {
 
 warn() {
   printf '[WARN] %s\n' "$1" >&2
+}
+
+emit_launch_recovery_hints() {
+  local name="$1"
+  cat >&2 <<EOF
+[WARN] Multipass launch failed repeatedly for ${name}.
+[WARN] This can happen when the local Multipass backend is temporarily unstable or host resources are tight.
+[WARN] Suggested recovery steps:
+  - Inspect current instances: multipass list
+  - Retry this scenario: make -C ${SCENARIO_DIR} scenario-test-live
+  - Clean partial state and retry: multipass delete ${SERVER_NAME} ${AGENT_NAME} && multipass purge
+EOF
 }
 
 need_cmd() {
@@ -42,9 +72,14 @@ pick_ssh_key() {
 }
 
 cleanup() {
+  local rc=$?
   run_multipass_cleanup delete "${SERVER_NAME}" "${AGENT_NAME}"
   run_multipass_cleanup purge
-  rm -rf "${WORK_DIR}"
+  if [[ "${rc}" == "0" || "${LIVE_ONPREM_PRESERVE_WORKDIR_ON_FAILURE}" != "true" ]]; then
+    rm -rf "${WORK_DIR}"
+  else
+    warn "Preserving failed live-onprem workdir for inspection: ${WORK_DIR}"
+  fi
   make -C "${SCENARIO_DIR}" clean >/dev/null 2>&1 || true
 }
 
@@ -129,11 +164,13 @@ launch_instance() {
 
     cat "${stderr_file}" >&2
     rm -f "${stderr_file}"
+    emit_launch_recovery_hints "${name}"
     fail "could not launch multipass instance ${name}"
   done
 
   cat "${stderr_file}" >&2
   rm -f "${stderr_file}"
+  emit_launch_recovery_hints "${name}"
   fail "could not launch multipass instance ${name}"
 }
 
@@ -166,7 +203,7 @@ ONPREM_CLUSTER_NAME=productive-k3s-core-test-onprem
 ONPREM_BASE_DOMAIN=k3s.lab.internal
 ONPREM_RANCHER_HOST=rancher.k3s.lab.internal
 ONPREM_REGISTRY_HOST=registry.k3s.lab.internal
-PRODUCTIVE_K3S_SOURCE=local
+PRODUCTIVE_K3S_SOURCE=$(resolve_productive_k3s_source)
 EOF
 
 make -C "${SCENARIO_DIR}" ONPREM_ENV_FILE="${ENV_FILE}" TELEMETRY_ENABLED=false up

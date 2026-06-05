@@ -41,6 +41,8 @@ EOF
     profile="$(mktemp)"
     mock_bin="$(mktemp -d)"
     log_file="$(mktemp)"
+    profiles_repo="$(mktemp -d)"
+    mkdir -p "${profiles_repo}/profiles" "${profiles_repo}/scenarios/local/multipass/opentofu"
     cat >"${profile}" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_ENGINE=opentofu
@@ -63,7 +65,7 @@ exit 0
 EOF
     chmod +x "${mock_bin}/tofu"
 
-    When run bash -lc 'PATH="$1:$PATH" MOCK_TOFU_LOG="$2" "$3" apply --dry-run --profile "$4"; printf "\n__LOG__\n"; cat "$2"' bash "$mock_bin" "$log_file" "$SCRIPT" "$profile"
+    When run bash -lc 'PATH="$1:$PATH" MOCK_TOFU_LOG="$2" PRODUCTIVE_K3S_PROFILES_REPO_DIR="$5" "$3" apply --dry-run --profile "$4"; printf "\n__LOG__\n"; cat "$2"' bash "$mock_bin" "$log_file" "$SCRIPT" "$profile" "$profiles_repo"
     The status should equal 0
     The output should include 'Dry-run requested; switching apply to plan'
     The output should include '__LOG__'
@@ -78,6 +80,8 @@ EOF
   It 'dispatches legacy multipass commands through make'
     mock_bin="$(mktemp -d)"
     log_file="$(mktemp)"
+    profiles_repo="$(mktemp -d)"
+    mkdir -p "${profiles_repo}/profiles" "${profiles_repo}/scenarios/local/multipass"
     cat >"${mock_bin}/make" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"${MOCK_MAKE_LOG}"
@@ -85,7 +89,7 @@ exit 0
 EOF
     chmod +x "${mock_bin}/make"
 
-    When run bash -lc 'PATH="$1:$PATH" MOCK_MAKE_LOG="$2" "$3" multipass status; printf "\n__MAKE__\n"; cat "$2"' bash "$mock_bin" "$log_file" "$SCRIPT"
+    When run bash -lc 'PATH="$1:$PATH" MOCK_MAKE_LOG="$2" PRODUCTIVE_K3S_PROFILES_REPO_DIR="$4" "$3" multipass status; printf "\n__MAKE__\n"; cat "$2"' bash "$mock_bin" "$log_file" "$SCRIPT" "$profiles_repo"
     The status should equal 0
     The output should include '__MAKE__'
     The output should include 'scenarios/local/multipass'

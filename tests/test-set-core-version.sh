@@ -3,9 +3,12 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_DIR="$(mktemp -d)"
-WORKTREE="${TMP_DIR}/infra"
+WORKSPACE="${TMP_DIR}/workspace"
+WORKTREE="${WORKSPACE}/productive-k3s-infra"
+PROFILES_WORKTREE="${WORKSPACE}/productive-k3s-profiles"
 CORE_REMOTE="${TMP_DIR}/core-remote.git"
 TARGET_VERSION="9.8.7"
+PROFILES_SOURCE_DIR="${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-${ROOT_DIR}/../productive-k3s-profiles}"
 
 cleanup() {
   rm -rf "${TMP_DIR}"
@@ -34,8 +37,10 @@ assert_make_target() {
   esac
 }
 
-mkdir -p "${WORKTREE}"
+mkdir -p "${WORKSPACE}"
 cp -a "${ROOT_DIR}/." "${WORKTREE}"
+[[ -d "${PROFILES_SOURCE_DIR}/profiles" && -d "${PROFILES_SOURCE_DIR}/scenarios" ]] || fail "productive-k3s-profiles checkout not found at ${PROFILES_SOURCE_DIR}"
+cp -a "${PROFILES_SOURCE_DIR}/." "${PROFILES_WORKTREE}"
 git init --bare "${CORE_REMOTE}" >/dev/null
 
 core_seed="${TMP_DIR}/core-seed"
@@ -54,26 +59,27 @@ assert_make_target
 (
   cd "${WORKTREE}"
   PRODUCTIVE_K3S_CORE_GIT_REMOTE_URL="${CORE_REMOTE}" \
+    PRODUCTIVE_K3S_PROFILES_REPO_DIR="${PROFILES_WORKTREE}" \
     bash "${WORKTREE}/scripts/set-core-version.sh" "${TARGET_VERSION}"
 )
 
 assert_contains_file "${WORKTREE}/scripts/release-config.sh" "PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=${TARGET_VERSION}"
 assert_contains_file "${WORKTREE}/scripts/create-release-tag.sh" "./scripts/create-release-tag.sh ${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/scenarios/local/multipass/scripts/common.sh" "PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/scenarios/edge/onprem-basic/scripts/common.sh" "PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/scenarios/edge/onprem-basic-arm/scripts/common.sh" "PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=${TARGET_VERSION}"
 assert_contains_file "${WORKTREE}/ansible/roles/remote_cluster/files/common.sh" "PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/profiles/local/multipass/1-server-2-agents.env" "# PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/profiles/cloud/aws-single-node/basic.env" "PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/profiles/edge/on-prem/basic.env" "# PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/profiles/edge/on-prem/arm.env" "# PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/scenarios/cloud/aws-single-node/aws.env.example" "PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/scenarios/edge/onprem-basic/onprem.env.example" "# PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/scenarios/edge/onprem-basic-arm/onprem.env.example" "# PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/scenarios/local/multipass/README.md" "PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/scenarios/edge/onprem-basic/README.md" "PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/scenarios/edge/onprem-basic-arm/README.md" "PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
-assert_contains_file "${WORKTREE}/scenarios/cloud/aws-single-node/README.md" "PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/scenarios/local/multipass/scripts/common.sh" "PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/scenarios/edge/onprem-basic/scripts/common.sh" "PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/scenarios/edge/onprem-basic-arm/scripts/common.sh" "PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/profiles/local/multipass/1-server-2-agents.env" "# PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/profiles/cloud/aws-single-node/basic.env" "PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/profiles/edge/on-prem/basic.env" "# PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/profiles/edge/on-prem/arm.env" "# PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/scenarios/cloud/aws-single-node/aws.env.example" "PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/scenarios/edge/onprem-basic/onprem.env.example" "# PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/scenarios/edge/onprem-basic-arm/onprem.env.example" "# PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/scenarios/local/multipass/README.md" "PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/scenarios/edge/onprem-basic/README.md" "PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/scenarios/edge/onprem-basic-arm/README.md" "PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
+assert_contains_file "${PROFILES_WORKTREE}/scenarios/cloud/aws-single-node/README.md" "PRODUCTIVE_K3S_VERSION=${TARGET_VERSION}"
 assert_contains_file "${WORKTREE}/tests/test-release-versioning.sh" "\"${TARGET_VERSION}\" \"default core version\""
 assert_contains_file "${WORKTREE}/tests/test-release-versioning.sh" "\"${TARGET_VERSION}\" \"multipass default core version\""
 assert_contains_file "${WORKTREE}/tests/test-release-versioning.sh" "\"${TARGET_VERSION}\" \"shared remote-cluster default core version\""

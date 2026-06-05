@@ -1,9 +1,11 @@
-.PHONY: docs-build docs-serve docs-up docs-down docs-clean test test-unit test-lint test-format test-spell test-coverage test-clean test-checkstatus test-static test-contract test-telemetry test-live test-live-onprem-arm test-live-gha-onprem test-k3s-engine-propagation test-aws-localstack-contract test-matrix test-productive-k3s-infra-cli infra-help infra-doctor infra-list-profiles infra-validate-profile infra-validate infra-plan infra-apply infra-destroy infra-status tag-release set-core-version scenario-up scenario-down scenario-status scenario-infra-up scenario-infra-down multipass onprem onprem-arm aws-single-node
+.PHONY: docs-build docs-serve docs-up docs-down docs-clean test test-unit test-lint test-format test-spell test-coverage test-clean test-checkstatus test-static test-contract test-telemetry test-live test-live-onprem-basic test-live-onprem-basic-arm test-live-onprem-arm test-live-gha-onprem test-k3s-engine-propagation test-aws-localstack-contract test-matrix test-productive-k3s-infra-cli infra-help infra-doctor infra-list-profiles infra-validate-profile infra-validate infra-plan infra-apply infra-destroy infra-status tag-release set-core-version scenario-up scenario-down scenario-status scenario-infra-up scenario-infra-down multipass onprem onprem-arm aws-single-node
 
 SCENARIOS := multipass onprem-basic onprem-basic-arm aws-single-node
 TESTS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))/tests
 SCRIPTS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))/scripts
 PUBLIC_CLI := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))/productive-k3s-infra.sh
+PROFILES_SOURCE_REPO ?= $(if $(PRODUCTIVE_K3S_PROFILES_REPO_DIR),$(PRODUCTIVE_K3S_PROFILES_REPO_DIR),.missing-productive-k3s-profiles-checkout)
+PROFILES_SOURCE_SCENARIOS_DIR := $(PROFILES_SOURCE_REPO)/scenarios
 PROFILE ?=
 SCENARIO ?=
 export TELEMETRY_ENABLED ?=
@@ -65,8 +67,14 @@ test-telemetry:
 test-live:
 	$(SCRIPTS_DIR)/productive-k3s-infra-dev.sh test-live
 
+test-live-onprem-basic:
+	$(SCRIPTS_DIR)/productive-k3s-infra-dev.sh test-live-onprem-basic
+
+test-live-onprem-basic-arm:
+	$(SCRIPTS_DIR)/productive-k3s-infra-dev.sh test-live-onprem-basic-arm
+
 test-live-onprem-arm:
-	$(MAKE) -C scenarios/edge/onprem-basic-arm test-live
+	$(MAKE) -C $(PROFILES_SOURCE_SCENARIOS_DIR)/edge/onprem-basic-arm test-live
 
 test-live-gha-onprem:
 	$(SCRIPTS_DIR)/productive-k3s-infra-dev.sh test-live-gha-onprem
@@ -123,10 +131,10 @@ define run_scenario_target
 		*) printf '' ;; \
 	esac)"; \
 	scenario_dir="$$(case "$$resolved" in \
-		multipass) printf '%s' 'scenarios/local/multipass' ;; \
-		onprem-basic) printf '%s' 'scenarios/edge/onprem-basic' ;; \
-		onprem-basic-arm) printf '%s' 'scenarios/edge/onprem-basic-arm' ;; \
-		aws-single-node) printf '%s' 'scenarios/cloud/aws-single-node' ;; \
+		multipass) printf '%s' '$(PROFILES_SOURCE_SCENARIOS_DIR)/local/multipass' ;; \
+		onprem-basic) printf '%s' '$(PROFILES_SOURCE_SCENARIOS_DIR)/edge/onprem-basic' ;; \
+		onprem-basic-arm) printf '%s' '$(PROFILES_SOURCE_SCENARIOS_DIR)/edge/onprem-basic-arm' ;; \
+		aws-single-node) printf '%s' '$(PROFILES_SOURCE_SCENARIOS_DIR)/cloud/aws-single-node' ;; \
 		*) printf '' ;; \
 	esac)"; \
 	if [ -z "$$resolved" ]; then \

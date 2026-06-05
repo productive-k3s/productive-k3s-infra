@@ -5,7 +5,7 @@
 Definir una arquitectura unificada y simétrica para:
 
 - instalar add-ons en Core
-- instalar profiles y escenarios en Infra
+- instalar profiles en Infra desde fuentes de scenario desacopladas
 - distribuir paquetes `.tgz` desacoplados
 - soportar catálogos públicos y privados
 - ejecutar paquetes como artefactos autocontenidos
@@ -16,7 +16,7 @@ Definir una arquitectura unificada y simétrica para:
 Esto aplica a:
 
 - Add-ons (`productive-k3s-addons`)
-- Profiles/Escenarios (`productive-k3s-infra`)
+- Profiles/Escenarios (`productive-k3s-profiles`)
 
 ## Conceptos clave
 
@@ -119,8 +119,9 @@ Eso significa:
 - `productive-k3s-core`: runtime de instalación de add-ons
 - `productive-k3s-addons`: catálogo público de add-ons
 - `productive-k3s-addons-pro`: add-ons pagos/privados
-- `productive-k3s-infra`: profiles y escenarios públicos
-- `productive-k3s-infra-pro`: profiles/escenarios pagos
+- `productive-k3s-infra`: runtime/engine de empaquetado y ejecución de profiles
+- `productive-k3s-profiles`: profiles y escenarios públicos
+- `productive-k3s-profiles-pro`: profiles/escenarios pagos
 - `productive-k3s-cli`: orquestador
 - `productive-k3s-catalogs`: índices de paquetes publicados
 

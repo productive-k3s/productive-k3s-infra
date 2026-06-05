@@ -109,10 +109,10 @@ EOF
 printf "%s\n" "$*"
 EOF
       chmod +x "${mock_bin}/make"
-      mkdir -p "${repo_dir}/scenarios/local/multipass"
+      mkdir -p "${repo_dir}/profiles" "${repo_dir}/scenarios/local/multipass"
       export PATH="${mock_bin}:${PATH}"
       MAKE_BIN=make
-      REPO_DIR="${repo_dir}"
+      PRODUCTIVE_K3S_PROFILES_REPO_DIR="${repo_dir}"
       TELEMETRY_RUN_ID=run-123
       legacy_dispatch multipass down --foo
       printf "\n__CTX__%s|%s|%s" "$TELEMETRY_PARENT_RUN_ID" "$TELEMETRY_RUN_ID" "$TELEMETRY_COMPONENT"'
