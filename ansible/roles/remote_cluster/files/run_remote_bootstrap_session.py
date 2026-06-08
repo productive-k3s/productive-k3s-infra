@@ -134,7 +134,7 @@ def main():
     telemetry_prefix = telemetry_env_prefix()
     if telemetry_prefix:
         remote_script += f"{telemetry_prefix} "
-    remote_script += f"./scripts/bootstrap-k3s-stack.sh --mode {shlex.quote(args.mode)}"
+    remote_script += f"./scripts/apply.sh --mode {shlex.quote(args.mode)}"
     command.extend(
         [
             f"{args.user}@{args.host}",
