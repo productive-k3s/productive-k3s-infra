@@ -39,6 +39,7 @@ TELEMETRY_USER_AGENT="${TELEMETRY_USER_AGENT:-productive-k3s-infra/remote-cluste
 TELEMETRY_SESSION_ID="${TELEMETRY_SESSION_ID:-}"
 TELEMETRY_PARENT_RUN_ID="${TELEMETRY_PARENT_RUN_ID:-}"
 TELEMETRY_COMPONENT="${TELEMETRY_COMPONENT:-infra}"
+PRODUCTIVE_K3S_DISTRO="${PRODUCTIVE_K3S_DISTRO:-k3s}"
 CASE_PREFIX="${CASE_PREFIX:-ONPREM}"
 CLUSTER_JSON="${GENERATED_DIR}/cluster.json"
 HOSTS_YML="${GENERATED_DIR}/hosts.yml"
@@ -108,6 +109,36 @@ warn() {
 
 err() {
   printf '[ERROR] %s\n' "$*" >&2
+}
+
+productive_k3s_remote_kubectl_cmd() {
+  case "${PRODUCTIVE_K3S_DISTRO}" in
+    k3s)
+      printf 'sudo k3s kubectl'
+      ;;
+    rke2)
+      printf 'sudo /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml'
+      ;;
+    *)
+      err "unsupported PRODUCTIVE_K3S_DISTRO for remote kubectl command: ${PRODUCTIVE_K3S_DISTRO}"
+      exit 1
+      ;;
+  esac
+}
+
+productive_k3s_remote_join_token_cmd() {
+  case "${PRODUCTIVE_K3S_DISTRO}" in
+    k3s)
+      printf "sudo cat /var/lib/rancher/k3s/server/node-token | tr -d '\\\\r'"
+      ;;
+    rke2)
+      printf "sudo cat /var/lib/rancher/rke2/server/node-token | tr -d '\\\\r'"
+      ;;
+    *)
+      err "unsupported PRODUCTIVE_K3S_DISTRO for join token command: ${PRODUCTIVE_K3S_DISTRO}"
+      exit 1
+      ;;
+  esac
 }
 
 json_escape() {

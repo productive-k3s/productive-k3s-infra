@@ -38,5 +38,5 @@ for i in "${!AGENT_IPS[@]}"; do
     --log-file "${LOG_DIR}/bootstrap-${agent_name}.log"
 done
 
-remote_exec "${SERVER_IP}" "sudo k3s kubectl wait --for=condition=Ready node --all --timeout=10m"
+remote_exec "${SERVER_IP}" "$(productive_k3s_remote_kubectl_cmd) wait --for=condition=Ready node --all --timeout=10m"
 log "Agent bootstrap completed"

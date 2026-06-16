@@ -94,6 +94,7 @@ from pathlib import Path
 
 capture = {
     "PRODUCTIVE_K3S_ENGINE": os.environ.get("PRODUCTIVE_K3S_ENGINE"),
+    "PRODUCTIVE_K3S_DISTRO": os.environ.get("PRODUCTIVE_K3S_DISTRO"),
     "PRODUCTIVE_K3S_SSH_HOST": os.environ.get("PRODUCTIVE_K3S_SSH_HOST"),
     "PRODUCTIVE_K3S_SSH_USER": os.environ.get("PRODUCTIVE_K3S_SSH_USER"),
     "PRODUCTIVE_K3S_SSH_PORT": os.environ.get("PRODUCTIVE_K3S_SSH_PORT"),
@@ -174,6 +175,7 @@ from pathlib import Path
 
 capture = {
     "PRODUCTIVE_K3S_ENGINE": os.environ.get("PRODUCTIVE_K3S_ENGINE"),
+    "PRODUCTIVE_K3S_DISTRO": os.environ.get("PRODUCTIVE_K3S_DISTRO"),
     "PRODUCTIVE_K3S_SSH_HOST": os.environ.get("PRODUCTIVE_K3S_SSH_HOST"),
     "PRODUCTIVE_K3S_SSH_USER": os.environ.get("PRODUCTIVE_K3S_SSH_USER"),
     "PRODUCTIVE_K3S_SSH_PORT": os.environ.get("PRODUCTIVE_K3S_SSH_PORT"),
@@ -223,6 +225,7 @@ chmod +x "${TMP_DIR}/bin/k3sup"
 export PATH="${TMP_DIR}/bin:${PATH}"
 export PRODUCTIVE_K3S_REPO="${FAKE_CORE_REPO}"
 export PRODUCTIVE_K3S_ENGINE="k3sup"
+export PRODUCTIVE_K3S_DISTRO="rke2"
 
 multipass_repo="${TMP_DIR}/multipass-repo"
 setup_multipass_fixture "${multipass_repo}"
@@ -231,6 +234,7 @@ export CAPTURE_FILE="${TMP_DIR}/multipass-engine.json"
 bash "${SCENARIO_DIR}/scripts/bootstrap-server.sh"
 assert_json_equals "${CAPTURE_FILE}" '
   .PRODUCTIVE_K3S_ENGINE == "k3sup" and
+  .PRODUCTIVE_K3S_DISTRO == "rke2" and
   .PRODUCTIVE_K3S_SSH_HOST == "10.0.0.10" and
   .PRODUCTIVE_K3S_SSH_USER == "ubuntu" and
   .PRODUCTIVE_K3S_SSH_PORT == "22"
@@ -243,6 +247,7 @@ bash "${SCENARIO_DIR}/scripts/bootstrap-agents.sh"
 grep -F -- '--ip 10.0.0.11 --user ubuntu --server-ip 10.0.0.10 --server-user ubuntu --k3s-channel stable --ssh-port 22' "${K3SUP_CAPTURE_FILE}" >/dev/null || fail "multipass wrapper did not invoke controller-side k3sup join"
 assert_json_equals "${CAPTURE_FILE}" '
   .PRODUCTIVE_K3S_ENGINE == "k3sup" and
+  .PRODUCTIVE_K3S_DISTRO == "rke2" and
   .PRODUCTIVE_K3S_SSH_HOST == "10.0.0.11" and
   .PRODUCTIVE_K3S_SSH_USER == "ubuntu" and
   .PRODUCTIVE_K3S_SSH_PORT == "22"
@@ -262,6 +267,7 @@ export ONPREM_SSH_EXTRA_OPTS="-o ProxyCommand=none"
 bash "${SCENARIO_DIR}/scripts/bootstrap-server.sh"
 assert_json_equals "${CAPTURE_FILE}" '
   .PRODUCTIVE_K3S_ENGINE == "k3sup" and
+  .PRODUCTIVE_K3S_DISTRO == "rke2" and
   .PRODUCTIVE_K3S_SSH_HOST == "10.0.0.10" and
   .PRODUCTIVE_K3S_SSH_USER == "ops" and
   .PRODUCTIVE_K3S_SSH_PORT == "2222" and
@@ -276,6 +282,7 @@ bash "${SCENARIO_DIR}/scripts/bootstrap-agents.sh"
 grep -F -- '--ip 10.0.0.11 --user ops --server-ip 10.0.0.10 --server-user ops --k3s-channel stable --ssh-key /tmp/test-key --ssh-port 2222' "${K3SUP_CAPTURE_FILE}" >/dev/null || fail "onprem wrapper did not invoke controller-side k3sup join"
 assert_json_equals "${CAPTURE_FILE}" '
   .PRODUCTIVE_K3S_ENGINE == "k3sup" and
+  .PRODUCTIVE_K3S_DISTRO == "rke2" and
   .PRODUCTIVE_K3S_SSH_HOST == "10.0.0.11" and
   .PRODUCTIVE_K3S_SSH_USER == "ops" and
   .PRODUCTIVE_K3S_SSH_PORT == "2222" and

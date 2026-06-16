@@ -97,6 +97,10 @@ if [[ "${1:-}" == "exec" ]]; then
     printf 'test-token\n'
     exit 0
   fi
+  if [[ "${4:-}" == "bash" && "${5:-}" == "-lc" && "${6:-}" == *"/server/node-token"* ]]; then
+    printf 'test-token\n'
+    exit 0
+  fi
 fi
 printf 'unexpected multipass invocation: %s\n' "$*" >&2
 exit 1

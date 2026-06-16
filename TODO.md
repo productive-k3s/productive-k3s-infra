@@ -35,6 +35,9 @@ Rules:
 
 ## Documentation and Operations
 
+- `Centralize GitHub Owner and Release Repo Defaults`
+  `Replace hardcoded jemacchi release/profile URLs with repo-local defaults in scripts/release-config.sh, ansible/roles/remote_cluster/files/common.sh, tests/, README.md, and docs/.`
+
 - `Document Package-First Runtime`
   `Update docs to emphasize that Infra is now the runtime and packaging engine, while public source content lives in productive-k3s-profiles.`
 

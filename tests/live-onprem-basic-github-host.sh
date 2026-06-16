@@ -6,6 +6,7 @@ HELPERS_DIR="${ROOT_DIR}/tests/helpers"
 # shellcheck disable=SC1090
 source "${HELPERS_DIR}/profiles-source.sh"
 PRODUCTIVE_K3S_REPO="${PRODUCTIVE_K3S_REPO:-${ROOT_DIR}/../productive-k3s-core}"
+PRODUCTIVE_K3S_DISTRO="${PRODUCTIVE_K3S_DISTRO:-k3s}"
 SCENARIO_DIR="$(profiles_scenario_dir onprem-basic)"
 SCENARIO_SCRIPTS_DIR="${SCENARIO_DIR}/scripts"
 WORK_DIR="$(mktemp -d "${ROOT_DIR}/.live-onprem-basic-github-host.XXXXXX")"
@@ -104,15 +105,20 @@ validate_basic_remote_cluster() {
   )
   local expected_nodes=1
   local actual_nodes
+  local remote_kubectl_cmd="sudo k3s kubectl"
+
+  if [[ "${PRODUCTIVE_K3S_DISTRO}" == "rke2" ]]; then
+    remote_kubectl_cmd="sudo /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml"
+  fi
 
   actual_nodes="$(
     ssh "${ssh_opts[@]}" "${CURRENT_USER}@${LOCALHOST_IP}" \
-      "sudo k3s kubectl wait --for=condition=Ready node --all --timeout=10m >/dev/null && sudo k3s kubectl get nodes --no-headers | wc -l"
+      "${remote_kubectl_cmd} wait --for=condition=Ready node --all --timeout=10m >/dev/null && ${remote_kubectl_cmd} get nodes --no-headers | wc -l"
   )"
   actual_nodes="$(printf '%s' "${actual_nodes}" | tr -d '[:space:]')"
   [[ "${actual_nodes}" == "${expected_nodes}" ]] || fail "expected ${expected_nodes} ready node, got ${actual_nodes}"
 
-  ssh "${ssh_opts[@]}" "${CURRENT_USER}@${LOCALHOST_IP}" "sudo k3s kubectl get nodes -o wide"
+  ssh "${ssh_opts[@]}" "${CURRENT_USER}@${LOCALHOST_IP}" "${remote_kubectl_cmd} get nodes -o wide"
 }
 
 need_cmd sudo
