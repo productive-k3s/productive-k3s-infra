@@ -69,6 +69,17 @@ log() {
   printf '[INFO] %s\n' "$*"
 }
 
+artifacts_dir() {
+  printf '%s\n' "${TEST_ARTIFACTS_DIR:-${REPO_DIR}/test-artifacts}"
+}
+
+clean_named_suite_artifacts() {
+  local suite_category="$1"
+  local suite_name="$2"
+  rm -f "$(artifacts_dir)"/test-"${suite_category}"-*-"${suite_name}".json
+  rm -f "$(artifacts_dir)"/test-"${suite_category}"-*-"${suite_name}".log
+}
+
 mark_local_core_source() {
   if [[ -z "${PRODUCTIVE_K3S_SOURCE:-}" ]]; then
     export PRODUCTIVE_K3S_SOURCE="local"
@@ -93,6 +104,18 @@ resolve_default_addons_ref() {
   current_branch="$(git -C "${REPO_DIR}" branch --show-current 2>/dev/null || true)"
   if [[ -n "${PRODUCTIVE_K3S_ADDONS_REPO_REF:-}" ]]; then
     printf '%s' "${PRODUCTIVE_K3S_ADDONS_REPO_REF}"
+  elif [[ -n "${current_branch}" ]]; then
+    printf '%s' "${current_branch}"
+  else
+    printf 'main'
+  fi
+}
+
+resolve_default_profiles_ref() {
+  local current_branch
+  current_branch="$(git -C "${REPO_DIR}" branch --show-current 2>/dev/null || true)"
+  if [[ -n "${PRODUCTIVE_K3S_PROFILES_REPO_REF:-}" ]]; then
+    printf '%s' "${PRODUCTIVE_K3S_PROFILES_REPO_REF}"
   elif [[ -n "${current_branch}" ]]; then
     printf '%s' "${current_branch}"
   else
@@ -195,6 +218,8 @@ prepare_addons_repo_checkout() {
 }
 
 prepare_profiles_repo_checkout() {
+  local sibling_repo="${REPO_DIR}/../productive-k3s-profiles"
+  local clone_target repo_url repo_ref
   TEMP_PROFILES_CLONE_DIR="$(mktemp -d)"
   trap cleanup_temp_profiles_clone EXIT
   if [[ -n "${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}" ]]; then
@@ -205,14 +230,31 @@ prepare_profiles_repo_checkout() {
     mkdir -p "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles"
     cp -a "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/." \
       "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/"
-  else
-    if [[ -z "${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}" ]]; then
-      printf 'tests that use productive-k3s-profiles require PRODUCTIVE_K3S_PROFILES_REPO_DIR or PRODUCTIVE_K3S_PROFILES_REPO_URL\n' >&2
+  elif [[ -n "${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}" || -n "${PRODUCTIVE_K3S_PROFILES_REPO_REF:-}" ]]; then
+    repo_url="${PRODUCTIVE_K3S_PROFILES_REPO_URL:-${PRODUCTIVE_K3S_PROFILES_GIT_REMOTE_URL_DEFAULT}}"
+    repo_ref="$(resolve_default_profiles_ref)"
+    log "Cloning productive-k3s-profiles from URL override: ${repo_url} (ref: ${repo_ref})"
+    git clone --depth 1 --branch "${repo_ref}" \
+      "${repo_url}" \
+      "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles" >/dev/null 2>&1 || {
+      printf 'failed to clone productive-k3s-profiles from %s (ref: %s)\n' "${repo_url}" "${repo_ref}" >&2
       exit 1
-    fi
-    git clone --depth 1 --branch "${PRODUCTIVE_K3S_PROFILES_REPO_REF:-main}" \
-      "${PRODUCTIVE_K3S_PROFILES_REPO_URL}" \
-      "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles" >/dev/null 2>&1
+    }
+  elif [[ -d "${sibling_repo}/profiles" && -d "${sibling_repo}/scenarios" ]]; then
+    log "Using productive-k3s-profiles from sibling checkout: ${sibling_repo}"
+    mkdir -p "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles"
+    cp -a "${sibling_repo}/." \
+      "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/"
+  else
+    repo_url="${PRODUCTIVE_K3S_PROFILES_REPO_URL:-${PRODUCTIVE_K3S_PROFILES_GIT_REMOTE_URL_DEFAULT}}"
+    repo_ref="$(resolve_default_profiles_ref)"
+    log "Cloning productive-k3s-profiles from URL: ${repo_url} (ref: ${repo_ref})"
+    git clone --depth 1 --branch "${repo_ref}" \
+      "${repo_url}" \
+      "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles" >/dev/null 2>&1 || {
+      printf 'failed to clone productive-k3s-profiles from %s (ref: %s)\n' "${repo_url}" "${repo_ref}" >&2
+      exit 1
+    }
   fi
 
   mkdir -p "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/ansible"
@@ -311,6 +353,7 @@ case "$COMMAND" in
     ;;
   test-local-all)
     default_test_telemetry_disabled
+    clean_named_suite_artifacts local test-local-all
     exec bash "${TESTS_DIR}/run-suite-with-artifact.sh" local test-local-all bash -lc '
       set -euo pipefail
       cd "'"${REPO_DIR}"'"
@@ -332,6 +375,7 @@ case "$COMMAND" in
     ;;
   test-matrix-all)
     default_test_telemetry_disabled
+    clean_named_suite_artifacts matrix test-matrix-all
     exec bash "${TESTS_DIR}/run-suite-with-artifact.sh" matrix test-matrix-all bash -lc '
       set -euo pipefail
       cd "'"${REPO_DIR}"'"
