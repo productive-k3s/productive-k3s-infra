@@ -42,7 +42,7 @@ Release tags are composite:
 
 When you execute `productive-k3s-infra-cli.sh` from a GitHub Release, it defaults to `PRODUCTIVE_K3S_SOURCE=remote` and enforces the bound `productive-k3s-core` version from the tag.
 
-For local development convenience, the root `Makefile` still exposes source-based flows against the sibling `productive-k3s-profiles` checkout, such as:
+For local development convenience, the root `Makefile` still exposes source-based runtime and scenario flows against the sibling `productive-k3s-profiles` checkout, such as:
 
 - `make infra-list-profiles`
 - `make infra-validate-profile PROFILE=profiles/edge/on-prem/basic.env`
@@ -50,6 +50,18 @@ For local development convenience, the root `Makefile` still exposes source-base
 - `make infra-apply PROFILE=profiles/local/multipass/1-server-2-agents.env`
 - generic scenario dispatch such as `make scenario-up SCENARIO=aws-single-node`
 - scenario shortcuts such as `make multipass`, `make onprem`, and `make aws-single-node` for direct `up` workflows
+
+The root `Makefile` now stays intentionally small:
+
+- `make docs-build`
+- `make docs-serve`
+- `make test-local-all`
+- `make test-matrix-all`
+
+Detailed documentation and test targets live under:
+
+- `make -C docs ...`
+- `make -C tests ...`
 
 ## Documentation
 

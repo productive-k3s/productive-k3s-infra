@@ -32,6 +32,7 @@ Build the site:
 ```bash
 ./docs/build.sh
 make docs-build
+make -C docs docs-build
 ```
 
 Serve the site locally in the foreground:
@@ -39,25 +40,26 @@ Serve the site locally in the foreground:
 ```bash
 ./docs/serve.sh
 make docs-serve
+make -C docs docs-serve
 ```
 
-Start MkDocs in the background:
+Start MkDocs in the background from the docs workspace:
 
 ```bash
-make docs-up
+make -C docs docs-up
 ```
 
-Stop the background server and clean generated artifacts:
+Stop the background server and clean generated artifacts from the docs workspace:
 
 ```bash
-make docs-down
+make -C docs docs-down
 ```
 
 Full cleanup of generated artifacts and the local virtual environment:
 
 ```bash
 ./docs/clean.sh
-make docs-clean
+make -C docs docs-clean
 ```
 
 ## Validation

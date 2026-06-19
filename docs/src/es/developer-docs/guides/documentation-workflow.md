@@ -7,9 +7,9 @@ El sitio de documentación de este repositorio vive bajo `docs/` y usa MkDocs Ma
 ```bash
 make docs-build
 make docs-serve
-make docs-up
-make docs-down
-make docs-clean
+make -C docs docs-up
+make -C docs docs-down
+make -C docs docs-clean
 ```
 
 ## Modelo de contenido

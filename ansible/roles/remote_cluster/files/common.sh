@@ -12,7 +12,10 @@ if [[ -r "${REPO_ROOT}/scripts/release-config.sh" ]]; then
 else
   : "${PRODUCTIVE_K3S_SOURCE_DEFAULT:=remote}"
   : "${PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=0.9.4}"
-  : "${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT:=jemacchi/productive-k3s-core}"
+  : "${PRODUCTIVE_K3S_GITHUB_OWNER_DEFAULT:=jemacchi}"
+  : "${PRODUCTIVE_K3S_CORE_REPO_NAME_DEFAULT:=productive-k3s-core}"
+  : "${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT:=${PRODUCTIVE_K3S_GITHUB_OWNER_DEFAULT}/${PRODUCTIVE_K3S_CORE_REPO_NAME_DEFAULT}}"
+  : "${PRODUCTIVE_K3S_CORE_GIT_REMOTE_URL_DEFAULT:=https://github.com/${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT}.git}"
 fi
 resolve_default_productive_k3s_repo() {
   local candidate="${SCENARIO_DIR}/../../../../productive-k3s-core"

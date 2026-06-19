@@ -24,18 +24,34 @@ Generated at runtime and intentionally not tracked:
 
 `fixtures/` and `mocks/` are not kept as empty placeholders in this repo. Add them only when a new spec actually needs shared fixture files or standalone mock executables.
 
-## Commands
+## Root entry points
+
+Use the root `Makefile` only for the two broad suites:
 
 ```bash
-make test
-make test-unit
-make test-lint
-make test-format
-make test-spell
-make test-coverage
+make test-local-all
+make test-matrix-all
 ```
 
-These entrypoints are local-maintainer oriented and intentionally separate from the existing live scenario matrix.
+## Detailed commands
+
+Use the `tests/` workspace for detailed targets:
+
+```bash
+make -C tests test
+make -C tests test-unit
+make -C tests test-lint
+make -C tests test-format
+make -C tests test-spell
+make -C tests test-coverage
+make -C tests test-static
+make -C tests test-contract
+make -C tests test-live
+make -C tests test-checkstatus
+make -C tests test-clean
+```
+
+The root targets stay intentionally small. Scenario-specific, telemetry-specific, and maintenance targets now belong in `tests/`.
 
 ## Current ShellSpec Focus
 

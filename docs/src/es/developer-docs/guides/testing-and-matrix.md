@@ -2,7 +2,7 @@
 
 El repositorio expone un modelo de validación dividido: checks rápidos del engine dentro de `productive-k3s-infra` más checks de integración contra un checkout externo de `productive-k3s-profiles`.
 
-## Niveles de la matriz raíz
+## Niveles de matriz
 
 - `static`: sintaxis de shell, compilación de Python, validación de helpers de runtime y ciertos tests de comportamiento
 - `contract`: verifica el contrato engine-side de paquetes/runtime
@@ -11,18 +11,24 @@ El repositorio expone un modelo de validación dividido: checks rápidos del eng
 ## Comandos raíz
 
 ```bash
-make test-clean
-make test
-make test-unit
-make test-lint
-make test-format
-make test-spell
-make test-coverage
-make test-static
-make test-contract
-make test-live
-make test-matrix
-make test-checkstatus
+make test-local-all
+make test-matrix-all
+```
+
+## Comandos detallados del workspace de tests
+
+```bash
+make -C tests test
+make -C tests test-unit
+make -C tests test-lint
+make -C tests test-format
+make -C tests test-spell
+make -C tests test-coverage
+make -C tests test-static
+make -C tests test-contract
+make -C tests test-live
+make -C tests test-checkstatus
+make -C tests test-clean
 ```
 
 ## Entry points principales de tests
@@ -59,9 +65,9 @@ Esos artefactos registran:
 Usá esta secuencia cuando quieras un loop limpio y fácil de revisar:
 
 ```bash
-make test-clean
-make test-matrix
-make test-checkstatus
+make -C tests test-clean
+make test-matrix-all
+make -C tests test-checkstatus
 ```
 
 Si querés validación local por scenario, eso ahora pertenece a `productive-k3s-profiles`, usando sus propios entrypoints `make -C scenarios/...` y su CI.

@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HELPERS_DIR="${ROOT_DIR}/tests/helpers"
 # shellcheck disable=SC1090
 source "${HELPERS_DIR}/profiles-source.sh"
+# shellcheck disable=SC1091
+source "${ROOT_DIR}/scripts/release-config.sh"
 LEVEL="${1:-}"
 shift || true
 ARTIFACTS_DIR="${TEST_ARTIFACTS_DIR:-${ROOT_DIR}/test-artifacts}"
@@ -131,7 +133,7 @@ resolve_effective_productive_k3s_metadata() {
 
   EFFECTIVE_PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE:-}"
   EFFECTIVE_PRODUCTIVE_K3S_VERSION="${PRODUCTIVE_K3S_VERSION:-}"
-  EFFECTIVE_PRODUCTIVE_K3S_RELEASE_REPO="${PRODUCTIVE_K3S_RELEASE_REPO:-jemacchi/productive-k3s-core}"
+  EFFECTIVE_PRODUCTIVE_K3S_RELEASE_REPO="${PRODUCTIVE_K3S_RELEASE_REPO:-${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT}}"
   EFFECTIVE_PRODUCTIVE_K3S_ENGINE="${PRODUCTIVE_K3S_ENGINE:-native}"
   EFFECTIVE_PRODUCTIVE_K3S_FROM_CLUSTER_JSON="false"
 
@@ -145,7 +147,7 @@ resolve_effective_productive_k3s_metadata() {
 
   EFFECTIVE_PRODUCTIVE_K3S_SOURCE="${EFFECTIVE_PRODUCTIVE_K3S_SOURCE:-default}"
   EFFECTIVE_PRODUCTIVE_K3S_VERSION="${EFFECTIVE_PRODUCTIVE_K3S_VERSION:-unspecified}"
-  EFFECTIVE_PRODUCTIVE_K3S_RELEASE_REPO="${EFFECTIVE_PRODUCTIVE_K3S_RELEASE_REPO:-jemacchi/productive-k3s-core}"
+  EFFECTIVE_PRODUCTIVE_K3S_RELEASE_REPO="${EFFECTIVE_PRODUCTIVE_K3S_RELEASE_REPO:-${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT}}"
   EFFECTIVE_PRODUCTIVE_K3S_ENGINE="${EFFECTIVE_PRODUCTIVE_K3S_ENGINE:-native}"
 }
 
@@ -374,7 +376,7 @@ summary_duration_seconds="$(find "${RUNS_DIR}" -maxdepth 1 -type f -name "${MATR
 summary_result="$(determine_summary_result)"
 summary_source_mode="default"
 summary_source_version="unspecified"
-summary_release_repo="jemacchi/productive-k3s-core"
+summary_release_repo="${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT}"
 summary_engine_mode="native"
 summary_resolved_from_cluster_json="false"
 first_pass_scenario="${passes[0]:-}"

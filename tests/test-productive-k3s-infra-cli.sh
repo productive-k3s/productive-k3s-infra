@@ -263,8 +263,11 @@ assert_contains "$ROOT_ONPREM_ARM" "make scenario-up SCENARIO=onprem-arm"
 assert_contains "$ROOT_ONPREM_ARM" "make -C \"\$scenario_dir\" up"
 assert_contains "$ROOT_ONPREM_ARM" "${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic-arm"
 
-ROOT_TEST_LIVE_ONPREM_ARM="$(make -C "$REPO_DIR" -n test-live-onprem-arm PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
-assert_contains "$ROOT_TEST_LIVE_ONPREM_ARM" "make -C ${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic-arm test-live"
+ROOT_TEST_LOCAL_ALL="$(make -C "$REPO_DIR" -n test-local-all PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
+assert_contains "$ROOT_TEST_LOCAL_ALL" "make -C ${REPO_DIR}/tests test-local-all"
+
+ROOT_TEST_MATRIX_ALL="$(make -C "$REPO_DIR" -n test-matrix-all PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
+assert_contains "$ROOT_TEST_MATRIX_ALL" "make -C ${REPO_DIR}/tests test-matrix-all"
 
 ROOT_INFRA_VALIDATE="$(make -C "$REPO_DIR" -n infra-validate PROFILE=${PROFILE_DIR}/onprem.env PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
 assert_contains "$ROOT_INFRA_VALIDATE" "${REPO_DIR}/productive-k3s-infra.sh validate --profile ${PROFILE_DIR}/onprem.env"

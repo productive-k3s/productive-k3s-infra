@@ -36,10 +36,10 @@ Rules:
 ## Documentation and Operations
 
 - `Centralize GitHub Owner and Release Repo Defaults`
-  `Replace hardcoded jemacchi release/profile URLs with repo-local defaults in scripts/release-config.sh, ansible/roles/remote_cluster/files/common.sh, tests/, README.md, and docs/.`
+  `Finish replacing hardcoded jemacchi release/profile URLs in remaining tests, README.md, and docs/ now that the runtime defaults are centralized in release-config.sh.`
+
+- `Document Standalone Core Resolution`
+  `Explain how Infra resolves productive-k3s-core from PRODUCTIVE_K3S_REPO, URL/ref overrides, sibling checkouts, or default GitHub sources during development and tests.`
 
 - `Document Package-First Runtime`
   `Update docs to emphasize that Infra is now the runtime and packaging engine, while public source content lives in productive-k3s-profiles.`
-
-- `Simplify Root Makefile`
-  `Move transversal targets into domain folders where possible and keep the root Makefile focused on runtime app commands and operational entrypoints.`

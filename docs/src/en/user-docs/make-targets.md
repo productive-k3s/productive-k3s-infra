@@ -17,17 +17,8 @@ The `make infra-*` targets below remain intentionally source-based and are aimed
 | --- | --- |
 | `make docs-build` | Build the MkDocs site strictly |
 | `make docs-serve` | Serve the docs locally |
-| `make docs-up` | Run the docs server in the background |
-| `make docs-down` | Stop the docs server and clean docs artifacts |
-| `make test-clean` | Remove local matrix test result artifacts before a new validation cycle |
-| `make test-checkstatus` | Summarize the currently recorded matrix test outcomes from local artifacts |
-| `make test-static` | Run static checks across all public scenarios |
-| `make test-contract` | Run contract checks across all public scenarios |
-| `make test-live` | Run live validations across all public scenarios |
-| `make test-live-onprem-arm` | Run only the public ARM live validation through `scenarios/edge/onprem-basic-arm` |
-| `make test-live-gha-onprem` | Run the GitHub-hosted single-node `onprem-basic` live validation |
-| `make test-aws-localstack-contract` | Run the AWS single-node infrastructure contract validation against LocalStack |
-| `make test-matrix` | Run `static`, `contract`, and `live` in sequence |
+| `make test-local-all` | Run the main local maintainer suite from `tests/` |
+| `make test-matrix-all` | Run the full scenario matrix (`static`, `contract`, and `live`) from `tests/` |
 | `make infra-help` | Show the public profile-driven CLI usage |
 | `make infra-doctor` | Run basic local checks for the profile-driven CLI |
 | `make infra-list-profiles` | List the versioned example profiles |
@@ -55,6 +46,10 @@ Accepted `SCENARIO` values:
 - `aws-single-node`
 
 The short aliases above are only convenience wrappers for `up`. The `scenario-...` targets are the recommended generic interface.
+
+For detailed documentation targets, use `make -C docs ...`.
+
+For detailed test targets, use `make -C tests ...`.
 
 ## Multipass targets
 

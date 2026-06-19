@@ -17,17 +17,8 @@ Los targets `make infra-*` de abajo siguen siendo deliberadamente source-based y
 | --- | --- |
 | `make docs-build` | Construir el sitio MkDocs en modo estricto |
 | `make docs-serve` | Servir la documentación localmente |
-| `make docs-up` | Levantar el servidor de docs en background |
-| `make docs-down` | Detener el servidor de docs y limpiar artefactos |
-| `make test-clean` | Borrar artifacts locales de resultados de matriz antes de un nuevo ciclo de validación |
-| `make test-checkstatus` | Resumir los resultados de tests de matriz actualmente registrados en artifacts locales |
-| `make test-static` | Ejecutar checks static sobre todos los escenarios públicos |
-| `make test-contract` | Ejecutar checks contract sobre todos los escenarios públicos |
-| `make test-live` | Ejecutar validaciones live sobre todos los escenarios públicos |
-| `make test-live-onprem-arm` | Ejecutar sólo la validación live pública ARM mediante `scenarios/edge/onprem-basic-arm` |
-| `make test-live-gha-onprem` | Ejecutar la validación live single-node de `onprem-basic` sobre un runner hospedado por GitHub |
-| `make test-aws-localstack-contract` | Ejecutar la validación del contrato de infraestructura AWS single-node contra LocalStack |
-| `make test-matrix` | Ejecutar `static`, `contract` y `live` en secuencia |
+| `make test-local-all` | Ejecutar la suite principal local de maintainers desde `tests/` |
+| `make test-matrix-all` | Ejecutar la matriz completa de escenarios (`static`, `contract` y `live`) desde `tests/` |
 | `make infra-help` | Mostrar el uso del CLI público orientado a profiles |
 | `make infra-doctor` | Ejecutar checks locales básicos para el CLI orientado a profiles |
 | `make infra-list-profiles` | Listar los profiles de ejemplo versionados |
@@ -55,6 +46,10 @@ Valores aceptados para `SCENARIO`:
 - `aws-single-node`
 
 Los aliases cortos de arriba son sólo wrappers de conveniencia para `up`. Los targets `scenario-...` son la interfaz genérica recomendada.
+
+Para targets detallados de documentación, usá `make -C docs ...`.
+
+Para targets detallados de tests, usá `make -C tests ...`.
 
 ## Targets de Multipass
 

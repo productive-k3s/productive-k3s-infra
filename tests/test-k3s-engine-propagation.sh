@@ -191,7 +191,7 @@ mkdir -p "${TMP_DIR}/bin"
 cat > "${TMP_DIR}/bin/multipass" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ "${1:-}" == "exec" && "${4:-}" == "sudo" && "${5:-}" == "cat" ]]; then
+if [[ "$*" == *"/var/lib/rancher/rke2/server/node-token"* ]]; then
   printf 'test-token\n'
   exit 0
 fi
