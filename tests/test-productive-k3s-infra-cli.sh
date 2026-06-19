@@ -310,15 +310,16 @@ PRODUCTIVE_K3S_INFRA_REPO_DIR="${RELEASE_REPO}" \
 PRODUCTIVE_K3S_PROFILES_REPO_DIR="${RELEASE_REPO}" \
 PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
 PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
+PRODUCTIVE_K3S_SOURCE="remote" \
 bash "${RELEASE_REPO}/productive-k3s-infra.sh" multipass status
 assert_contains "$(cat "$OUTPUT_FILE")" "-C ${RELEASE_REPO}/scenarios/local/multipass status"
 assert_contains "$(cat "$OUTPUT_FILE")" "PRODUCTIVE_K3S_VERSION=4.5.6"
 assert_contains "$(cat "$OUTPUT_FILE")" "PRODUCTIVE_K3S_SOURCE=remote"
 
-RELEASE_BUNDLE_INFO="$(PRODUCTIVE_K3S_INFRA_REPO_DIR="${RELEASE_REPO}" bash "${RELEASE_REPO}/productive-k3s-infra.sh" bundle info --json)"
+RELEASE_BUNDLE_INFO="$(PRODUCTIVE_K3S_INFRA_REPO_DIR="${RELEASE_REPO}" PRODUCTIVE_K3S_SOURCE="remote" bash "${RELEASE_REPO}/productive-k3s-infra.sh" bundle info --json)"
 assert_json_field "$RELEASE_BUNDLE_INFO" '.bundle_version' '1.2.3-4.5.6'
 
-RELEASE_BOM_INFO="$(PRODUCTIVE_K3S_INFRA_REPO_DIR="${RELEASE_REPO}" bash "${RELEASE_REPO}/productive-k3s-infra.sh" bom --json)"
+RELEASE_BOM_INFO="$(PRODUCTIVE_K3S_INFRA_REPO_DIR="${RELEASE_REPO}" PRODUCTIVE_K3S_SOURCE="remote" bash "${RELEASE_REPO}/productive-k3s-infra.sh" bom --json)"
 assert_json_field "$RELEASE_BOM_INFO" '.bundle.bundle_version' '1.2.3-4.5.6'
 assert_json_field "$RELEASE_BOM_INFO" '.productive_k3s.bound_core_version' '4.5.6'
 
@@ -332,3 +333,14 @@ if PRODUCTIVE_K3S_INFRA_REPO_DIR="${RELEASE_REPO}" \
 fi
 
 printf '[PASS] release-bound CLI enforces the bundled productive-k3s version\n'
+
+if PRODUCTIVE_K3S_INFRA_REPO_DIR="${RELEASE_REPO}" \
+  PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
+  PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
+  PRODUCTIVE_K3S_SOURCE="local" \
+  bash "${RELEASE_REPO}/productive-k3s-infra.sh" multipass status >/dev/null 2>&1; then
+  echo "[FAIL] release-bound CLI accepted a conflicting PRODUCTIVE_K3S_SOURCE" >&2
+  exit 1
+fi
+
+printf '[PASS] release-bound CLI enforces remote productive-k3s source\n'

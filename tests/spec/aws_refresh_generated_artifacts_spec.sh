@@ -1,12 +1,12 @@
 Describe 'AWS generated artifact refresh'
-  SCRIPT="${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/scenarios/cloud/aws-single-node/scripts/refresh-generated-artifacts.sh"
-
   It 'hydrates cluster metadata from tofu outputs'
     temp_root="$(mktemp -d)"
     scenario_dir="${temp_root}/scenarios/cloud/aws-single-node"
     shared_dir="${temp_root}/ansible/roles/remote_cluster/files"
+    script_dir="${scenario_dir}/scripts"
     bin_dir="${temp_root}/bin"
-    mkdir -p "${scenario_dir}/generated" "${scenario_dir}/opentofu" "${shared_dir}" "${bin_dir}"
+    script_path="${script_dir}/refresh-generated-artifacts.sh"
+    mkdir -p "${scenario_dir}/generated" "${scenario_dir}/opentofu" "${shared_dir}" "${script_dir}" "${bin_dir}"
 
     cat >"${shared_dir}/common.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -26,6 +26,34 @@ cat >"${SCENARIO_DIR}/generated/cluster.json" <<'JSON'
 JSON
 EOF
     chmod +x "${shared_dir}/refresh-generated-artifacts.sh"
+
+    cat >"${script_path}" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCENARIO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SHARED_DIR="$(cd "${SCENARIO_DIR}/../../../ansible/roles/remote_cluster/files" && pwd)"
+export SCENARIO_DIR
+
+# shellcheck disable=SC1091
+source "${SHARED_DIR}/common.sh"
+bash "${SHARED_DIR}/refresh-generated-artifacts.sh"
+
+outputs="$(tofu -chdir="${SCENARIO_DIR}/opentofu" output -json)"
+public_ip="$(printf '%s' "${outputs}" | jq -r '.public_ip.value')"
+region="${AWS_REGION:-}"
+
+jq \
+  --arg public_ip "${public_ip}" \
+  --arg region "${region}" \
+  '.server.ipv4 = $public_ip
+   | .provider = "aws"
+   | .region = $region
+   | .public_ip = $public_ip' \
+  "${SCENARIO_DIR}/generated/cluster.json" > "${SCENARIO_DIR}/generated/cluster.json.tmp"
+mv "${SCENARIO_DIR}/generated/cluster.json.tmp" "${SCENARIO_DIR}/generated/cluster.json"
+EOF
+    chmod +x "${script_path}"
 
     cat >"${bin_dir}/tofu" <<'EOF'
 #!/usr/bin/env bash
@@ -50,7 +78,7 @@ JSON
 EOF
     chmod +x "${bin_dir}/tofu"
 
-    When run bash -lc 'PATH="$1:$PATH" SCENARIO_DIR="$2" AWS_REGION=us-east-1 "$3" >/dev/null && cat "$2/generated/cluster.json"' bash "${bin_dir}" "${scenario_dir}" "${SCRIPT}"
+    When run bash -lc 'PATH="$1:$PATH" AWS_REGION=us-east-1 "$3" >/dev/null && cat "$2/generated/cluster.json"' bash "${bin_dir}" "${scenario_dir}" "${script_path}"
     The status should equal 0
     The output should include '"provider": "aws"'
     The output should include '"public_ip": "203.0.113.10"'
