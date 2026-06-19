@@ -7,6 +7,7 @@ TESTS_DIR="${REPO_DIR}/tests"
 SCENARIOS="multipass onprem-basic onprem-basic-arm aws-single-node"
 TEMP_PROFILES_CLONE_DIR=""
 TEMP_CORE_CLONE_DIR=""
+TEMP_ADDONS_CLONE_DIR=""
 
 # shellcheck disable=SC1091
 source "${REPO_DIR}/scripts/release-config.sh"
@@ -59,6 +60,9 @@ cleanup_temp_profiles_clone() {
   if [[ -n "${TEMP_CORE_CLONE_DIR}" && -d "${TEMP_CORE_CLONE_DIR}" ]]; then
     rm -rf "${TEMP_CORE_CLONE_DIR}"
   fi
+  if [[ -n "${TEMP_ADDONS_CLONE_DIR}" && -d "${TEMP_ADDONS_CLONE_DIR}" ]]; then
+    rm -rf "${TEMP_ADDONS_CLONE_DIR}"
+  fi
 }
 
 log() {
@@ -77,6 +81,18 @@ resolve_default_core_ref() {
   current_branch="$(git -C "${REPO_DIR}" branch --show-current 2>/dev/null || true)"
   if [[ -n "${PRODUCTIVE_K3S_CORE_REPO_REF:-}" ]]; then
     printf '%s' "${PRODUCTIVE_K3S_CORE_REPO_REF}"
+  elif [[ -n "${current_branch}" ]]; then
+    printf '%s' "${current_branch}"
+  else
+    printf 'main'
+  fi
+}
+
+resolve_default_addons_ref() {
+  local current_branch
+  current_branch="$(git -C "${REPO_DIR}" branch --show-current 2>/dev/null || true)"
+  if [[ -n "${PRODUCTIVE_K3S_ADDONS_REPO_REF:-}" ]]; then
+    printf '%s' "${PRODUCTIVE_K3S_ADDONS_REPO_REF}"
   elif [[ -n "${current_branch}" ]]; then
     printf '%s' "${current_branch}"
   else
@@ -133,6 +149,51 @@ prepare_core_repo_checkout() {
   mark_local_core_source
 }
 
+prepare_addons_repo_checkout() {
+  local sibling_repo="${REPO_DIR}/../productive-k3s-addons"
+  local clone_target repo_url repo_ref
+
+  if [[ -n "${PRODUCTIVE_K3S_ADDONS_REPO_DIR:-}" ]]; then
+    [[ -d "${PRODUCTIVE_K3S_ADDONS_REPO_DIR}" ]] || {
+      printf 'invalid PRODUCTIVE_K3S_ADDONS_REPO_DIR: %s\n' "${PRODUCTIVE_K3S_ADDONS_REPO_DIR}" >&2
+      exit 1
+    }
+    log "Using productive-k3s-addons from PRODUCTIVE_K3S_ADDONS_REPO_DIR: ${PRODUCTIVE_K3S_ADDONS_REPO_DIR}"
+    return 0
+  fi
+
+  if [[ -n "${PRODUCTIVE_K3S_ADDONS_REPO_URL:-}" || -n "${PRODUCTIVE_K3S_ADDONS_REPO_REF:-}" ]]; then
+    repo_url="${PRODUCTIVE_K3S_ADDONS_REPO_URL:-${PRODUCTIVE_K3S_ADDONS_GIT_REMOTE_URL_DEFAULT}}"
+    repo_ref="$(resolve_default_addons_ref)"
+    TEMP_ADDONS_CLONE_DIR="$(mktemp -d)"
+    clone_target="${TEMP_ADDONS_CLONE_DIR}/productive-k3s-addons"
+    log "Cloning productive-k3s-addons from URL override: ${repo_url} (ref: ${repo_ref})"
+    git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "${clone_target}" >/dev/null 2>&1 || {
+      printf 'failed to clone productive-k3s-addons from %s (ref: %s)\n' "${repo_url}" "${repo_ref}" >&2
+      exit 1
+    }
+    export PRODUCTIVE_K3S_ADDONS_REPO_DIR="${clone_target}"
+    return 0
+  fi
+
+  if [[ -d "${sibling_repo}" ]]; then
+    export PRODUCTIVE_K3S_ADDONS_REPO_DIR="${sibling_repo}"
+    log "Using productive-k3s-addons from sibling checkout: ${PRODUCTIVE_K3S_ADDONS_REPO_DIR}"
+    return 0
+  fi
+
+  repo_url="${PRODUCTIVE_K3S_ADDONS_REPO_URL:-${PRODUCTIVE_K3S_ADDONS_GIT_REMOTE_URL_DEFAULT}}"
+  repo_ref="$(resolve_default_addons_ref)"
+  TEMP_ADDONS_CLONE_DIR="$(mktemp -d)"
+  clone_target="${TEMP_ADDONS_CLONE_DIR}/productive-k3s-addons"
+  log "Cloning productive-k3s-addons from URL: ${repo_url} (ref: ${repo_ref})"
+  git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "${clone_target}" >/dev/null 2>&1 || {
+    printf 'failed to clone productive-k3s-addons from %s (ref: %s)\n' "${repo_url}" "${repo_ref}" >&2
+    exit 1
+  }
+  export PRODUCTIVE_K3S_ADDONS_REPO_DIR="${clone_target}"
+}
+
 prepare_profiles_repo_checkout() {
   TEMP_PROFILES_CLONE_DIR="$(mktemp -d)"
   trap cleanup_temp_profiles_clone EXIT
@@ -169,6 +230,7 @@ EOF
 
   export PRODUCTIVE_K3S_PROFILES_REPO_DIR="${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles"
   prepare_core_repo_checkout
+  prepare_addons_repo_checkout
 }
 
 run_prepared_scenario_test() {
