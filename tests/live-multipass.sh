@@ -21,6 +21,8 @@ if [[ "${PRODUCTIVE_K3S_ENGINE:-native}" == "k3sup" && -z "${PRODUCTIVE_K3S_SOUR
   export PRODUCTIVE_K3S_SOURCE="local"
 fi
 
+export PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS="${PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS:-true}"
+
 warn() {
   printf '[WARN] %s\n' "$1" >&2
 }
