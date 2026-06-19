@@ -23,7 +23,9 @@ Development commands:
   docs-down
   docs-clean
   set-core-version
+  test-local-all
   test-local-bash
+  test-matrix-all
   test-clean
   test-checkstatus
   test-static
@@ -47,9 +49,7 @@ if (($# == 0)); then
 fi
 
 default_test_telemetry_disabled() {
-  if [[ -z "${TELEMETRY_ENABLED:-}" ]]; then
-    export TELEMETRY_ENABLED="false"
-  fi
+  export TELEMETRY_ENABLED="false"
 }
 
 cleanup_temp_profiles_clone() {
@@ -236,10 +236,57 @@ case "$COMMAND" in
   set-core-version)
     exec "${REPO_DIR}/scripts/set-core-version.sh" "$@"
     ;;
+  test-local-all)
+    default_test_telemetry_disabled
+    exec bash "${TESTS_DIR}/run-suite-with-artifact.sh" local test-local-all bash -lc '
+      set -euo pipefail
+      cd "'"${REPO_DIR}"'"
+      make -C tests test
+      PRODUCTIVE_K3S_PROFILES_REPO_DIR="'"${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_URL="'"${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_REF="'"${PRODUCTIVE_K3S_PROFILES_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_URL="'"${PRODUCTIVE_K3S_CORE_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_REF="'"${PRODUCTIVE_K3S_CORE_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_REPO="'"${PRODUCTIVE_K3S_REPO:-}"'" \
+      TELEMETRY_ENABLED=false \
+      bash ./scripts/productive-k3s-infra-dev.sh test-local-bash
+    '
+    ;;
   test-local-bash)
     default_test_telemetry_disabled
     prepare_profiles_repo_checkout
     run_local_bash_suite
+    ;;
+  test-matrix-all)
+    default_test_telemetry_disabled
+    exec bash "${TESTS_DIR}/run-suite-with-artifact.sh" matrix test-matrix-all bash -lc '
+      set -euo pipefail
+      cd "'"${REPO_DIR}"'"
+      PRODUCTIVE_K3S_PROFILES_REPO_DIR="'"${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_URL="'"${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_REF="'"${PRODUCTIVE_K3S_PROFILES_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_URL="'"${PRODUCTIVE_K3S_CORE_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_REF="'"${PRODUCTIVE_K3S_CORE_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_REPO="'"${PRODUCTIVE_K3S_REPO:-}"'" \
+      TELEMETRY_ENABLED=false \
+      bash ./scripts/productive-k3s-infra-dev.sh test-static
+      PRODUCTIVE_K3S_PROFILES_REPO_DIR="'"${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_URL="'"${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_REF="'"${PRODUCTIVE_K3S_PROFILES_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_URL="'"${PRODUCTIVE_K3S_CORE_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_REF="'"${PRODUCTIVE_K3S_CORE_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_REPO="'"${PRODUCTIVE_K3S_REPO:-}"'" \
+      TELEMETRY_ENABLED=false \
+      bash ./scripts/productive-k3s-infra-dev.sh test-contract
+      PRODUCTIVE_K3S_PROFILES_REPO_DIR="'"${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_URL="'"${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_REF="'"${PRODUCTIVE_K3S_PROFILES_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_URL="'"${PRODUCTIVE_K3S_CORE_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_REF="'"${PRODUCTIVE_K3S_CORE_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_REPO="'"${PRODUCTIVE_K3S_REPO:-}"'" \
+      TELEMETRY_ENABLED=false \
+      bash ./scripts/productive-k3s-infra-dev.sh test-live
+    '
     ;;
   test-clean)
     exec bash "${TESTS_DIR}/clean-test-state.sh" "$@"

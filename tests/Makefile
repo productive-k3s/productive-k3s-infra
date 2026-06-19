@@ -52,7 +52,8 @@ test-coverage:
 test-local-bash:
 	bash $(DEV_WRAPPER) test-local-bash
 
-test-local-all: test test-local-bash
+test-local-all:
+	bash $(DEV_WRAPPER) test-local-all
 
 test-clean:
 	bash $(DEV_WRAPPER) test-clean
@@ -103,6 +104,4 @@ test-productive-k3s-infra-cli:
 	bash $(DEV_WRAPPER) test-productive-k3s-infra-cli
 
 test-matrix-all:
-	bash $(DEV_WRAPPER) test-static
-	bash $(DEV_WRAPPER) test-contract
-	bash $(DEV_WRAPPER) test-live
+	bash $(DEV_WRAPPER) test-matrix-all
