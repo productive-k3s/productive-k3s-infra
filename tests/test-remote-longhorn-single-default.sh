@@ -87,6 +87,10 @@ load_cluster_metadata() {
   ALL_NODE_IPS=("10.0.0.10")
 }
 
+productive_k3s_remote_kubectl_cmd() {
+  printf 'sudo k3s kubectl'
+}
+
 remote_exec() {
   local ip="$1"
   local script="$2"

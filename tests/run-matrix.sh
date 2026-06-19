@@ -5,8 +5,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HELPERS_DIR="${ROOT_DIR}/tests/helpers"
 # shellcheck disable=SC1090
 source "${HELPERS_DIR}/profiles-source.sh"
-# shellcheck disable=SC1091
-source "${ROOT_DIR}/scripts/release-config.sh"
+if [[ -r "${ROOT_DIR}/scripts/release-config.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${ROOT_DIR}/scripts/release-config.sh"
+else
+  : "${PRODUCTIVE_K3S_GITHUB_OWNER_DEFAULT:=jemacchi}"
+  : "${PRODUCTIVE_K3S_CORE_REPO_NAME_DEFAULT:=productive-k3s-core}"
+  : "${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT:=${PRODUCTIVE_K3S_GITHUB_OWNER_DEFAULT}/${PRODUCTIVE_K3S_CORE_REPO_NAME_DEFAULT}}"
+fi
 LEVEL="${1:-}"
 shift || true
 ARTIFACTS_DIR="${TEST_ARTIFACTS_DIR:-${ROOT_DIR}/test-artifacts}"
