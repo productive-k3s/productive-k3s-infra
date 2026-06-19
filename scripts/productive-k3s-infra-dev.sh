@@ -65,6 +65,13 @@ log() {
   printf '[INFO] %s\n' "$*"
 }
 
+mark_local_core_source() {
+  if [[ -z "${PRODUCTIVE_K3S_SOURCE:-}" ]]; then
+    export PRODUCTIVE_K3S_SOURCE="local"
+    log "Defaulting PRODUCTIVE_K3S_SOURCE to local because a productive-k3s-core checkout is available"
+  fi
+}
+
 resolve_default_core_ref() {
   local current_branch
   current_branch="$(git -C "${REPO_DIR}" branch --show-current 2>/dev/null || true)"
@@ -87,6 +94,7 @@ prepare_core_repo_checkout() {
       exit 1
     }
     log "Using productive-k3s-core from PRODUCTIVE_K3S_REPO: ${PRODUCTIVE_K3S_REPO}"
+    mark_local_core_source
     return 0
   fi
 
@@ -101,12 +109,14 @@ prepare_core_repo_checkout() {
       exit 1
     }
     export PRODUCTIVE_K3S_REPO="${clone_target}"
+    mark_local_core_source
     return 0
   fi
 
   if [[ -d "${sibling_repo}" ]]; then
     export PRODUCTIVE_K3S_REPO="${sibling_repo}"
     log "Using productive-k3s-core from sibling checkout: ${PRODUCTIVE_K3S_REPO}"
+    mark_local_core_source
     return 0
   fi
 
@@ -120,6 +130,7 @@ prepare_core_repo_checkout() {
     exit 1
   }
   export PRODUCTIVE_K3S_REPO="${clone_target}"
+  mark_local_core_source
 }
 
 prepare_profiles_repo_checkout() {
