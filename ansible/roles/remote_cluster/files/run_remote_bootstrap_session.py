@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -11,6 +12,7 @@ TELEMETRY_ENV_KEYS = [
     "TELEMETRY_ENABLED",
     "TELEMETRY_ENDPOINT",
     "TELEMETRY_MARKER",
+    "TELEMETRY_BEARER_TOKEN",
     "TELEMETRY_MAX_RETRIES",
     "TELEMETRY_CONNECT_TIMEOUT_SECONDS",
     "TELEMETRY_REQUEST_TIMEOUT_SECONDS",
@@ -19,21 +21,23 @@ TELEMETRY_ENV_KEYS = [
     "TELEMETRY_SESSION_ID",
     "TELEMETRY_PARENT_RUN_ID",
     "TELEMETRY_COMPONENT",
+    "PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS",
 ]
 
-ENGINE_ENV_KEYS = [
-    "PRODUCTIVE_K3S_ENGINE",
-    "PRODUCTIVE_K3S_SSH_HOST",
-    "PRODUCTIVE_K3S_SSH_USER",
-    "PRODUCTIVE_K3S_SSH_PORT",
-    "PRODUCTIVE_K3S_SSH_KEY_PATH",
-    "PRODUCTIVE_K3S_SSH_EXTRA_OPTS",
-]
+ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+
+
+def sanitize_prompt_buffer(value: str) -> str:
+    value = ANSI_ESCAPE_RE.sub("", value)
+    value = value.replace("\r", "")
+    while "\b" in value:
+        value = re.sub(r".\b", "", value, count=1)
+    return value
 
 
 def telemetry_env_prefix():
     assignments = []
-    for key in TELEMETRY_ENV_KEYS + ENGINE_ENV_KEYS:
+    for key in TELEMETRY_ENV_KEYS:
         value = os.environ.get(key)
         if value is None:
             continue
@@ -169,12 +173,13 @@ def main():
                 log_handle.write(ch)
                 log_handle.flush()
             buffer = (buffer + ch)[-6000:]
+            normalized_buffer = sanitize_prompt_buffer(buffer)
             if pending:
                 matched_index = None
                 matched_prompt = None
                 matched_answer = None
                 for idx, (prompt_text, answer) in enumerate(pending):
-                    if prompt_text in buffer:
+                    if prompt_text in normalized_buffer:
                         matched_index = idx
                         matched_prompt = prompt_text
                         matched_answer = answer
