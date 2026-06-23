@@ -137,7 +137,7 @@ EOF
   "rancher_host": "rancher.k3s.lab.internal",
   "registry_host": "registry.k3s.lab.internal",
   "remote_dir": "/srv/productive-k3s-core",
-  "productive_k3s": {"source": "remote", "version": "0.9.1", "release_repo": "jemacchi/productive-k3s-core"},
+  "productive_k3s": {"source": "remote", "version": "0.9.1", "release_repo": "productive-k3s/productive-k3s-core"},
   "telemetry": {"enabled": true, "endpoint": "https://telemetry.test", "max_retries": 4, "connect_timeout_seconds": 6, "request_timeout_seconds": 12, "outbox_dir": "/tmp/outbox", "user_agent": "pk3s/test"},
   "ssh": {"user": "ubuntu", "port": "2222", "key_path": "/tmp/id_ed25519", "extra_opts": "-o LogLevel=ERROR"},
   "agents": [{"name": "agent-1", "ipv4": "10.0.0.11"}],

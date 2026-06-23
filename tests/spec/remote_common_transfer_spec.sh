@@ -131,7 +131,7 @@ EOF
     When run /usr/bin/bash "$RUNNER" "$COMMON" '
       tmpdir="$(mktemp -d)"
       destination="${tmpdir}/bundle.tgz"
-      PRODUCTIVE_K3S_RELEASE_REPO=jemacchi/productive-k3s-core
+      PRODUCTIVE_K3S_RELEASE_REPO=productive-k3s/productive-k3s-core
       productive_k3s_release_json() {
         cat <<EOF
 {"assets":[
@@ -151,7 +151,7 @@ EOF
       validate_productive_k3s_bundle_archive() { printf "validated:%s" "$1"; }
       download_productive_k3s_release_bundle "${destination}" 0.9.1'
     The status should equal 0
-    The output should include 'Downloading productive-k3s-core release 0.9.1 from jemacchi/productive-k3s-core'
+    The output should include 'Downloading productive-k3s-core release 0.9.1 from productive-k3s/productive-k3s-core'
     The output should include 'bundle checksum ok'
     The output should include 'validated:'
   End

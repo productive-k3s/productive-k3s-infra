@@ -25,7 +25,7 @@ cat > "${TEST_SCENARIO_DIR}/generated/cluster.json" <<'EOF'
   "productive_k3s": {
     "source": "remote",
     "version": "v9.9.9",
-    "release_repo": "jemacchi/productive-k3s-core"
+    "release_repo": "productive-k3s/productive-k3s-core"
   },
   "server_url": "https://10.0.0.10:6443",
   "rancher_host": "rancher.k3s.lab.internal",

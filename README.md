@@ -14,7 +14,7 @@ The current public scope includes:
 - runtime state persistence and restore
 - telemetry, validation, and CLI dispatch for packaged profiles
 
-Public profile/scenario source content now lives in the sibling repository [`productive-k3s-profiles`](https://github.com/jemacchi/productive-k3s-profiles). This repository keeps the engine/runtime responsibilities needed to execute those profiles once they are packaged as self-contained `profile.tgz` artifacts.
+Public profile/scenario source content now lives in the sibling repository [`productive-k3s-profiles`](https://github.com/productive-k3s/productive-k3s-profiles). This repository keeps the engine/runtime responsibilities needed to execute those profiles once they are packaged as self-contained `profile.tgz` artifacts.
 
 The repository now exposes two distinct surfaces:
 

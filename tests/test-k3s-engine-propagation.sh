@@ -47,7 +47,7 @@ setup_multipass_fixture() {
   "productive_k3s": {
     "source": "local",
     "version": "",
-    "release_repo": "jemacchi/productive-k3s-core"
+    "release_repo": "productive-k3s/productive-k3s-core"
   },
   "telemetry": {
     "enabled": true,
@@ -130,7 +130,7 @@ setup_onprem_fixture() {
   "productive_k3s": {
     "source": "local",
     "version": "",
-    "release_repo": "jemacchi/productive-k3s-core"
+    "release_repo": "productive-k3s/productive-k3s-core"
   },
   "telemetry": {
     "enabled": false

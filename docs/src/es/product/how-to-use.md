@@ -53,7 +53,7 @@ Ejemplo de desarrollo:
 
 ```bash
 export PRODUCTIVE_K3S_PROFILES_REPO_DIR=/tmp/productive-k3s-profiles
-git clone https://github.com/jemacchi/productive-k3s-profiles.git "$PRODUCTIVE_K3S_PROFILES_REPO_DIR"
+git clone https://github.com/productive-k3s/productive-k3s-profiles.git "$PRODUCTIVE_K3S_PROFILES_REPO_DIR"
 ./productive-k3s-infra.sh dev profile validate --profile-env "$PRODUCTIVE_K3S_PROFILES_REPO_DIR/profiles/edge/on-prem/basic.env"
 make infra-validate PROFILE="$PRODUCTIVE_K3S_PROFILES_REPO_DIR/profiles/edge/on-prem/basic.env"
 ```

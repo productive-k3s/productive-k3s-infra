@@ -2,7 +2,7 @@ site_name: Productive K3S Infra
 site_description: Infrastructure runtime engine and packaged profile execution for Productive K3S Core, with bilingual documentation.
 site_author: Productive K3S Infra
 site_url: https://infra.productive-k3s.io/
-repo_url: https://github.com/jemacchi/productive-k3s-infra
+repo_url: https://github.com/productive-k3s/productive-k3s-infra
 repo_name: GitHub
 edit_uri: edit/main/docs/src/
 docs_dir: src
@@ -117,4 +117,4 @@ extra:
     newsletter_placeholder_es: "E-mail"
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/jemacchi/productive-k3s-infra
+      link: https://github.com/productive-k3s/productive-k3s-infra

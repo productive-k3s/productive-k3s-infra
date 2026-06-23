@@ -21,7 +21,7 @@ LOG_PATH="${ARTIFACTS_DIR}/test-${SUITE_CATEGORY}-${TIMESTAMP}-${SUITE_NAME}.log
 mkdir -p "${ARTIFACTS_DIR}"
 
 core_source_type="default-github"
-core_source_value="${PRODUCTIVE_K3S_CORE_REPO_URL:-${PRODUCTIVE_K3S_CORE_GIT_REMOTE_URL_DEFAULT:-https://github.com/jemacchi/productive-k3s-core.git}}"
+core_source_value="${PRODUCTIVE_K3S_CORE_REPO_URL:-${PRODUCTIVE_K3S_CORE_GIT_REMOTE_URL_DEFAULT:-https://github.com/productive-k3s/productive-k3s-core.git}}"
 if [[ -n "${PRODUCTIVE_K3S_REPO:-}" ]]; then
   core_source_type="repo-dir"
   core_source_value="${PRODUCTIVE_K3S_REPO}"

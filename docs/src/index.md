@@ -14,10 +14,10 @@ sublead: "It owns package execution, env merge, runtime state, telemetry, and co
 sublead_es: "Es dueño de la ejecución de paquetes, merge de env, state de runtime, telemetría y dispatch de comandos, mientras que el contenido fuente de scenarios públicos vive en Productive K3S Profiles."
 primary_label: "View on GitHub"
 primary_label_es: "Ver en GitHub"
-primary_url: "https://github.com/jemacchi/productive-k3s-infra"
+primary_url: "https://github.com/productive-k3s/productive-k3s-infra"
 secondary_label: "Open README"
 secondary_label_es: "Abrir README"
-secondary_url: "https://github.com/jemacchi/productive-k3s-infra/blob/main/README.md"
+secondary_url: "https://github.com/productive-k3s/productive-k3s-infra/blob/main/README.md"
 card_title: "What it does"
 card_title_es: "Qué hace"
 card_items:
