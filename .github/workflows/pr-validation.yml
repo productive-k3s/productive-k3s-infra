@@ -273,6 +273,12 @@ jobs:
           EOF
           chmod +x "${RUNNER_TEMP}/ci-bin/multipass"
           echo "${RUNNER_TEMP}/ci-bin" >> "${GITHUB_PATH}"
+          for _ in $(seq 1 30); do
+            if "${RUNNER_TEMP}/ci-bin/multipass" version >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
           "${RUNNER_TEMP}/ci-bin/multipass" version
 
       - name: Run GitHub-host on-prem live test
