@@ -12,6 +12,11 @@ SCENARIO ?=
 .PHONY: \
 	docs-build \
 	docs-serve \
+	test \
+	test-unit \
+	test-lint \
+	test-format \
+	test-spell \
 	test-local-all \
 	test-matrix-all \
 	infra-help \
@@ -40,6 +45,21 @@ docs-build:
 
 docs-serve:
 	$(MAKE) -C $(DOCS_DIR) docs-serve
+
+test:
+	$(MAKE) -C $(TESTS_DIR) test
+
+test-unit:
+	$(MAKE) -C $(TESTS_DIR) test-unit
+
+test-lint:
+	$(MAKE) -C $(TESTS_DIR) test-lint
+
+test-format:
+	$(MAKE) -C $(TESTS_DIR) test-format
+
+test-spell:
+	$(MAKE) -C $(TESTS_DIR) test-spell
 
 test-local-all:
 	$(MAKE) -C $(TESTS_DIR) test-local-all
