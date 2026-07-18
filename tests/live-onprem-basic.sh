@@ -32,6 +32,8 @@ resolve_productive_k3s_source() {
   fi
 }
 
+export PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS="${PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS:-true}"
+
 fail() {
   printf '[FAIL] %s\n' "$1" >&2
   exit 1

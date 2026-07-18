@@ -33,7 +33,7 @@ set +a
 
 assert_eq "${PRODUCTIVE_K3S_SOURCE_DEFAULT}" "remote" "default source"
 assert_eq "${PRODUCTIVE_K3S_CORE_VERSION_DEFAULT}" "0.9.4" "default core version"
-assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT}" "jemacchi/productive-k3s-core" "default core release repo"
+assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT}" "productive-k3s/productive-k3s-core" "default core release repo"
 
 grep -q '^export PRODUCTIVE_K3S_SOURCE ?= remote$' "${MULTIPASS_SCENARIO_DIR}/Makefile" || {
   printf '[FAIL] multipass Makefile should default PRODUCTIVE_K3S_SOURCE to remote\n' >&2
@@ -56,7 +56,7 @@ grep -q '^PRODUCTIVE_K3S_SOURCE ?= remote$' "${ONPREM_ARM_SCENARIO_DIR}/Makefile
   source "${MULTIPASS_SCENARIO_DIR}/scripts/common.sh"
   assert_eq "${PRODUCTIVE_K3S_SOURCE}" "remote" "multipass default source"
   assert_eq "${PRODUCTIVE_K3S_VERSION}" "0.9.4" "multipass default core version"
-  assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO}" "jemacchi/productive-k3s-core" "multipass default release repo"
+  assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO}" "productive-k3s/productive-k3s-core" "multipass default release repo"
 )
 
 (
@@ -66,7 +66,7 @@ grep -q '^PRODUCTIVE_K3S_SOURCE ?= remote$' "${ONPREM_ARM_SCENARIO_DIR}/Makefile
   source "${ONPREM_SCENARIO_DIR}/scripts/common.sh"
   assert_eq "${PRODUCTIVE_K3S_SOURCE}" "local" "onprem local override source"
   assert_eq "${PRODUCTIVE_K3S_VERSION}" "" "onprem local override core version"
-  assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO}" "jemacchi/productive-k3s-core" "onprem default release repo"
+  assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO}" "productive-k3s/productive-k3s-core" "onprem default release repo"
 )
 
 (
@@ -76,7 +76,7 @@ grep -q '^PRODUCTIVE_K3S_SOURCE ?= remote$' "${ONPREM_ARM_SCENARIO_DIR}/Makefile
   source "${ONPREM_ARM_SCENARIO_DIR}/scripts/common.sh"
   assert_eq "${PRODUCTIVE_K3S_SOURCE}" "local" "onprem arm local override source"
   assert_eq "${PRODUCTIVE_K3S_VERSION}" "" "onprem arm local override core version"
-  assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO}" "jemacchi/productive-k3s-core" "onprem arm default release repo"
+  assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO}" "productive-k3s/productive-k3s-core" "onprem arm default release repo"
 )
 
 (
@@ -87,7 +87,7 @@ grep -q '^PRODUCTIVE_K3S_SOURCE ?= remote$' "${ONPREM_ARM_SCENARIO_DIR}/Makefile
   source "${ROOT_DIR}/ansible/roles/remote_cluster/files/common.sh"
   assert_eq "${PRODUCTIVE_K3S_SOURCE}" "remote" "shared remote-cluster default source"
   assert_eq "${PRODUCTIVE_K3S_VERSION}" "0.9.4" "shared remote-cluster default core version"
-  assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO}" "jemacchi/productive-k3s-core" "shared remote-cluster default release repo"
+  assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO}" "productive-k3s/productive-k3s-core" "shared remote-cluster default release repo"
 )
 
 eval "$("${HELPER}" env 1.2.3-4.5.6)"

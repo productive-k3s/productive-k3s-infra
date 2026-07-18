@@ -113,6 +113,7 @@ EOF
       export PATH="${mock_bin}:${PATH}"
       MAKE_BIN=make
       PRODUCTIVE_K3S_PROFILES_REPO_DIR="${repo_dir}"
+      PROFILES_SOURCE_REPO_DIR="${repo_dir}"
       TELEMETRY_RUN_ID=run-123
       legacy_dispatch multipass down --foo
       printf "\n__CTX__%s|%s|%s" "$TELEMETRY_PARENT_RUN_ID" "$TELEMETRY_RUN_ID" "$TELEMETRY_COMPONENT"'

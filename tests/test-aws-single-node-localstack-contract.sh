@@ -105,7 +105,7 @@ AWS_REGISTRY_HOST=registry.${BASE_DOMAIN}
 AWS_REMOTE_DIR=${REMOTE_DIR}
 PRODUCTIVE_K3S_SOURCE=remote
 PRODUCTIVE_K3S_VERSION=0.9.1
-PRODUCTIVE_K3S_RELEASE_REPO=jemacchi/productive-k3s-core
+PRODUCTIVE_K3S_RELEASE_REPO=productive-k3s/productive-k3s-core
 EOF
 
 cat > "${SCENARIO_DIR}/opentofu/localstack_providers_override.tf" <<EOF

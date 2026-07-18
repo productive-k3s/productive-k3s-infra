@@ -2,7 +2,7 @@
 
 The repository exposes a split validation model: fast engine checks inside `productive-k3s-infra`, plus integration checks against an external checkout of `productive-k3s-profiles`.
 
-## Root matrix levels
+## Matrix levels
 
 - `static`: shell syntax, Python compile checks, runtime helper validation, and selected behavior tests
 - `contract`: checks the engine-side package/runtime contract
@@ -11,18 +11,24 @@ The repository exposes a split validation model: fast engine checks inside `prod
 ## Root commands
 
 ```bash
-make test-clean
-make test
-make test-unit
-make test-lint
-make test-format
-make test-spell
-make test-coverage
-make test-static
-make test-contract
-make test-live
-make test-matrix
-make test-checkstatus
+make test-local-all
+make test-matrix-all
+```
+
+## Detailed test workspace commands
+
+```bash
+make -C tests test
+make -C tests test-unit
+make -C tests test-lint
+make -C tests test-format
+make -C tests test-spell
+make -C tests test-coverage
+make -C tests test-static
+make -C tests test-contract
+make -C tests test-live
+make -C tests test-checkstatus
+make -C tests test-clean
 ```
 
 ## Main test entry points
@@ -59,9 +65,9 @@ Those artifacts record:
 Use this sequence when you want a clean, operator-friendly review loop:
 
 ```bash
-make test-clean
-make test-matrix
-make test-checkstatus
+make -C tests test-clean
+make test-matrix-all
+make -C tests test-checkstatus
 ```
 
 If you want scenario-local validation, that now belongs in `productive-k3s-profiles`, using its own `make -C scenarios/...` entrypoints and CI.

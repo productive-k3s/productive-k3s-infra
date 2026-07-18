@@ -4,7 +4,7 @@
 
 ## What Productive K3S Core does
 
-`productive-k3s-core` is the cluster bootstrap project. It is responsible for:
+`productive-k3s-core` is the base Kubernetes installation project. It is responsible for:
 
 - installing `k3s`
 - assembling the selected cluster mode
@@ -13,7 +13,7 @@
 
 ## What Productive K3S Infra does
 
-`productive-k3s-infra` is the runtime engine. It is responsible for:
+`productive-k3s-infra` is the deployment and orchestration layer. It is responsible for:
 
 - executing packaged `profile.tgz` artifacts
 - merging package defaults with local overrides
@@ -22,7 +22,7 @@
 
 ## What Productive K3S Profiles does
 
-`productive-k3s-profiles` owns the public source content that defines the infrastructure context around those bootstrap phases:
+`productive-k3s-profiles` owns the curated public deployment solutions that define the infrastructure context around those bootstrap phases:
 
 - public `profiles/` and `scenarios/`
 - generated metadata expectations and helper scripts
@@ -42,7 +42,7 @@ Published profiles consume those modes differently depending on their topology a
 
 ## Why the split matters
 
-This separation keeps both sides replaceable.
+This separation keeps the layers understandable and replaceable.
 
 You can change:
 

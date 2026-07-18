@@ -113,11 +113,11 @@ bash "${REPO_DIR}/tests/clean-test-state.sh"
 assert_not_exists "${RUNS_DIR}/20260509-010102-contract-222-onprem-basic.json"
 assert_not_exists "${RUNS_DIR}/20260509-010103-live-333-aws-single-node.json"
 
-root_clean_recipe="$(make -C "${REPO_DIR}" -n test-clean)"
-assert_contains "${root_clean_recipe}" "scripts/productive-k3s-infra-dev.sh test-clean"
+root_local_all_recipe="$(make -C "${REPO_DIR}" -n test-local-all)"
+assert_contains "${root_local_all_recipe}" "make -C ${REPO_DIR}/tests test-local-all"
 
-root_checkstatus_recipe="$(make -C "${REPO_DIR}" -n test-checkstatus)"
-assert_contains "${root_checkstatus_recipe}" "scripts/productive-k3s-infra-dev.sh test-checkstatus"
+root_matrix_all_recipe="$(make -C "${REPO_DIR}" -n test-matrix-all)"
+assert_contains "${root_matrix_all_recipe}" "make -C ${REPO_DIR}/tests test-matrix-all"
 
 scenario_clean_recipe="$(make -C "$(profiles_scenario_dir multipass)" -n test-clean)"
 assert_contains "${scenario_clean_recipe}" "TEST_SCENARIO=multipass"

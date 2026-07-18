@@ -11,9 +11,11 @@ Describe 'remote-cluster runtime helpers'
     : >"${bundle_root}/productive-k3s-core.sh"
     : >"${bundle_root}/scripts/productive-k3s-core.sh"
     : >"${bundle_root}/scripts/preflight-host.sh"
-    : >"${bundle_root}/scripts/bootstrap-k3s-stack.sh"
-    : >"${bundle_root}/scripts/backup-k3s-stack.sh"
-    : >"${bundle_root}/scripts/validate-k3s-stack.sh"
+    : >"${bundle_root}/scripts/apply.sh"
+    : >"${bundle_root}/scripts/backup.sh"
+    : >"${bundle_root}/scripts/validate.sh"
+    : >"${bundle_root}/scripts/cleanup.sh"
+    : >"${bundle_root}/scripts/rollback.sh"
     : >"${bundle_root}/scripts/send-telemetry.sh"
     tar -czf "${tmpdir}/bundle.tgz" -C "${tmpdir}" bundle
 

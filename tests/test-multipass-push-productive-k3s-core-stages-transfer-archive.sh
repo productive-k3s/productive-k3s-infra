@@ -29,7 +29,7 @@ cat > "${TEST_SCENARIO_DIR}/generated/cluster.json" <<'EOF'
   "productive_k3s": {
     "source": "local",
     "version": "",
-    "release_repo": "jemacchi/productive-k3s-core"
+    "release_repo": "productive-k3s/productive-k3s-core"
   },
   "telemetry": {
     "enabled": false
@@ -71,8 +71,8 @@ case "${1:-}" in
     exit 0
     ;;
   transfer)
-    printf '%s\n' "$2" > "${MULTIPASS_TRANSFER_SOURCE_FILE}"
-    if [[ "$2" != "${HOME}/pk3s-productive-k3s-bundle-"* ]]; then
+    printf '%s\n' "$2" >> "${MULTIPASS_TRANSFER_SOURCE_FILE}"
+    if [[ "$2" != "${HOME}/pk3s-productive-k3s-bundle-"* && "$2" != "${HOME}/pk3s-productive-k3s-addons-"* ]]; then
       printf 'archive should be staged under HOME, got %s\n' "$2" >&2
       exit 1
     fi
@@ -100,7 +100,13 @@ mkdir -p "${HOME}"
 bash "${TEST_SCENARIO_DIR}/scripts/push-productive-k3s-core.sh"
 
 grep -F "${HOME}/pk3s-productive-k3s-bundle-" "${MULTIPASS_TRANSFER_SOURCE_FILE}" >/dev/null || {
-  echo "[FAIL] transfer source was not staged under HOME" >&2
+  echo "[FAIL] core transfer source was not staged under HOME" >&2
+  cat "${MULTIPASS_TRANSFER_SOURCE_FILE}" >&2
+  exit 1
+}
+
+grep -F "${HOME}/pk3s-productive-k3s-addons-" "${MULTIPASS_TRANSFER_SOURCE_FILE}" >/dev/null || {
+  echo "[FAIL] addons transfer source was not staged under HOME" >&2
   cat "${MULTIPASS_TRANSFER_SOURCE_FILE}" >&2
   exit 1
 }

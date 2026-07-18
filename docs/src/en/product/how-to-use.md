@@ -1,6 +1,14 @@
 # How To Use Productive K3S Infra
 
-`productive-k3s-infra` is the runtime engine for package-first profile execution. The public profile/scenario source tree lives in the sibling `productive-k3s-profiles` repository.
+`productive-k3s-infra` is the layer you use when you want to deploy a complete Productive K3S solution on a platform instead of stopping at the base cluster.
+
+Use Infra directly when:
+
+- you want explicit control over the deployment layer;
+- you are integrating a platform-specific workflow;
+- you want to understand the orchestration contract above Core.
+
+If you want the simplest and recommended path, use `pk3s` first and treat Infra as the layer underneath.
 
 ## Choose the matching profile
 
@@ -34,7 +42,7 @@ This is intentionally documented as experimental.
 
 ## Use the public entry points
 
-The public operator interface is package-first:
+The public operator interface is centered on executing curated deployment solutions:
 
 ```bash
 ./productive-k3s-infra.sh profile validate --tgz https://downloads.productive-k3s.io/infra/multipass-1-server-2-agents-0.9.62-0.9.4.tgz
@@ -53,7 +61,7 @@ Development example:
 
 ```bash
 export PRODUCTIVE_K3S_PROFILES_REPO_DIR=/tmp/productive-k3s-profiles
-git clone https://github.com/jemacchi/productive-k3s-profiles.git "$PRODUCTIVE_K3S_PROFILES_REPO_DIR"
+git clone https://github.com/productive-k3s/productive-k3s-profiles.git "$PRODUCTIVE_K3S_PROFILES_REPO_DIR"
 ./productive-k3s-infra.sh dev profile validate --profile-env "$PRODUCTIVE_K3S_PROFILES_REPO_DIR/profiles/edge/on-prem/basic.env"
 make infra-validate PROFILE="$PRODUCTIVE_K3S_PROFILES_REPO_DIR/profiles/edge/on-prem/basic.env"
 ```

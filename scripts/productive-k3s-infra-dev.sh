@@ -6,6 +6,11 @@ REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TESTS_DIR="${REPO_DIR}/tests"
 SCENARIOS="multipass onprem-basic onprem-basic-arm aws-single-node"
 TEMP_PROFILES_CLONE_DIR=""
+TEMP_CORE_CLONE_DIR=""
+TEMP_ADDONS_CLONE_DIR=""
+
+# shellcheck disable=SC1091
+source "${REPO_DIR}/scripts/release-config.sh"
 
 usage() {
   cat <<'EOF'
@@ -19,12 +24,18 @@ Development commands:
   docs-down
   docs-clean
   set-core-version
+  test-local-all
+  test-local-bash
+  test-matrix-all
   test-clean
   test-checkstatus
   test-static
+  test-static-scenario
   test-contract
+  test-contract-scenario
   test-telemetry
   test-live
+  test-live-scenario
   test-live-onprem-basic
   test-live-onprem-basic-arm
   test-live-gha-onprem
@@ -39,18 +50,176 @@ if (($# == 0)); then
 fi
 
 default_test_telemetry_disabled() {
-  if [[ -z "${TELEMETRY_ENABLED:-}" ]]; then
-    export TELEMETRY_ENABLED="false"
-  fi
+  export TELEMETRY_ENABLED="false"
 }
 
 cleanup_temp_profiles_clone() {
   if [[ -n "${TEMP_PROFILES_CLONE_DIR}" && -d "${TEMP_PROFILES_CLONE_DIR}" ]]; then
     rm -rf "${TEMP_PROFILES_CLONE_DIR}"
   fi
+  if [[ -n "${TEMP_CORE_CLONE_DIR}" && -d "${TEMP_CORE_CLONE_DIR}" ]]; then
+    rm -rf "${TEMP_CORE_CLONE_DIR}"
+  fi
+  if [[ -n "${TEMP_ADDONS_CLONE_DIR}" && -d "${TEMP_ADDONS_CLONE_DIR}" ]]; then
+    rm -rf "${TEMP_ADDONS_CLONE_DIR}"
+  fi
+}
+
+log() {
+  printf '[INFO] %s\n' "$*"
+}
+
+artifacts_dir() {
+  printf '%s\n' "${TEST_ARTIFACTS_DIR:-${REPO_DIR}/test-artifacts}"
+}
+
+clean_named_suite_artifacts() {
+  local suite_category="$1"
+  local suite_name="$2"
+  rm -f "$(artifacts_dir)"/test-"${suite_category}"-*-"${suite_name}".json
+  rm -f "$(artifacts_dir)"/test-"${suite_category}"-*-"${suite_name}".log
+}
+
+mark_local_core_source() {
+  if [[ -z "${PRODUCTIVE_K3S_SOURCE:-}" ]]; then
+    export PRODUCTIVE_K3S_SOURCE="local"
+    log "Defaulting PRODUCTIVE_K3S_SOURCE to local because a productive-k3s-core checkout is available"
+  fi
+}
+
+resolve_default_core_ref() {
+  local current_branch
+  current_branch="$(git -C "${REPO_DIR}" branch --show-current 2>/dev/null || true)"
+  if [[ -n "${PRODUCTIVE_K3S_CORE_REPO_REF:-}" ]]; then
+    printf '%s' "${PRODUCTIVE_K3S_CORE_REPO_REF}"
+  elif [[ -n "${current_branch}" ]]; then
+    printf '%s' "${current_branch}"
+  else
+    printf 'main'
+  fi
+}
+
+resolve_default_addons_ref() {
+  local current_branch
+  current_branch="$(git -C "${REPO_DIR}" branch --show-current 2>/dev/null || true)"
+  if [[ -n "${PRODUCTIVE_K3S_ADDONS_REPO_REF:-}" ]]; then
+    printf '%s' "${PRODUCTIVE_K3S_ADDONS_REPO_REF}"
+  elif [[ -n "${current_branch}" ]]; then
+    printf '%s' "${current_branch}"
+  else
+    printf 'main'
+  fi
+}
+
+resolve_default_profiles_ref() {
+  local current_branch
+  current_branch="$(git -C "${REPO_DIR}" branch --show-current 2>/dev/null || true)"
+  if [[ -n "${PRODUCTIVE_K3S_PROFILES_REPO_REF:-}" ]]; then
+    printf '%s' "${PRODUCTIVE_K3S_PROFILES_REPO_REF}"
+  elif [[ -n "${current_branch}" ]]; then
+    printf '%s' "${current_branch}"
+  else
+    printf 'main'
+  fi
+}
+
+prepare_core_repo_checkout() {
+  local sibling_repo="${REPO_DIR}/../productive-k3s-core"
+  local clone_target repo_url repo_ref
+
+  if [[ -n "${PRODUCTIVE_K3S_REPO:-}" ]]; then
+    [[ -d "${PRODUCTIVE_K3S_REPO}" ]] || {
+      printf 'invalid PRODUCTIVE_K3S_REPO: %s\n' "${PRODUCTIVE_K3S_REPO}" >&2
+      exit 1
+    }
+    log "Using productive-k3s-core from PRODUCTIVE_K3S_REPO: ${PRODUCTIVE_K3S_REPO}"
+    mark_local_core_source
+    return 0
+  fi
+
+  if [[ -n "${PRODUCTIVE_K3S_CORE_REPO_URL:-}" || -n "${PRODUCTIVE_K3S_CORE_REPO_REF:-}" ]]; then
+    repo_url="${PRODUCTIVE_K3S_CORE_REPO_URL:-${PRODUCTIVE_K3S_CORE_GIT_REMOTE_URL_DEFAULT}}"
+    repo_ref="$(resolve_default_core_ref)"
+    TEMP_CORE_CLONE_DIR="$(mktemp -d)"
+    clone_target="${TEMP_CORE_CLONE_DIR}/productive-k3s-core"
+    log "Cloning productive-k3s-core from URL override: ${repo_url} (ref: ${repo_ref})"
+    git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "${clone_target}" >/dev/null 2>&1 || {
+      printf 'failed to clone productive-k3s-core from %s (ref: %s)\n' "${repo_url}" "${repo_ref}" >&2
+      exit 1
+    }
+    export PRODUCTIVE_K3S_REPO="${clone_target}"
+    mark_local_core_source
+    return 0
+  fi
+
+  if [[ -d "${sibling_repo}" ]]; then
+    export PRODUCTIVE_K3S_REPO="${sibling_repo}"
+    log "Using productive-k3s-core from sibling checkout: ${PRODUCTIVE_K3S_REPO}"
+    mark_local_core_source
+    return 0
+  fi
+
+  repo_url="${PRODUCTIVE_K3S_CORE_REPO_URL:-${PRODUCTIVE_K3S_CORE_GIT_REMOTE_URL_DEFAULT}}"
+  repo_ref="$(resolve_default_core_ref)"
+  TEMP_CORE_CLONE_DIR="$(mktemp -d)"
+  clone_target="${TEMP_CORE_CLONE_DIR}/productive-k3s-core"
+  log "Cloning productive-k3s-core from URL: ${repo_url} (ref: ${repo_ref})"
+  git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "${clone_target}" >/dev/null 2>&1 || {
+    printf 'failed to clone productive-k3s-core from %s (ref: %s)\n' "${repo_url}" "${repo_ref}" >&2
+    exit 1
+  }
+  export PRODUCTIVE_K3S_REPO="${clone_target}"
+  mark_local_core_source
+}
+
+prepare_addons_repo_checkout() {
+  local sibling_repo="${REPO_DIR}/../productive-k3s-addons"
+  local clone_target repo_url repo_ref
+
+  if [[ -n "${PRODUCTIVE_K3S_ADDONS_REPO_DIR:-}" ]]; then
+    [[ -d "${PRODUCTIVE_K3S_ADDONS_REPO_DIR}" ]] || {
+      printf 'invalid PRODUCTIVE_K3S_ADDONS_REPO_DIR: %s\n' "${PRODUCTIVE_K3S_ADDONS_REPO_DIR}" >&2
+      exit 1
+    }
+    log "Using productive-k3s-addons from PRODUCTIVE_K3S_ADDONS_REPO_DIR: ${PRODUCTIVE_K3S_ADDONS_REPO_DIR}"
+    return 0
+  fi
+
+  if [[ -n "${PRODUCTIVE_K3S_ADDONS_REPO_URL:-}" || -n "${PRODUCTIVE_K3S_ADDONS_REPO_REF:-}" ]]; then
+    repo_url="${PRODUCTIVE_K3S_ADDONS_REPO_URL:-${PRODUCTIVE_K3S_ADDONS_GIT_REMOTE_URL_DEFAULT}}"
+    repo_ref="$(resolve_default_addons_ref)"
+    TEMP_ADDONS_CLONE_DIR="$(mktemp -d)"
+    clone_target="${TEMP_ADDONS_CLONE_DIR}/productive-k3s-addons"
+    log "Cloning productive-k3s-addons from URL override: ${repo_url} (ref: ${repo_ref})"
+    git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "${clone_target}" >/dev/null 2>&1 || {
+      printf 'failed to clone productive-k3s-addons from %s (ref: %s)\n' "${repo_url}" "${repo_ref}" >&2
+      exit 1
+    }
+    export PRODUCTIVE_K3S_ADDONS_REPO_DIR="${clone_target}"
+    return 0
+  fi
+
+  if [[ -d "${sibling_repo}" ]]; then
+    export PRODUCTIVE_K3S_ADDONS_REPO_DIR="${sibling_repo}"
+    log "Using productive-k3s-addons from sibling checkout: ${PRODUCTIVE_K3S_ADDONS_REPO_DIR}"
+    return 0
+  fi
+
+  repo_url="${PRODUCTIVE_K3S_ADDONS_REPO_URL:-${PRODUCTIVE_K3S_ADDONS_GIT_REMOTE_URL_DEFAULT}}"
+  repo_ref="$(resolve_default_addons_ref)"
+  TEMP_ADDONS_CLONE_DIR="$(mktemp -d)"
+  clone_target="${TEMP_ADDONS_CLONE_DIR}/productive-k3s-addons"
+  log "Cloning productive-k3s-addons from URL: ${repo_url} (ref: ${repo_ref})"
+  git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "${clone_target}" >/dev/null 2>&1 || {
+    printf 'failed to clone productive-k3s-addons from %s (ref: %s)\n' "${repo_url}" "${repo_ref}" >&2
+    exit 1
+  }
+  export PRODUCTIVE_K3S_ADDONS_REPO_DIR="${clone_target}"
 }
 
 prepare_profiles_repo_checkout() {
+  local sibling_repo="${REPO_DIR}/../productive-k3s-profiles"
+  local clone_target repo_url repo_ref
   TEMP_PROFILES_CLONE_DIR="$(mktemp -d)"
   trap cleanup_temp_profiles_clone EXIT
   if [[ -n "${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}" ]]; then
@@ -61,14 +230,31 @@ prepare_profiles_repo_checkout() {
     mkdir -p "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles"
     cp -a "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/." \
       "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/"
-  else
-    if [[ -z "${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}" ]]; then
-      printf 'tests that use productive-k3s-profiles require PRODUCTIVE_K3S_PROFILES_REPO_DIR or PRODUCTIVE_K3S_PROFILES_REPO_URL\n' >&2
+  elif [[ -n "${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}" || -n "${PRODUCTIVE_K3S_PROFILES_REPO_REF:-}" ]]; then
+    repo_url="${PRODUCTIVE_K3S_PROFILES_REPO_URL:-${PRODUCTIVE_K3S_PROFILES_GIT_REMOTE_URL_DEFAULT}}"
+    repo_ref="$(resolve_default_profiles_ref)"
+    log "Cloning productive-k3s-profiles from URL override: ${repo_url} (ref: ${repo_ref})"
+    git clone --depth 1 --branch "${repo_ref}" \
+      "${repo_url}" \
+      "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles" >/dev/null 2>&1 || {
+      printf 'failed to clone productive-k3s-profiles from %s (ref: %s)\n' "${repo_url}" "${repo_ref}" >&2
       exit 1
-    fi
-    git clone --depth 1 --branch "${PRODUCTIVE_K3S_PROFILES_REPO_REF:-main}" \
-      "${PRODUCTIVE_K3S_PROFILES_REPO_URL}" \
-      "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles" >/dev/null 2>&1
+    }
+  elif [[ -d "${sibling_repo}/profiles" && -d "${sibling_repo}/scenarios" ]]; then
+    log "Using productive-k3s-profiles from sibling checkout: ${sibling_repo}"
+    mkdir -p "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles"
+    cp -a "${sibling_repo}/." \
+      "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/"
+  else
+    repo_url="${PRODUCTIVE_K3S_PROFILES_REPO_URL:-${PRODUCTIVE_K3S_PROFILES_GIT_REMOTE_URL_DEFAULT}}"
+    repo_ref="$(resolve_default_profiles_ref)"
+    log "Cloning productive-k3s-profiles from URL: ${repo_url} (ref: ${repo_ref})"
+    git clone --depth 1 --branch "${repo_ref}" \
+      "${repo_url}" \
+      "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles" >/dev/null 2>&1 || {
+      printf 'failed to clone productive-k3s-profiles from %s (ref: %s)\n' "${repo_url}" "${repo_ref}" >&2
+      exit 1
+    }
   fi
 
   mkdir -p "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/ansible"
@@ -85,9 +271,65 @@ test-artifacts/
 EOF
 
   export PRODUCTIVE_K3S_PROFILES_REPO_DIR="${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles"
-  if [[ -z "${PRODUCTIVE_K3S_REPO:-}" && -d "${REPO_DIR}/../productive-k3s-core" ]]; then
-    export PRODUCTIVE_K3S_REPO="${REPO_DIR}/../productive-k3s-core"
-  fi
+  prepare_core_repo_checkout
+  prepare_addons_repo_checkout
+}
+
+run_prepared_scenario_test() {
+  local level="$1"
+  local scenario_rel_dir="$2"
+  local scenario_dir="${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/${scenario_rel_dir}"
+  local scenario_name
+  local target
+
+  [[ -d "${scenario_dir}" ]] || {
+    printf 'scenario directory not found in prepared profiles checkout: %s\n' "${scenario_rel_dir}" >&2
+    exit 1
+  }
+
+  scenario_name="$(basename "${scenario_dir}")"
+  target="scenario-test-${level}"
+  exec bash "${TESTS_DIR}/run-scenario-test.sh" "${level}" "${scenario_name}" "${scenario_dir}" "${target}"
+}
+
+run_local_bash_suite() {
+  bash "${TESTS_DIR}/test-artifact-tools.sh"
+  bash "${TESTS_DIR}/test-matrix-artifacts.sh"
+  bash "${TESTS_DIR}/test-k3s-engine-artifacts.sh"
+  bash "${TESTS_DIR}/test-scenario-test-artifacts.sh"
+  bash "${TESTS_DIR}/test-scripts-executable.sh"
+  bash "${TESTS_DIR}/test-k3s-engine-propagation.sh"
+  bash "${TESTS_DIR}/test-k8s-runtime-contract-propagation.sh"
+  bash "${TESTS_DIR}/test-release-versioning.sh"
+  bash "${TESTS_DIR}/test-core-release-bundle-contract.sh"
+  bash "${TESTS_DIR}/test-create-release-tag.sh"
+  bash "${TESTS_DIR}/test-set-core-version.sh"
+  bash "${TESTS_DIR}/test-multipass-tofu-ensure-instance-cloud-init.sh"
+  bash "${TESTS_DIR}/test-multipass-tofu-ensure-instance-retry.sh"
+  bash "${TESTS_DIR}/test-multipass-tofu-ensure-instance-recovery-hints.sh"
+  bash "${TESTS_DIR}/test-multipass-push-productive-k3s-core-stages-transfer-archive.sh"
+  bash "${TESTS_DIR}/test-multipass-refresh-generated-artifacts-ip-retry.sh"
+  bash "${TESTS_DIR}/test-multipass-exec-timeout-retry.sh"
+  bash "${TESTS_DIR}/test-multipass-ssh-known-hosts.sh"
+  bash "${TESTS_DIR}/test-multipass-telemetry-consent.sh"
+  bash "${TESTS_DIR}/test-multipass-telemetry-propagation.sh"
+  bash "${TESTS_DIR}/test-multipass-cluster-up-preserves-telemetry.sh"
+  bash "${TESTS_DIR}/test-multipass-infra-command-telemetry.sh"
+  bash "${TESTS_DIR}/test-cli-telemetry-scope.sh"
+  bash "${TESTS_DIR}/test-remote-telemetry-consent.sh"
+  bash "${TESTS_DIR}/test-remote-cluster-up-preserves-telemetry.sh"
+  bash "${TESTS_DIR}/test-remote-productive-k3s-core-preflight.sh"
+  bash "${TESTS_DIR}/test-remote-longhorn-single-default.sh"
+  bash "${TESTS_DIR}/test-remote-sync-hosts-resolves-server-hostname.sh"
+  bash "${TESTS_DIR}/test-productive-k3s-infra-cli.sh"
+  bash "${TESTS_DIR}/test-release-bundle.sh"
+  bash "${TESTS_DIR}/test-release-installer.sh"
+  bash "${TESTS_DIR}/test-live-multipass-cleanup.sh"
+  bash "${TESTS_DIR}/test-live-multipass-cleanup-timeout.sh"
+  bash "${TESTS_DIR}/test-live-onprem-basic-noninteractive.sh"
+  bash "${TESTS_DIR}/test-live-onprem-basic-cleanup-timeout.sh"
+  bash "${TESTS_DIR}/test-live-onprem-basic-launch-recovery-hints.sh"
+  bash -n "${TESTS_DIR}/live-onprem-basic-github-host.sh"
 }
 
 COMMAND="$1"
@@ -109,6 +351,60 @@ case "$COMMAND" in
   set-core-version)
     exec "${REPO_DIR}/scripts/set-core-version.sh" "$@"
     ;;
+  test-local-all)
+    default_test_telemetry_disabled
+    clean_named_suite_artifacts local test-local-all
+    exec bash "${TESTS_DIR}/run-suite-with-artifact.sh" local test-local-all bash -lc '
+      set -euo pipefail
+      cd "'"${REPO_DIR}"'"
+      make -C tests test
+      PRODUCTIVE_K3S_PROFILES_REPO_DIR="'"${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_URL="'"${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_REF="'"${PRODUCTIVE_K3S_PROFILES_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_URL="'"${PRODUCTIVE_K3S_CORE_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_REF="'"${PRODUCTIVE_K3S_CORE_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_REPO="'"${PRODUCTIVE_K3S_REPO:-}"'" \
+      TELEMETRY_ENABLED=false \
+      bash ./scripts/productive-k3s-infra-dev.sh test-local-bash
+    '
+    ;;
+  test-local-bash)
+    default_test_telemetry_disabled
+    prepare_profiles_repo_checkout
+    run_local_bash_suite
+    ;;
+  test-matrix-all)
+    default_test_telemetry_disabled
+    clean_named_suite_artifacts matrix test-matrix-all
+    exec bash "${TESTS_DIR}/run-suite-with-artifact.sh" matrix test-matrix-all bash -lc '
+      set -euo pipefail
+      cd "'"${REPO_DIR}"'"
+      PRODUCTIVE_K3S_PROFILES_REPO_DIR="'"${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_URL="'"${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_REF="'"${PRODUCTIVE_K3S_PROFILES_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_URL="'"${PRODUCTIVE_K3S_CORE_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_REF="'"${PRODUCTIVE_K3S_CORE_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_REPO="'"${PRODUCTIVE_K3S_REPO:-}"'" \
+      TELEMETRY_ENABLED=false \
+      bash ./scripts/productive-k3s-infra-dev.sh test-static
+      PRODUCTIVE_K3S_PROFILES_REPO_DIR="'"${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_URL="'"${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_REF="'"${PRODUCTIVE_K3S_PROFILES_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_URL="'"${PRODUCTIVE_K3S_CORE_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_REF="'"${PRODUCTIVE_K3S_CORE_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_REPO="'"${PRODUCTIVE_K3S_REPO:-}"'" \
+      TELEMETRY_ENABLED=false \
+      bash ./scripts/productive-k3s-infra-dev.sh test-contract
+      PRODUCTIVE_K3S_PROFILES_REPO_DIR="'"${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_URL="'"${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_PROFILES_REPO_REF="'"${PRODUCTIVE_K3S_PROFILES_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_URL="'"${PRODUCTIVE_K3S_CORE_REPO_URL:-}"'" \
+      PRODUCTIVE_K3S_CORE_REPO_REF="'"${PRODUCTIVE_K3S_CORE_REPO_REF:-}"'" \
+      PRODUCTIVE_K3S_REPO="'"${PRODUCTIVE_K3S_REPO:-}"'" \
+      TELEMETRY_ENABLED=false \
+      bash ./scripts/productive-k3s-infra-dev.sh test-live
+    '
+    ;;
   test-clean)
     exec bash "${TESTS_DIR}/clean-test-state.sh" "$@"
     ;;
@@ -118,32 +414,22 @@ case "$COMMAND" in
   test-static)
     default_test_telemetry_disabled
     prepare_profiles_repo_checkout
-    "${TESTS_DIR}/run-matrix.sh" static ${SCENARIOS}
-    bash "${TESTS_DIR}/test-artifact-tools.sh"
-    bash "${TESTS_DIR}/test-matrix-artifacts.sh"
-    bash "${TESTS_DIR}/test-k3s-engine-artifacts.sh"
-    bash "${TESTS_DIR}/test-scenario-test-artifacts.sh"
-    bash "${TESTS_DIR}/test-scripts-executable.sh"
-    bash "${TESTS_DIR}/test-k3s-engine-propagation.sh"
-    bash "${TESTS_DIR}/test-release-versioning.sh"
-    bash "${TESTS_DIR}/test-core-release-bundle-contract.sh"
-    bash "${TESTS_DIR}/test-create-release-tag.sh"
-    bash "${TESTS_DIR}/test-set-core-version.sh"
-    bash "${TESTS_DIR}/test-multipass-tofu-ensure-instance-cloud-init.sh"
-    bash "${TESTS_DIR}/test-multipass-push-productive-k3s-core-stages-transfer-archive.sh"
-    bash "${TESTS_DIR}/test-productive-k3s-infra-cli.sh"
-    bash "${TESTS_DIR}/test-release-bundle.sh"
-    bash "${TESTS_DIR}/test-release-installer.sh"
-    bash "${TESTS_DIR}/test-live-multipass-cleanup-timeout.sh"
-    bash "${TESTS_DIR}/test-live-onprem-basic-noninteractive.sh"
-    bash "${TESTS_DIR}/test-live-onprem-basic-cleanup-timeout.sh"
-    bash "${TESTS_DIR}/test-multipass-exec-timeout-retry.sh"
-    exec bash -n "${TESTS_DIR}/live-onprem-basic-github-host.sh"
+    exec "${TESTS_DIR}/run-matrix.sh" static ${SCENARIOS}
+    ;;
+  test-static-scenario)
+    default_test_telemetry_disabled
+    prepare_profiles_repo_checkout
+    run_prepared_scenario_test static "${1:?scenario relative path is required}"
     ;;
   test-contract)
     default_test_telemetry_disabled
     prepare_profiles_repo_checkout
     exec "${TESTS_DIR}/run-matrix.sh" contract ${SCENARIOS}
+    ;;
+  test-contract-scenario)
+    default_test_telemetry_disabled
+    prepare_profiles_repo_checkout
+    run_prepared_scenario_test contract "${1:?scenario relative path is required}"
     ;;
   test-telemetry)
     prepare_profiles_repo_checkout
@@ -155,6 +441,11 @@ case "$COMMAND" in
     default_test_telemetry_disabled
     prepare_profiles_repo_checkout
     exec "${TESTS_DIR}/run-matrix.sh" live ${SCENARIOS}
+    ;;
+  test-live-scenario)
+    default_test_telemetry_disabled
+    prepare_profiles_repo_checkout
+    run_prepared_scenario_test live "${1:?scenario relative path is required}"
     ;;
   test-live-onprem-basic)
     default_test_telemetry_disabled

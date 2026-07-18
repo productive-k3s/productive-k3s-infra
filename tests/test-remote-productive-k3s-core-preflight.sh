@@ -25,7 +25,7 @@ cat > "${TEST_SCENARIO_DIR}/generated/cluster.json" <<'EOF'
   "productive_k3s": {
     "source": "local",
     "version": "local",
-    "release_repo": "jemacchi/productive-k3s-core"
+    "release_repo": "productive-k3s/productive-k3s-core"
   },
   "telemetry": {
     "enabled": false,

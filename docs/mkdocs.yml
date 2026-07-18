@@ -1,8 +1,8 @@
 site_name: Productive K3S Infra
-site_description: Infrastructure runtime engine and packaged profile execution for Productive K3S Core, with bilingual documentation.
+site_description: Deployment and orchestration documentation for Productive K3S Infra, with bilingual documentation.
 site_author: Productive K3S Infra
 site_url: https://infra.productive-k3s.io/
-repo_url: https://github.com/jemacchi/productive-k3s-infra
+repo_url: https://github.com/productive-k3s/productive-k3s-infra
 repo_name: GitHub
 edit_uri: edit/main/docs/src/
 docs_dir: src
@@ -93,7 +93,7 @@ nav:
           - Relación con Productive K3S Core: es/product/productive-k3s-relationship.md
       - Documentación para usuarios:
           - es/user-docs/index.md
-          - Targets de Make: es/user-docs/make-targets.md
+          - Objetivos de Make: es/user-docs/make-targets.md
           - Privacidad y telemetría: es/user-docs/privacy-and-telemetry.md
       - Documentación para desarrolladores:
           - es/developer-docs/index.md
@@ -107,8 +107,8 @@ nav:
 
 extra:
   pk3s:
-    footer_slogan_en: "Pre-assembled infrastructure paths for Productive K3S Core, from local validation to reusable public deployment scenarios."
-    footer_slogan_es: "Caminos de infraestructura prearmados para Productive K3S Core, desde validacion local hasta escenarios publicos de despliegue reutilizables."
+    footer_slogan_en: "Productive K3S Infra: deploy complete solutions on different platforms with one reusable orchestration layer."
+    footer_slogan_es: "Productive K3S Infra: desplega soluciones completas sobre distintas plataformas con una sola capa reutilizable de orquestacion."
     contact_label_en: "Contact"
     contact_label_es: "Contacto"
     newsletter_label_en: "Newsletter"
@@ -117,4 +117,4 @@ extra:
     newsletter_placeholder_es: "E-mail"
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/jemacchi/productive-k3s-infra
+      link: https://github.com/productive-k3s/productive-k3s-infra

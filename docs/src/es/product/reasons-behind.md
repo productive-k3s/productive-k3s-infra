@@ -1,6 +1,6 @@
 # Razones Del Diseño De `productive-k3s-infra`
 
-`productive-k3s-infra` existe porque la ejecución de profiles empaquetados y el authoring de contenido fuente resuelven problemas distintos.
+`productive-k3s-infra` existe porque desplegar una solución completa sobre una plataforma es un problema distinto a solo instalar la base del cluster.
 
 ## Por qué no alcanza con `productive-k3s-core`
 
@@ -12,7 +12,7 @@ Eso alcanza cuando:
 - el operador puede trabajar directamente sobre esa máquina
 - la topología del clúster es lo bastante simple como para armarla a mano
 
-No alcanza cuando además necesitás un contrato reutilizable de runtime para:
+No alcanza cuando además necesitás un contrato reutilizable de orquestación para:
 
 - extracción de paquetes
 - merge de env y validación de inputs
@@ -40,7 +40,7 @@ Incluso después del split fuente, los profiles publicados siguen necesitando un
 - propagación de telemetría
 - dispatch de comandos y comportamiento de recuperación
 
-Sin esa capa, el engine volvería a volverse específico por scenario o cada profile empaquetado tendría que reimplementar la misma lógica de runtime.
+Sin esa capa, el despliegue volvería a hacerse específico por scenario o cada paquete de solución tendría que reimplementar la misma lógica de runtime.
 
 ## Por qué sigue importando la separación explícita por modos
 

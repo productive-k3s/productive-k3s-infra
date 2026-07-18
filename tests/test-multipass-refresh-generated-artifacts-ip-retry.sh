@@ -65,7 +65,7 @@ export REPO_ROOT="${TEST_REPO_DIR}"
 export PRODUCTIVE_K3S_REPO="${TMP_DIR}/productive-k3s-core"
 export PRODUCTIVE_K3S_SOURCE="remote"
 export PRODUCTIVE_K3S_VERSION="0.9.4"
-export PRODUCTIVE_K3S_RELEASE_REPO="jemacchi/productive-k3s-core"
+export PRODUCTIVE_K3S_RELEASE_REPO="productive-k3s/productive-k3s-core"
 export MULTIPASS_IPV4_MAX_ATTEMPTS=3
 export MULTIPASS_IPV4_RETRY_DELAY_SECONDS=0
 

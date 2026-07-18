@@ -12,7 +12,12 @@ if [[ -r "${REPO_ROOT}/scripts/release-config.sh" ]]; then
 else
   : "${PRODUCTIVE_K3S_SOURCE_DEFAULT:=remote}"
   : "${PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=0.9.4}"
-  : "${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT:=jemacchi/productive-k3s-core}"
+  : "${PRODUCTIVE_K3S_GITHUB_OWNER_DEFAULT:=productive-k3s}"
+  : "${PRODUCTIVE_K3S_CORE_REPO_NAME_DEFAULT:=productive-k3s-core}"
+  : "${PRODUCTIVE_K3S_ADDONS_REPO_NAME_DEFAULT:=productive-k3s-addons}"
+  : "${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT:=${PRODUCTIVE_K3S_GITHUB_OWNER_DEFAULT}/${PRODUCTIVE_K3S_CORE_REPO_NAME_DEFAULT}}"
+  : "${PRODUCTIVE_K3S_CORE_GIT_REMOTE_URL_DEFAULT:=https://github.com/${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT}.git}"
+  : "${PRODUCTIVE_K3S_ADDONS_GIT_REMOTE_URL_DEFAULT:=https://github.com/${PRODUCTIVE_K3S_GITHUB_OWNER_DEFAULT}/${PRODUCTIVE_K3S_ADDONS_REPO_NAME_DEFAULT}.git}"
 fi
 resolve_default_productive_k3s_repo() {
   local candidate="${SCENARIO_DIR}/../../../../productive-k3s-core"
@@ -21,7 +26,15 @@ resolve_default_productive_k3s_repo() {
   fi
 }
 
+resolve_default_productive_k3s_addons_repo() {
+  local candidate="${SCENARIO_DIR}/../../../../productive-k3s-addons"
+  if [[ -d "${candidate}" ]]; then
+    (cd "${candidate}" && pwd)
+  fi
+}
+
 PRODUCTIVE_K3S_REPO="${PRODUCTIVE_K3S_REPO:-$(resolve_default_productive_k3s_repo)}"
+PRODUCTIVE_K3S_ADDONS_REPO_DIR="${PRODUCTIVE_K3S_ADDONS_REPO_DIR:-$(resolve_default_productive_k3s_addons_repo)}"
 PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE:-${PRODUCTIVE_K3S_SOURCE_DEFAULT}}"
 PRODUCTIVE_K3S_VERSION="${PRODUCTIVE_K3S_VERSION:-}"
 if [[ -z "${PRODUCTIVE_K3S_VERSION}" && "${PRODUCTIVE_K3S_SOURCE}" == "remote" ]]; then
@@ -39,6 +52,7 @@ TELEMETRY_USER_AGENT="${TELEMETRY_USER_AGENT:-productive-k3s-infra/remote-cluste
 TELEMETRY_SESSION_ID="${TELEMETRY_SESSION_ID:-}"
 TELEMETRY_PARENT_RUN_ID="${TELEMETRY_PARENT_RUN_ID:-}"
 TELEMETRY_COMPONENT="${TELEMETRY_COMPONENT:-infra}"
+PRODUCTIVE_K3S_DISTRO="${PRODUCTIVE_K3S_DISTRO:-k3s}"
 CASE_PREFIX="${CASE_PREFIX:-ONPREM}"
 CLUSTER_JSON="${GENERATED_DIR}/cluster.json"
 HOSTS_YML="${GENERATED_DIR}/hosts.yml"
@@ -108,6 +122,36 @@ warn() {
 
 err() {
   printf '[ERROR] %s\n' "$*" >&2
+}
+
+productive_k3s_remote_kubectl_cmd() {
+  case "${PRODUCTIVE_K3S_DISTRO}" in
+    k3s)
+      printf 'sudo k3s kubectl'
+      ;;
+    rke2)
+      printf 'sudo /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml'
+      ;;
+    *)
+      err "unsupported PRODUCTIVE_K3S_DISTRO for remote kubectl command: ${PRODUCTIVE_K3S_DISTRO}"
+      exit 1
+      ;;
+  esac
+}
+
+productive_k3s_remote_join_token_cmd() {
+  case "${PRODUCTIVE_K3S_DISTRO}" in
+    k3s)
+      printf "sudo cat /var/lib/rancher/k3s/server/node-token | tr -d '\\\\r'"
+      ;;
+    rke2)
+      printf "sudo cat /var/lib/rancher/rke2/server/node-token | tr -d '\\\\r'"
+      ;;
+    *)
+      err "unsupported PRODUCTIVE_K3S_DISTRO for join token command: ${PRODUCTIVE_K3S_DISTRO}"
+      exit 1
+      ;;
+  esac
 }
 
 json_escape() {
@@ -288,9 +332,11 @@ validate_productive_k3s_bundle_archive() {
     "productive-k3s-core.sh"
     "scripts/productive-k3s-core.sh"
     "scripts/preflight-host.sh"
-    "scripts/bootstrap-k3s-stack.sh"
-    "scripts/backup-k3s-stack.sh"
-    "scripts/validate-k3s-stack.sh"
+    "scripts/apply.sh"
+    "scripts/backup.sh"
+    "scripts/validate.sh"
+    "scripts/cleanup.sh"
+    "scripts/rollback.sh"
     "scripts/send-telemetry.sh"
   )
 

@@ -73,7 +73,7 @@ Describe 'remote-cluster platform and release edge helpers'
 
   It 'builds release api urls for explicit versions and latest'
     When run /usr/bin/bash "$RUNNER" "$COMMON" '
-      PRODUCTIVE_K3S_RELEASE_REPO=jemacchi/productive-k3s-core
+      PRODUCTIVE_K3S_RELEASE_REPO=productive-k3s/productive-k3s-core
       printf "%s|%s" "$(productive_k3s_release_api_url v1.2.3)" "$(productive_k3s_release_api_url "")"'
     The status should equal 0
     The output should include '/releases/tags/v1.2.3'
@@ -93,7 +93,7 @@ Describe 'remote-cluster platform and release edge helpers'
     When run /usr/bin/bash "$RUNNER" "$COMMON" '
       tmpdir="$(mktemp -d)"
       destination="${tmpdir}/bundle.tgz"
-      PRODUCTIVE_K3S_RELEASE_REPO=jemacchi/productive-k3s-core
+      PRODUCTIVE_K3S_RELEASE_REPO=productive-k3s/productive-k3s-core
       productive_k3s_release_json() { printf "{\"assets\":[]}"; }
       download_productive_k3s_release_bundle "${destination}" 0.9.1'
     The status should equal 1

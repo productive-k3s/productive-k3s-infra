@@ -43,7 +43,7 @@ cat > "${FAKE_SCENARIOS_DIR}/demo-pass/generated/cluster.json" <<'EOF'
   "productive_k3s": {
     "source": "remote",
     "version": "9.9.9",
-    "release_repo": "jemacchi/productive-k3s-core",
+    "release_repo": "productive-k3s/productive-k3s-core",
     "engine": "k3sup"
   }
 }

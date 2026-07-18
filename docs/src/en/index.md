@@ -2,7 +2,7 @@
 
 This is the default documentation entry point for Productive K3S Infra.
 
-Use this tree when you want the engine-facing documentation for packaged profile execution, runtime behavior, and integration guidance with `productive-k3s-profiles`.
+Use this tree when you want to understand how Productive K3S deploys complete curated solutions on top of the Core base installation contract.
 
 ## Start here
 

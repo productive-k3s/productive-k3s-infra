@@ -27,7 +27,7 @@ cat > "${TEST_SCENARIO_DIR}/generated/cluster.json" <<'EOF'
   "productive_k3s": {
     "source": "local",
     "version": "",
-    "release_repo": "jemacchi/productive-k3s-core"
+    "release_repo": "productive-k3s/productive-k3s-core"
   },
   "telemetry": {
     "enabled": true,
@@ -94,6 +94,10 @@ cat > "${TMP_DIR}/bin/multipass" <<'EOF'
 set -euo pipefail
 if [[ "${1:-}" == "exec" ]]; then
   if [[ "${4:-}" == "sudo" && "${5:-}" == "cat" ]]; then
+    printf 'test-token\n'
+    exit 0
+  fi
+  if [[ "${4:-}" == "bash" && "${5:-}" == "-lc" && "${6:-}" == *"/server/node-token"* ]]; then
     printf 'test-token\n'
     exit 0
   fi

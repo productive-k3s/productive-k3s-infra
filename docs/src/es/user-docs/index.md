@@ -6,7 +6,7 @@ Esta sección agrupa el comportamiento orientado a operadores del engine de Infr
 
 ### Referencias de runtime
 
-- [Targets de Make](make-targets.md)
+- [Objetivos de Make](make-targets.md)
 - [Privacidad y telemetría](privacy-and-telemetry.md)
 
 ### Repos relacionados

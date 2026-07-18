@@ -21,6 +21,8 @@ if [[ "${PRODUCTIVE_K3S_ENGINE:-native}" == "k3sup" && -z "${PRODUCTIVE_K3S_SOUR
   export PRODUCTIVE_K3S_SOURCE="local"
 fi
 
+export PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS="${PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS:-true}"
+
 warn() {
   printf '[WARN] %s\n' "$1" >&2
 }
@@ -73,7 +75,10 @@ wait_for_instance_removal() {
   if [[ -n "${matches}" ]]; then
     warn "multipass instances with prefix ${prefix} still exist after ${MULTIPASS_INSTANCE_REMOVAL_TIMEOUT_SECONDS}s:"
     printf '%s\n' "${matches}" >&2
+    return 1
   fi
+
+  return 0
 }
 
 force_delete_instances_by_prefix() {
@@ -96,6 +101,13 @@ main() {
   trap cleanup EXIT
 
   cleanup
+  if ! wait_for_instance_removal "${MULTIPASS_SCENARIO_PREFIX}"; then
+    force_delete_instances_by_prefix "${MULTIPASS_SCENARIO_PREFIX}"
+    wait_for_instance_removal "${MULTIPASS_SCENARIO_PREFIX}" || {
+      printf '[FAIL] could not clear existing multipass instances with prefix %s before live test\n' "${MULTIPASS_SCENARIO_PREFIX}" >&2
+      exit 1
+    }
+  fi
   make -C "${SCENARIO_DIR}" up TOFU_BIN="${TOFU_BIN}"
   make -C "${SCENARIO_DIR}" validate
 

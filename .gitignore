@@ -24,6 +24,7 @@ test-artifacts/
 tests/artifacts/*
 tests/coverage/*
 .wrangler/
+tmp/
 
 # Terraform/OpenTofu
 .terraform/
