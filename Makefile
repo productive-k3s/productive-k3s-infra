@@ -17,6 +17,10 @@ SCENARIO ?=
 	test-lint \
 	test-format \
 	test-spell \
+	test-static \
+	test-contract \
+	test-telemetry \
+	test-aws-localstack-contract \
 	test-local-all \
 	test-matrix-all \
 	infra-help \
@@ -60,6 +64,18 @@ test-format:
 
 test-spell:
 	$(MAKE) -C $(TESTS_DIR) test-spell
+
+test-static:
+	$(MAKE) -C $(TESTS_DIR) test-static
+
+test-contract:
+	$(MAKE) -C $(TESTS_DIR) test-contract
+
+test-telemetry:
+	$(MAKE) -C $(TESTS_DIR) test-telemetry
+
+test-aws-localstack-contract:
+	$(MAKE) -C $(TESTS_DIR) test-aws-localstack-contract
 
 test-local-all:
 	$(MAKE) -C $(TESTS_DIR) test-local-all
