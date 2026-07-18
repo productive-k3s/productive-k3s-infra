@@ -1,6 +1,14 @@
 # Cómo Usar Productive K3S Infra
 
-`productive-k3s-infra` es el engine de runtime para la ejecución package-first de profiles. El árbol fuente público de profiles/scenarios vive en el repositorio hermano `productive-k3s-profiles`.
+`productive-k3s-infra` es la capa que usás cuando querés desplegar una solución completa de Productive K3S sobre una plataforma y no quedarte solo en la base del cluster.
+
+Usá Infra directo cuando:
+
+- quieras control explícito sobre la capa de despliegue;
+- estés integrando un workflow específico de plataforma;
+- quieras entender el contrato de orquestación por encima de Core.
+
+Si querés el camino más simple y recomendado, usá primero `pk3s` y tratá a Infra como la capa que va por debajo.
 
 ## Elegí el profile correcto
 
@@ -34,7 +42,7 @@ Eso está documentado intencionalmente como experimental.
 
 ## Usá los entrypoints públicos
 
-La interfaz pública para operadores es package-first:
+La interfaz pública para operadores está centrada en ejecutar soluciones curadas de despliegue:
 
 ```bash
 ./productive-k3s-infra.sh profile validate --tgz https://downloads.productive-k3s.io/infra/multipass-1-server-2-agents-0.9.62-0.9.4.tgz

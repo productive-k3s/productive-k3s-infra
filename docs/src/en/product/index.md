@@ -1,18 +1,17 @@
 # Product Overview
 
-`Productive K3S Infra` is the runtime engine for packaged Productive K3S profiles.
+`Productive K3S Infra` is the layer that deploys complete Productive K3S solutions on different platforms.
+
+It builds on `productive-k3s-core` and consumes the curated solution paths defined in `productive-k3s-profiles`.
+
+Use it directly when you want explicit control over the deployment layer.
+
+Choose `productive-k3s-cli` when you want the simplest and recommended unified experience across the ecosystem.
 
 It does not replace:
 
 - `productive-k3s-core`, which owns cluster bootstrap
-- `productive-k3s-profiles`, which owns the public source tree for profiles and scenarios
-
-Instead, it executes self-contained `profile.tgz` artifacts by handling:
-
-- package extraction and dispatch
-- merge of package defaults with local overrides
-- runtime state persistence and restoration
-- telemetry, command correlation, and operator-facing runtime behavior
+- `productive-k3s-profiles`, which owns the curated deployment solutions and their public source tree
 
 ## Pages
 

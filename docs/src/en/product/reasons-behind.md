@@ -1,6 +1,6 @@
 # Reasons Behind `productive-k3s-infra`
 
-`productive-k3s-infra` exists because packaged profile execution and source-content authoring solve different problems.
+`productive-k3s-infra` exists because deploying a complete solution on a platform is a different problem from only installing the base cluster.
 
 ## Why not stop at `productive-k3s-core`
 
@@ -12,7 +12,7 @@ That is enough when:
 - the operator can work directly on that machine
 - the cluster topology is simple enough to assemble by hand
 
-It is not enough when you also need one reusable runtime contract for:
+It is not enough when you also need one reusable orchestration contract for:
 
 - package extraction
 - env merge and input validation
@@ -40,7 +40,7 @@ Even after the source split, published profiles still need one shared execution 
 - telemetry propagation
 - command dispatch and recovery behavior
 
-Without that layer, the engine would become scenario-specific again or every profile package would need to reimplement the same runtime logic.
+Without that layer, the deployment flow would become scenario-specific again or every solution package would need to reimplement the same runtime logic.
 
 ## Why the explicit mode split still matters
 
