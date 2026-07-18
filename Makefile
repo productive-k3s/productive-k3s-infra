@@ -21,6 +21,7 @@ SCENARIO ?=
 	test-contract \
 	test-telemetry \
 	test-aws-localstack-contract \
+	test-live-gha-onprem \
 	test-local-all \
 	test-matrix-all \
 	infra-help \
@@ -76,6 +77,9 @@ test-telemetry:
 
 test-aws-localstack-contract:
 	$(MAKE) -C $(TESTS_DIR) test-aws-localstack-contract
+
+test-live-gha-onprem:
+	$(MAKE) -C $(TESTS_DIR) test-live-gha-onprem
 
 test-local-all:
 	$(MAKE) -C $(TESTS_DIR) test-local-all
