@@ -1,0 +1,3697 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Deployment and orchestration documentation for Productive K3S Infra, with bilingual documentation.">
+      
+      
+        <meta name="author" content="Productive K3S Infra">
+      
+      
+        <link rel="canonical" href="https://infra.productive-k3s.io/es/developer-docs/guides/tgz-package-architecture/">
+      
+      
+        <link rel="prev" href="../project-layout/">
+      
+      
+        <link rel="next" href="../testing-and-matrix/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Arquitectura de paquetes TGZ - Productive K3S Infra</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --md-text-font: "Inter";
+      --md-code-font: "JetBrains Mono";
+    }
+  </style>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      var form = document.querySelector("[data-pk3s-newsletter-form]");
+      if (!form) {
+        return;
+      }
+
+      var input = form.querySelector("input[name='email']");
+      var button = form.querySelector("button[type='submit']");
+      var message = form.querySelector("[data-pk3s-newsletter-message]");
+      var isSpanish = document.documentElement.lang === "es" || window.location.pathname.indexOf("/es/") === 0;
+
+      function datasetValue(key) {
+        return form.dataset[key + (isSpanish ? "Es" : "En")] || "";
+      }
+
+      function setMessage(kind, text) {
+        if (!message) {
+          return;
+        }
+        message.textContent = text;
+        message.classList.remove("is-success", "is-error");
+        if (kind) {
+          message.classList.add(kind === "success" ? "is-success" : "is-error");
+        }
+      }
+
+      form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        if (!input || !button) {
+          return;
+        }
+
+        if (!input.checkValidity()) {
+          setMessage("error", datasetValue("pk3sNewsletterInvalid"));
+          input.focus();
+          return;
+        }
+
+        var apiBaseUrl = form.dataset.pk3sNewsletterApiBaseUrl || "";
+        if (!apiBaseUrl) {
+          setMessage("error", datasetValue("pk3sNewsletterError"));
+          return;
+        }
+
+        button.disabled = true;
+        setMessage("", "");
+
+        try {
+          var response = await fetch(apiBaseUrl.replace(/\/$/, "") + "/subscribe", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              email: input.value.trim(),
+              source: window.location.hostname
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error("newsletter_submit_failed");
+          }
+
+          var payload = await response.json();
+          if (payload && payload.accepted) {
+            setMessage("success", payload.duplicate ? datasetValue("pk3sNewsletterDuplicate") : datasetValue("pk3sNewsletterSuccess"));
+            form.reset();
+          } else {
+            setMessage("error", datasetValue("pk3sNewsletterError"));
+          }
+        } catch (error) {
+          setMessage("error", datasetValue("pk3sNewsletterError"));
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+  </script>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#arquitectura-de-paquetes-tgz-para-productive-k3s" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+
+
+  
+    
+    
+  
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="Productive K3S Infra" class="md-header__button md-logo" aria-label="Productive K3S Infra" data-md-component="logo">
+      <img src="../../../../assets/images/productive-k3s-icon-square-0.3x.png" alt="Productive K3S Infra" />
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Productive K3S Infra
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Arquitectura de paquetes TGZ
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="pk3s-header-actions">
+      
+        <div class="md-header__source">
+          <a href="https://github.com/productive-k3s/productive-k3s-infra" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+        </div>
+      
+      <div class="pk3s-lang-switch" aria-label="Language selector">
+        <a class="" href="../../../../en/developer-docs/guides/tgz-package-architecture/">EN</a>
+        <span aria-hidden="true">|</span>
+        <a class="is-active" href="./">ES</a>
+      </div>
+    </div>
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+
+
+  
+
+
+
+  
+    
+  
+
+
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        <li class="md-tabs__item">
+          <a href="../../../..?lang=es" class="md-tabs__link">
+            Inicio
+          </a>
+        </li>
+      
+        <li class="md-tabs__item">
+          <a href="../../../product/" class="md-tabs__link">
+            Producto
+          </a>
+        </li>
+      
+        <li class="md-tabs__item">
+          <a href="../../../user-docs/" class="md-tabs__link">
+            Documentación para usuarios
+          </a>
+        </li>
+      
+        <li class="md-tabs__item md-tabs__item--active">
+          <a href="../../" class="md-tabs__link">
+            Documentación para desarrolladores
+          </a>
+        </li>
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="Productive K3S Infra" class="md-nav__button md-logo" aria-label="Productive K3S Infra" data-md-component="logo">
+      <img src="../../../../assets/images/productive-k3s-icon-square-0.3x.png" alt="Productive K3S Infra" />
+    </a>
+    Productive K3S Infra
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/productive-k3s/productive-k3s-infra" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../../en/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    English
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    English
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../../en/product/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Product
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../en/product/how-to-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How to use
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../en/product/reasons-behind/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reasons behind
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../en/product/open-vs-pro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Open vs Pro
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../en/product/productive-k3s-relationship/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Relationship with Productive K3S Core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../../en/user-docs/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User docs
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User docs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../en/user-docs/make-targets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Make targets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../en/user-docs/privacy-and-telemetry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Privacy and telemetry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../../en/developer-docs/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer docs
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer docs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../../en/developer-docs/guides/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_4_2" id="__nav_2_4_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../en/developer-docs/guides/project-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project layout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../en/developer-docs/guides/tgz-package-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TGZ package architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../en/developer-docs/guides/testing-and-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing and matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../en/developer-docs/guides/github-actions-and-cicd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI/CD flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../en/developer-docs/guides/documentation-workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Español
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Español
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../product/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Producto
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_2" id="__nav_3_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Producto
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../product/how-to-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cómo usar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../product/reasons-behind/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Razones del diseño
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../product/open-vs-pro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Open vs Pro
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../product/productive-k3s-relationship/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Relación con Productive K3S Core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../user-docs/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentación para usuarios
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentación para usuarios
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-docs/make-targets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Objetivos de Make
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-docs/privacy-and-telemetry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Privacidad y telemetría
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentación para desarrolladores
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_4" id="__nav_3_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentación para desarrolladores
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4_2" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guías
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_4_2" id="__nav_3_4_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_4_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guías
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../project-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Organización del proyecto
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Arquitectura de paquetes TGZ
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Arquitectura de paquetes TGZ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="En esta página">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      En esta página
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#objetivo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Objetivo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conceptos-clave" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conceptos clave
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#intencion-arquitectonica" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Intención arquitectónica
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Intención arquitectónica">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ejemplo-conceptual" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplo conceptual
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filosofia" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filosofía
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#superficie-publica-y-superficie-de-desarrollo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superficie pública y superficie de desarrollo
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Superficie pública y superficie de desarrollo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#superficie-publica-del-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superficie pública del CLI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#superficie-de-desarrollo-del-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superficie de desarrollo del runtime
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#el-paquete-primero-el-repositorio-despues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        El paquete primero, el repositorio después
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#roles-de-los-repositorios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Roles de los repositorios
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#formato-tgz-de-add-ons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formato TGZ de add-ons
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Formato TGZ de add-ons">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ejemplo-de-estructura" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplo de estructura
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ejemplo-minimo-de-addonyaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplo mínimo de addon.yaml
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flujo-de-instalacion-de-add-ons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flujo de instalación de add-ons
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#formato-tgz-de-profilesinfra" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formato TGZ de profiles/infra
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Formato TGZ de profiles/infra">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ejemplo-de-estructura_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplo de estructura
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ejemplo-minimo-de-profileyaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplo mínimo de profile.yaml
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flujo-infra" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flujo Infra
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modelo-orientado-a-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modelo orientado a profile
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#semantica-de-carpetas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Semántica de carpetas
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Semántica de carpetas">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#profiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        profiles/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scenarios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        scenarios/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shared" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shared/
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#composicion-del-paquete-y-encapsulamiento" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Composición del paquete y encapsulamiento
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modelo-de-catalogo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modelo de catálogo
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Modelo de catálogo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ejemplo-de-entrada-de-catalogo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplo de entrada de catálogo
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#empaquetado-y-artefactos-de-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Empaquetado y artefactos de release
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#uso-recomendado-del-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Uso recomendado del CLI
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Uso recomendado del CLI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#instalar-add-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Instalar add-on
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#instalar-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Instalar profile
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#separacion-de-ux-en-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Separación de UX en runtime
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Separación de UX en runtime">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ejemplos-publicos-orientados-a-paquetes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplos públicos orientados a paquetes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ejemplos-de-desarrollo-orientados-a-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplos de desarrollo orientados a source
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modelo-de-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modelo de testing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Modelo de testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#testing-a-nivel-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing a nivel source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-a-nivel-package" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing a nivel package
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reglas-arquitectonicas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reglas arquitectónicas
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reglas arquitectónicas">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#el-cli-no-debe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        El CLI NO debe:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#core-debe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core debe:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#infra-debe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Infra debe:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modelo-mental-final" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modelo mental final
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing-and-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tests y matriz
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../github-actions-and-cicd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flujo de CI/CD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../documentation-workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flujo de documentación
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="En esta página">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      En esta página
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#objetivo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Objetivo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conceptos-clave" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conceptos clave
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#intencion-arquitectonica" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Intención arquitectónica
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Intención arquitectónica">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ejemplo-conceptual" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplo conceptual
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filosofia" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filosofía
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#superficie-publica-y-superficie-de-desarrollo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superficie pública y superficie de desarrollo
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Superficie pública y superficie de desarrollo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#superficie-publica-del-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superficie pública del CLI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#superficie-de-desarrollo-del-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superficie de desarrollo del runtime
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#el-paquete-primero-el-repositorio-despues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        El paquete primero, el repositorio después
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#roles-de-los-repositorios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Roles de los repositorios
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#formato-tgz-de-add-ons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formato TGZ de add-ons
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Formato TGZ de add-ons">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ejemplo-de-estructura" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplo de estructura
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ejemplo-minimo-de-addonyaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplo mínimo de addon.yaml
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flujo-de-instalacion-de-add-ons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flujo de instalación de add-ons
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#formato-tgz-de-profilesinfra" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formato TGZ de profiles/infra
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Formato TGZ de profiles/infra">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ejemplo-de-estructura_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplo de estructura
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ejemplo-minimo-de-profileyaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplo mínimo de profile.yaml
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flujo-infra" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flujo Infra
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modelo-orientado-a-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modelo orientado a profile
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#semantica-de-carpetas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Semántica de carpetas
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Semántica de carpetas">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#profiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        profiles/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scenarios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        scenarios/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shared" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shared/
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#composicion-del-paquete-y-encapsulamiento" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Composición del paquete y encapsulamiento
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modelo-de-catalogo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modelo de catálogo
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Modelo de catálogo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ejemplo-de-entrada-de-catalogo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplo de entrada de catálogo
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#empaquetado-y-artefactos-de-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Empaquetado y artefactos de release
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#uso-recomendado-del-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Uso recomendado del CLI
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Uso recomendado del CLI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#instalar-add-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Instalar add-on
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#instalar-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Instalar profile
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#separacion-de-ux-en-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Separación de UX en runtime
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Separación de UX en runtime">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ejemplos-publicos-orientados-a-paquetes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplos públicos orientados a paquetes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ejemplos-de-desarrollo-orientados-a-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ejemplos de desarrollo orientados a source
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modelo-de-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modelo de testing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Modelo de testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#testing-a-nivel-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing a nivel source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-a-nivel-package" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing a nivel package
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reglas-arquitectonicas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reglas arquitectónicas
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reglas arquitectónicas">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#el-cli-no-debe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        El CLI NO debe:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#core-debe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core debe:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#infra-debe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Infra debe:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modelo-mental-final" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modelo mental final
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+  
+  
+
+
+
+
+  
+    
+  
+
+
+<nav class="md-path" aria-label="Navegación">
+  <ol class="md-path__list">
+    <li class="md-path__item">
+      <a href="../../../..?lang=es" class="md-path__link">
+        <span class="md-ellipsis">Inicio</span>
+      </a>
+    </li>
+    
+      <li class="md-path__item">
+        
+          <a href="../../" class="md-path__link">
+            <span class="md-ellipsis">Documentación para desarrolladores</span>
+          </a>
+        
+      </li>
+    
+      <li class="md-path__item">
+        
+          <a href="../" class="md-path__link">
+            <span class="md-ellipsis">Guías</span>
+          </a>
+        
+      </li>
+    
+    
+      <li class="md-path__item">
+        <a href="#" class="md-path__link">
+          <span class="md-ellipsis">Arquitectura de paquetes TGZ</span>
+        </a>
+      </li>
+    
+  </ol>
+</nav>
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="arquitectura-de-paquetes-tgz-para-productive-k3s">Arquitectura de Paquetes TGZ para Productive K3S<a class="headerlink" href="#arquitectura-de-paquetes-tgz-para-productive-k3s" title="Permanent link">&para;</a></h1>
+<h2 id="objetivo">Objetivo<a class="headerlink" href="#objetivo" title="Permanent link">&para;</a></h2>
+<p>Definir una arquitectura unificada y simétrica para:</p>
+<ul>
+<li>instalar add-ons en Core</li>
+<li>instalar profiles en Infra desde fuentes de scenario desacopladas</li>
+<li>distribuir paquetes <code>.tgz</code> desacoplados</li>
+<li>soportar catálogos públicos y privados</li>
+<li>ejecutar paquetes como artefactos autocontenidos</li>
+<li>mantener independiente la lógica del CLI y los runtimes</li>
+</ul>
+<blockquote>
+<p>Todo lo instalable en el ecosistema Productive K3S debe poder distribuirse y ejecutarse como un paquete autocontenido TGZ.</p>
+</blockquote>
+<p>Esto aplica a:</p>
+<ul>
+<li>Add-ons (<code>productive-k3s-addons</code>)</li>
+<li>Profiles/Escenarios (<code>productive-k3s-profiles</code>)</li>
+</ul>
+<h2 id="conceptos-clave">Conceptos clave<a class="headerlink" href="#conceptos-clave" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Concepto</th>
+<th>Significado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Scenario</td>
+<td>motor de implementación reusable</td>
+</tr>
+<tr>
+<td>Profile</td>
+<td>preset/configuración lista para usar</td>
+</tr>
+<tr>
+<td>Add-on</td>
+<td>extensión instalable sobre Core</td>
+</tr>
+<tr>
+<td>TGZ Package</td>
+<td>unidad distribuible autocontenida</td>
+</tr>
+</tbody>
+</table>
+<h2 id="intencion-arquitectonica">Intención arquitectónica<a class="headerlink" href="#intencion-arquitectonica" title="Permanent link">&para;</a></h2>
+<p>La arquitectura debe sentirse igual en todos los niveles.</p>
+<h3 id="ejemplo-conceptual">Ejemplo conceptual<a class="headerlink" href="#ejemplo-conceptual" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Capa</th>
+<th>Recibe</th>
+<th>Ejecuta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CLI</td>
+<td>TGZ</td>
+<td>delega</td>
+</tr>
+<tr>
+<td>Core</td>
+<td>Add-on TGZ</td>
+<td>instala add-ons</td>
+</tr>
+<tr>
+<td>Infra</td>
+<td>Profile TGZ</td>
+<td>ejecuta escenarios</td>
+</tr>
+<tr>
+<td>Motor de scenario</td>
+<td>definición YAML</td>
+<td>corre la implementación</td>
+</tr>
+</tbody>
+</table>
+<h2 id="filosofia">Filosofía<a class="headerlink" href="#filosofia" title="Permanent link">&para;</a></h2>
+<p>El CLI NO debe saber:</p>
+<ul>
+<li>lógica de instalación</li>
+<li>templates específicos</li>
+<li>motores cloud</li>
+<li>detalles internos</li>
+<li>charts de Helm particulares</li>
+<li>cómo instalar un add-on</li>
+<li>cómo ejecutar AWS/Azure/etc.</li>
+</ul>
+<p>El CLI solamente:</p>
+<ol>
+<li>descarga y resuelve paquetes</li>
+<li>valida metadata</li>
+<li>delega la ejecución al runtime adecuado</li>
+</ol>
+<h2 id="superficie-publica-y-superficie-de-desarrollo">Superficie pública y superficie de desarrollo<a class="headerlink" href="#superficie-publica-y-superficie-de-desarrollo" title="Permanent link">&para;</a></h2>
+<p>La arquitectura de Productive K3S expone dos superficies distintas de forma intencional:</p>
+<ul>
+<li>una superficie pública package-first para usuarios finales</li>
+<li>una superficie source-first de desarrollo para authoring, testing y CI</li>
+</ul>
+<p>Estas dos superficies resuelven necesidades distintas y no son intercambiables.</p>
+<h3 id="superficie-publica-del-cli">Superficie pública del CLI<a class="headerlink" href="#superficie-publica-del-cli" title="Permanent link">&para;</a></h3>
+<p><code>pk3s</code> es el CLI público.</p>
+<p>Su contrato es package-oriented:</p>
+<ul>
+<li>los add-ons se consumen como <code>addon.tgz</code></li>
+<li>los profiles se consumen como <code>profile.tgz</code></li>
+<li>la resolución de catálogo debe terminar en un artefacto TGZ descargable</li>
+</ul>
+<p>El CLI público no expone:</p>
+<ul>
+<li>archivos de profile <code>.env</code> crudos</li>
+<li>paths directos a scenarios</li>
+<li>atajos de desarrollo orientados al árbol fuente</li>
+</ul>
+<h3 id="superficie-de-desarrollo-del-runtime">Superficie de desarrollo del runtime<a class="headerlink" href="#superficie-de-desarrollo-del-runtime" title="Permanent link">&para;</a></h3>
+<p><code>productive-k3s-core.sh</code> y <code>productive-k3s-infra.sh</code> son runtime tools.</p>
+<p>Exponen:</p>
+<ul>
+<li>una superficie pública runtime orientada a paquetes</li>
+<li>una superficie explícita <code>dev</code> para flujos de desarrollo y testing</li>
+</ul>
+<p>La superficie <code>dev</code> existe para que:</p>
+<ul>
+<li>autores de paquetes puedan iterar sobre source files sin generar un TGZ primero</li>
+<li>CI pueda validar contratos de authoring antes del empaquetado</li>
+<li>maintainers puedan testear profiles y add-ons directamente desde el árbol fuente</li>
+</ul>
+<p>Esto significa que el contrato source-oriented de desarrollo sigue siendo válido, pero deja de ser el contrato principal expuesto al usuario.</p>
+<h2 id="el-paquete-primero-el-repositorio-despues">El paquete primero, el repositorio después<a class="headerlink" href="#el-paquete-primero-el-repositorio-despues" title="Permanent link">&para;</a></h2>
+<p>El repositorio es fuente de desarrollo, pero el runtime no debe depender del árbol de código fuente.</p>
+<p>El runtime debe poder instalar o ejecutar desde un archivo <code>.tgz</code> local sin necesitar el repositorio completo.</p>
+<p>Al mismo tiempo, el repositorio fuente sigue siendo el entorno de authoring.</p>
+<p>Eso significa:</p>
+<ul>
+<li>el uso público es package-first</li>
+<li>el uso de desarrollo puede seguir siendo source-first bajo comandos <code>dev</code> explícitos</li>
+<li>el empaquetado es la frontera entre authoring y distribución</li>
+</ul>
+<h2 id="roles-de-los-repositorios">Roles de los repositorios<a class="headerlink" href="#roles-de-los-repositorios" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>productive-k3s-core</code>: runtime de instalación de add-ons</li>
+<li><code>productive-k3s-addons</code>: catálogo público de add-ons</li>
+<li><code>productive-k3s-addons-pro</code>: add-ons pagos/privados</li>
+<li><code>productive-k3s-infra</code>: runtime/engine de empaquetado y ejecución de profiles</li>
+<li><code>productive-k3s-profiles</code>: profiles y escenarios públicos</li>
+<li><code>productive-k3s-profiles-pro</code>: profiles/escenarios pagos</li>
+<li><code>productive-k3s-cli</code>: orquestador</li>
+<li><code>productive-k3s-catalogs</code>: índices de paquetes publicados</li>
+</ul>
+<h2 id="formato-tgz-de-add-ons">Formato TGZ de add-ons<a class="headerlink" href="#formato-tgz-de-add-ons" title="Permanent link">&para;</a></h2>
+<p>Un paquete de add-on de Productive K3S es un archivo <code>.tgz</code> autocontenido con metadata y activos de instalación.</p>
+<h3 id="ejemplo-de-estructura">Ejemplo de estructura<a class="headerlink" href="#ejemplo-de-estructura" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>addon.tgz
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── addon.yaml
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>├── charts/
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>├── scripts/
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>├── assets/
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>└── README.md
+</code></pre></div>
+<h3 id="ejemplo-minimo-de-addonyaml">Ejemplo mínimo de addon.yaml<a class="headerlink" href="#ejemplo-minimo-de-addonyaml" title="Permanent link">&para;</a></h3>
+<div class="language-yaml highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">addons.productive-k3s.io/v1</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Addon</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">longhorn</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0.0</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">category</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">storage</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">helm</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nt">chart</span><span class="p">:</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">charts/longhorn</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span><span class="nt">install</span><span class="p">:</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="nt">script</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scripts/install.sh</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span><span class="nt">dependencies</span><span class="p">:</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cert-manager</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span><span class="nt">compatibility</span><span class="p">:</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="nt">architectures</span><span class="p">:</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">amd64</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">arm64</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">    </span><span class="nt">k3s</span><span class="p">:</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">      </span><span class="nt">minVersion</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1.31&quot;</span>
+</code></pre></div>
+<h2 id="flujo-de-instalacion-de-add-ons">Flujo de instalación de add-ons<a class="headerlink" href="#flujo-de-instalacion-de-add-ons" title="Permanent link">&para;</a></h2>
+<ol>
+<li>El CLI resuelve el paquete y descarga TGZ</li>
+<li>Core recibe <code>addon.tgz</code></li>
+<li>Core extrae el archivo</li>
+<li>Core lee <code>addon.yaml</code></li>
+<li>Core ejecuta el instalador</li>
+<li>Helm/scripts/hooks realizan la instalación</li>
+</ol>
+<p>El CLI no debe implementar la lógica de instalación de Helm.</p>
+<h2 id="formato-tgz-de-profilesinfra">Formato TGZ de profiles/infra<a class="headerlink" href="#formato-tgz-de-profilesinfra" title="Permanent link">&para;</a></h2>
+<p>Un profile debe ser portable, ejecutable, autocontenido y desacoplado del repositorio fuente.</p>
+<h3 id="ejemplo-de-estructura_1">Ejemplo de estructura<a class="headerlink" href="#ejemplo-de-estructura_1" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>profile.tgz
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>├── profile.yaml
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>├── profile.env
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>├── scenario/
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>├── assets/
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>├── templates/
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>└── README.md
+</code></pre></div>
+<h3 id="ejemplo-minimo-de-profileyaml">Ejemplo mínimo de profile.yaml<a class="headerlink" href="#ejemplo-minimo-de-profileyaml" title="Permanent link">&para;</a></h3>
+<div class="language-yaml highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">infra.productive-k3s.io/v1</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Profile</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aws-single-node-basic</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0.0</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">category</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloud</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">scenario</span><span class="p">:</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aws-single-node</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span><span class="nt">engine</span><span class="p">:</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">opentofu</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">  </span><span class="nt">runtime</span><span class="p">:</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">    </span><span class="nt">os</span><span class="p">:</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-24.04</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">    </span><span class="nt">architectures</span><span class="p">:</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">amd64</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">  </span><span class="nt">inputs</span><span class="p">:</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AWS_REGION</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="w">      </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="w">      </span><span class="nt">sensitive</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="w">      </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package-default</span>
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Región AWS por defecto usada para aprovisionar</span>
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AWS_KEY_PAIR_NAME</span>
+<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="w">      </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a><span class="w">      </span><span class="nt">sensitive</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a><span class="w">      </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local-override</span>
+<a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Nombre de un key pair existente en AWS EC2</span>
+<a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AWS_SSH_KEY_PATH</span>
+<a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a><span class="w">      </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a><span class="w">      </span><span class="nt">sensitive</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-3-31" name="__codelineno-3-31" href="#__codelineno-3-31"></a><span class="w">      </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local-override</span>
+<a id="__codelineno-3-32" name="__codelineno-3-32" href="#__codelineno-3-32"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Ruta absoluta local a la clave privada correspondiente</span>
+<a id="__codelineno-3-33" name="__codelineno-3-33" href="#__codelineno-3-33"></a><span class="w">  </span><span class="nt">execution</span><span class="p">:</span>
+<a id="__codelineno-3-34" name="__codelineno-3-34" href="#__codelineno-3-34"></a><span class="w">    </span><span class="nt">installScript</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scenario/install.sh</span>
+</code></pre></div>
+<p><code>profile.env</code> sigue formando parte del paquete, pero se trata como el contrato base/default del package, no como la configuración final específica de la instalación. <code>spec.inputs</code> define qué valores pueden venir de los defaults del paquete y cuáles deben ser provistos desde la máquina que invoca mediante <code>--env-file</code>.</p>
+<h2 id="flujo-infra">Flujo Infra<a class="headerlink" href="#flujo-infra" title="Permanent link">&para;</a></h2>
+<ol>
+<li>El CLI resuelve el paquete y descarga TGZ</li>
+<li>El runtime de Infra recibe <code>profile.tgz</code></li>
+<li>Infra extrae el archivo</li>
+<li>Infra lee <code>profile.yaml</code></li>
+<li>Infra ejecuta el scenario referenciado</li>
+<li>OpenTofu/Ansible/scripts realizan la implementación</li>
+</ol>
+<h2 id="modelo-orientado-a-profile">Modelo orientado a profile<a class="headerlink" href="#modelo-orientado-a-profile" title="Permanent link">&para;</a></h2>
+<p>Productive K3S Infra sigue siendo profile-oriented.</p>
+<p>El profile es la unidad ejecutable de intención y configuración.
+El scenario es el engine genérico reusable que implementa ese profile.</p>
+<p>Esto es cierto tanto en desarrollo como en distribución:</p>
+<ul>
+<li>en desarrollo, el profile puede existir como <code>.env</code> fuente junto con un scenario en el árbol fuente</li>
+<li>en distribución, ese mismo profile se distribuye como un <code>profile.tgz</code> autocontenido</li>
+</ul>
+<p>El scenario no es el contrato primario user-facing.
+Es el backend reusable de implementación seleccionado por la metadata del profile.</p>
+<h2 id="semantica-de-carpetas">Semántica de carpetas<a class="headerlink" href="#semantica-de-carpetas" title="Permanent link">&para;</a></h2>
+<h3 id="profiles"><code>profiles/</code><a class="headerlink" href="#profiles" title="Permanent link">&para;</a></h3>
+<p>Contiene presets, variables <code>.env</code> y configuraciones listas para ejecutar.</p>
+<p>No contiene:</p>
+<ul>
+<li>lógica compleja</li>
+<li>implementación cloud</li>
+<li>templates internos reutilizables</li>
+</ul>
+<h3 id="scenarios"><code>scenarios/</code><a class="headerlink" href="#scenarios" title="Permanent link">&para;</a></h3>
+<p>Contiene activos de implementación reutilizables:</p>
+<ul>
+<li>Terraform/OpenTofu</li>
+<li>Ansible</li>
+<li>scripts</li>
+<li>templates</li>
+<li>lógica cloud</li>
+<li>lógica de motor</li>
+</ul>
+<p>Un scenario es el motor reutilizable.</p>
+<h3 id="shared"><code>shared/</code><a class="headerlink" href="#shared" title="Permanent link">&para;</a></h3>
+<p>Contiene helpers, librerías bash, templates comunes y utilidades reutilizables.</p>
+<h2 id="composicion-del-paquete-y-encapsulamiento">Composición del paquete y encapsulamiento<a class="headerlink" href="#composicion-del-paquete-y-encapsulamiento" title="Permanent link">&para;</a></h2>
+<p>Los profiles se distribuyen como unidades empaquetadas <code>profile + scenario</code>.</p>
+<p>Ese encapsulamiento es intencional.</p>
+<p>Un <code>profile.tgz</code> distribuible contiene:</p>
+<ul>
+<li>metadata del profile</li>
+<li>variables y defaults a nivel profile</li>
+<li>los activos de implementación del scenario requeridos para ejecutar ese profile</li>
+<li>cualquier template, script y archivo auxiliar necesario en runtime</li>
+</ul>
+<p>En otras palabras, distribución no publica solamente un puntero fino al profile.
+Publica un paquete ejecutable autocontenido que embebe el contrato del profile junto con los activos del scenario requeridos para ese camino de instalación.</p>
+<p>Esto es especialmente importante para:</p>
+<ul>
+<li>paquetes privados o comerciales, donde el source code no es visible públicamente</li>
+<li>ejecución estable en runtime, donde el artefacto instalado no debe depender de un source checkout vivo</li>
+<li>testing reproducible del payload exacto distribuido</li>
+</ul>
+<h2 id="modelo-de-catalogo">Modelo de catálogo<a class="headerlink" href="#modelo-de-catalogo" title="Permanent link">&para;</a></h2>
+<p>El CLI consume índices publicados.</p>
+<h3 id="ejemplo-de-entrada-de-catalogo">Ejemplo de entrada de catálogo<a class="headerlink" href="#ejemplo-de-entrada-de-catalogo" title="Permanent link">&para;</a></h3>
+<div class="language-yaml highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">catalog.productive-k3s.io/v1</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">entries</span><span class="p">:</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">longhorn</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0.0</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">addon</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://...</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aws-single-node-basic</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0.0</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">profile</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://...</span>
+</code></pre></div>
+<p>Tipos de catálogo:</p>
+<ul>
+<li>Público: GitHub Pages, OSS</li>
+<li>Privado: S3/Auth</li>
+<li>Enterprise: pago o protegido</li>
+<li>Local filesystem</li>
+</ul>
+<p>Los paquetes públicos/open pueden seguir respaldados por repositorios donde el source code sea visible.
+Los paquetes privados/comerciales pueden exponer solamente la URL del artefacto o una URL protegida/comercial de acceso.</p>
+<p>En ambos casos, el contrato del catálogo es el mismo para el consumidor: la unidad instalable es el artefacto TGZ.</p>
+<h2 id="empaquetado-y-artefactos-de-release">Empaquetado y artefactos de release<a class="headerlink" href="#empaquetado-y-artefactos-de-release" title="Permanent link">&para;</a></h2>
+<p>Los paquetes TGZ son artefactos de distribución.</p>
+<p>Eso implica que los repositorios que authoran profiles o add-ons necesitan un paso de empaquetado que:</p>
+<ul>
+<li>ensamble la estructura final del paquete</li>
+<li>valide la metadata del paquete</li>
+<li>produzca el <code>.tgz</code></li>
+<li>publique el artefacto resultante como parte de la distribución</li>
+</ul>
+<p>Ese paso de empaquetado pertenece a la automatización, por ejemplo:</p>
+<ul>
+<li>targets de <code>make</code></li>
+<li>scripts de release</li>
+<li>jobs de release en CI/CD</li>
+</ul>
+<p>El ciclo exacto de publicación puede variar por repositorio, pero el requerimiento arquitectónico no cambia:</p>
+<ul>
+<li>los source trees son para authoring</li>
+<li>los artefactos TGZ son para distribución e instalación</li>
+</ul>
+<p>Que una versión de paquete se publique:</p>
+<ul>
+<li>como parte del release del repositorio correspondiente, o</li>
+<li>a través de un ciclo separado de artefactos</li>
+</ul>
+<p>es una decisión de release management, no una decisión del contrato de runtime.</p>
+<p>El modelo de runtime y de catálogo soporta ambos enfoques siempre que cada entrada instalable resuelva a una URL estable de artefacto TGZ.</p>
+<h2 id="uso-recomendado-del-cli">Uso recomendado del CLI<a class="headerlink" href="#uso-recomendado-del-cli" title="Permanent link">&para;</a></h2>
+<h3 id="instalar-add-on">Instalar add-on<a class="headerlink" href="#instalar-add-on" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pk3s<span class="w"> </span>addon<span class="w"> </span>install<span class="w"> </span>longhorn
+</code></pre></div>
+<p>Flujo interno:</p>
+<ul>
+<li>resolver catálogo</li>
+<li>descargar TGZ</li>
+<li>delegar a Core</li>
+</ul>
+<h3 id="instalar-profile">Instalar profile<a class="headerlink" href="#instalar-profile" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pk3s<span class="w"> </span>infra<span class="w"> </span>install<span class="w"> </span>aws-single-node/basic
+</code></pre></div>
+<p>Flujo interno:</p>
+<ul>
+<li>resolver profile</li>
+<li>descargar TGZ</li>
+<li>delegar a Infra runtime</li>
+</ul>
+<h2 id="separacion-de-ux-en-runtime">Separación de UX en runtime<a class="headerlink" href="#separacion-de-ux-en-runtime" title="Permanent link">&para;</a></h2>
+<p>Los contratos runtime user-facing y development-facing son intencionalmente distintos.</p>
+<h3 id="ejemplos-publicos-orientados-a-paquetes">Ejemplos públicos orientados a paquetes<a class="headerlink" href="#ejemplos-publicos-orientados-a-paquetes" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./productive-k3s-core.sh<span class="w"> </span>addon<span class="w"> </span>install<span class="w"> </span>--tgz<span class="w"> </span>./longhorn-addon.tgz
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>./productive-k3s-core.sh<span class="w"> </span>addon<span class="w"> </span>validate<span class="w"> </span>--tgz<span class="w"> </span>./longhorn-addon.tgz
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>./productive-k3s-infra.sh<span class="w"> </span>profile<span class="w"> </span>install<span class="w"> </span>--tgz<span class="w"> </span>./aws-single-node-basic.tgz
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>./productive-k3s-infra.sh<span class="w"> </span>profile<span class="w"> </span>validate<span class="w"> </span>--tgz<span class="w"> </span>./aws-single-node-basic.tgz
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>./productive-k3s-infra.sh<span class="w"> </span>profile<span class="w"> </span>plan<span class="w"> </span>--tgz<span class="w"> </span>./aws-single-node-basic.tgz
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>./productive-k3s-infra.sh<span class="w"> </span>profile<span class="w"> </span>status<span class="w"> </span>--tgz<span class="w"> </span>./aws-single-node-basic.tgz
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>./productive-k3s-infra.sh<span class="w"> </span>profile<span class="w"> </span>destroy<span class="w"> </span>--tgz<span class="w"> </span>./aws-single-node-basic.tgz
+</code></pre></div>
+<h3 id="ejemplos-de-desarrollo-orientados-a-source">Ejemplos de desarrollo orientados a source<a class="headerlink" href="#ejemplos-de-desarrollo-orientados-a-source" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>./productive-k3s-core.sh<span class="w"> </span>dev<span class="w"> </span>addon<span class="w"> </span>validate<span class="w"> </span>--source<span class="w"> </span>./addons/longhorn
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>./productive-k3s-infra.sh<span class="w"> </span>dev<span class="w"> </span>profile<span class="w"> </span>validate<span class="w"> </span>--profile-env<span class="w"> </span>./profiles/cloud/aws-single-node/basic.env
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>./productive-k3s-infra.sh<span class="w"> </span>dev<span class="w"> </span>profile<span class="w"> </span>plan<span class="w"> </span>--profile-env<span class="w"> </span>./profiles/cloud/aws-single-node/basic.env
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>./productive-k3s-infra.sh<span class="w"> </span>dev<span class="w"> </span>profile<span class="w"> </span>apply<span class="w"> </span>--profile-env<span class="w"> </span>./profiles/cloud/aws-single-node/basic.env
+</code></pre></div>
+<p>El prefijo <code>dev</code> es la frontera explícita que mantiene disponibles los workflows source-oriented sin convertirlos en parte del contrato público de instalación.</p>
+<h2 id="modelo-de-testing">Modelo de testing<a class="headerlink" href="#modelo-de-testing" title="Permanent link">&para;</a></h2>
+<p>La arquitectura requiere tanto testing a nivel source como testing a nivel package.</p>
+<h3 id="testing-a-nivel-source">Testing a nivel source<a class="headerlink" href="#testing-a-nivel-source" title="Permanent link">&para;</a></h3>
+<p>El testing a nivel source valida flujos de authoring antes del empaquetado:</p>
+<ul>
+<li>validación del contrato del profile desde <code>.env</code> fuente</li>
+<li>ejecución del scenario desde el árbol del repositorio</li>
+<li>ciclos de CI orientados a desarrollo sin requerir un TGZ en cada iteración local</li>
+</ul>
+<h3 id="testing-a-nivel-package">Testing a nivel package<a class="headerlink" href="#testing-a-nivel-package" title="Permanent link">&para;</a></h3>
+<p>El testing a nivel package valida el comportamiento real distribuido:</p>
+<ul>
+<li>descomprimir TGZ</li>
+<li>validar metadata del paquete</li>
+<li>ejecutar el runtime contra el paquete extraído</li>
+<li>verificar que la instalación funciona sin depender del repositorio fuente</li>
+</ul>
+<p>Por eso, la suite de tests debe incluir paquetes TGZ mock o fixture tanto para:</p>
+<ul>
+<li>add-ons</li>
+<li>profiles</li>
+</ul>
+<p>Esos artefactos de test deben imitar suficientemente la estructura real del paquete para ejercitar:</p>
+<ul>
+<li>validación de empaquetado</li>
+<li>extracción</li>
+<li>delegación de comandos</li>
+<li>caminos de ejecución del runtime</li>
+</ul>
+<h2 id="reglas-arquitectonicas">Reglas arquitectónicas<a class="headerlink" href="#reglas-arquitectonicas" title="Permanent link">&para;</a></h2>
+<h3 id="el-cli-no-debe">El CLI NO debe:<a class="headerlink" href="#el-cli-no-debe" title="Permanent link">&para;</a></h3>
+<ul>
+<li>tener templates</li>
+<li>tener charts de Helm</li>
+<li>conocer proveedores cloud</li>
+<li>conocer lógica OpenTofu</li>
+<li>conocer escenarios</li>
+<li>saber cómo instalar add-ons</li>
+</ul>
+<h3 id="core-debe">Core debe:<a class="headerlink" href="#core-debe" title="Permanent link">&para;</a></h3>
+<ul>
+<li>conocer el formato de add-ons</li>
+<li>gestionar el lifecycle y hooks</li>
+<li>ejecutar Helm</li>
+<li>validar dependencias y compatibilidad</li>
+</ul>
+<h3 id="infra-debe">Infra debe:<a class="headerlink" href="#infra-debe" title="Permanent link">&para;</a></h3>
+<ul>
+<li>conocer escenarios y runtimes</li>
+<li>ejecutar OpenTofu/Ansible</li>
+<li>validar variables de runtime</li>
+<li>validar la compatibilidad del target</li>
+</ul>
+<h2 id="modelo-mental-final">Modelo mental final<a class="headerlink" href="#modelo-mental-final" title="Permanent link">&para;</a></h2>
+<p>Productive K3S = Runtime + Packages</p>
+<ul>
+<li><code>scenario</code> = motor reusable</li>
+<li><code>profile</code> = preset ejecutable</li>
+<li><code>addon</code> = extensión instalable</li>
+<li><code>tgz</code> = unidad distribuible</li>
+<li><code>catalog</code> = índice de descubrimiento</li>
+<li><code>cli</code> = orquestador mínimo</li>
+<li><code>core/infra</code> = runtimes</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../project-layout/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Organización del proyecto">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Organización del proyecto
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../testing-and-matrix/" class="md-footer__link md-footer__link--next" aria-label="Next: Tests y matriz">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Tests y matriz
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      
+      <div class="pk3s-footer-slogan">
+        
+        
+        <span
+          class="pk3s-footer-slogan__text"
+          data-pk3s-footer-slogan
+          data-pk3s-footer-slogan-en="Productive K3S Infra: deploy complete solutions on different platforms with one reusable orchestration layer."
+          data-pk3s-footer-slogan-es="Productive K3S Infra: desplega soluciones completas sobre distintas plataformas con una sola capa reutilizable de orquestacion."
+        >
+          Productive K3S Infra: desplega soluciones completas sobre distintas plataformas con una sola capa reutilizable de orquestacion.
+        </span>
+      </div>
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      <div class="pk3s-footer-meta-row pk3s-footer-meta-row--top">
+        <div class="pk3s-footer-cluster">
+          
+            <div class="pk3s-footer-social">
+              
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/productive-k3s/productive-k3s-infra" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+            </div>
+          
+          <div class="pk3s-footer-contact">
+            <a
+              href="#"
+              onclick="return false;"
+              class="pk3s-footer-contact__link"
+              data-pk3s-footer-contact-label
+              data-pk3s-footer-contact-label-en="Contact"
+              data-pk3s-footer-contact-label-es="Contacto"
+            >
+              Contacto
+            </a>
+          </div>
+        </div>
+        <form
+          class="pk3s-footer-newsletter"
+          action="#"
+          method="post"
+          data-pk3s-newsletter-form
+          data-pk3s-newsletter-api-base-url="https://productive-k3s-newsletter.jose-macchi.workers.dev"
+          data-pk3s-newsletter-success-en="Thanks for subscribing."
+          data-pk3s-newsletter-success-es="Gracias por suscribirte."
+          data-pk3s-newsletter-duplicate-en="You are already subscribed."
+          data-pk3s-newsletter-duplicate-es="Ya estabas suscripto."
+          data-pk3s-newsletter-invalid-en="Enter a valid e-mail address."
+          data-pk3s-newsletter-invalid-es="Ingresa un e-mail valido."
+          data-pk3s-newsletter-error-en="Could not submit right now. Please try again."
+          data-pk3s-newsletter-error-es="No se pudo enviar ahora. Intenta nuevamente."
+        >
+          <label
+            class="pk3s-footer-newsletter__label"
+            for="pk3s-newsletter-email"
+            data-pk3s-footer-newsletter-label
+            data-pk3s-footer-newsletter-label-en="Newsletter"
+            data-pk3s-footer-newsletter-label-es="Newsletter"
+          >
+            Newsletter
+          </label>
+          <div class="pk3s-footer-newsletter__field">
+            <input
+              id="pk3s-newsletter-email"
+              type="email"
+              name="email"
+              required
+              data-pk3s-footer-newsletter-placeholder-en="E-mail"
+              data-pk3s-footer-newsletter-placeholder-es="E-mail"
+              placeholder="E-mail"
+            />
+            <button type="submit" aria-label="Submit newsletter form">›</button>
+          </div>
+          <div
+            class="pk3s-footer-newsletter__message"
+            data-pk3s-newsletter-message
+            role="status"
+            aria-live="polite"
+          ></div>
+        </form>
+        <div class="pk3s-footer-argentina">
+          <img src="../../../../assets/images/argentina.png" alt="Argentina" />
+        </div>
+      </div>
+      <div class="pk3s-footer-meta-row pk3s-footer-meta-row--bottom">
+        <div class="pk3s-footer-credit">
+          
+          
+          <span
+            data-pk3s-footer-credit-prefix
+            data-pk3s-footer-credit-prefix-en="Made with"
+            data-pk3s-footer-credit-prefix-es="Hecho con"
+          >
+            Hecho con
+          </span>
+          <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">Material for MkDocs</a>
+        </div>
+        <div
+          class="pk3s-footer-argentina__credit"
+          data-pk3s-footer-argentina-credit
+          data-pk3s-footer-argentina-credit-en="Made in Argentina"
+          data-pk3s-footer-argentina-credit-es="Hecho en Argentina"
+        >
+          Hecho en Argentina
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.tabs", "navigation.indexes", "navigation.path", "navigation.sections", "navigation.expand", "navigation.footer", "navigation.top", "toc.follow", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
