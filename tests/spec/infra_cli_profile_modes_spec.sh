@@ -937,4 +937,110 @@ EOF
     The output should include 'scenarios/cloud/aws-single-node'
     The output should include 'up'
   End
+
+  It 'exports a packaged profile tgz as a self-contained installer bundle'
+    work_dir="$(mktemp -d)"
+    pkg_dir="${work_dir}/pkg"
+    output_dir="${work_dir}/bundle"
+    archive="${work_dir}/demo-profile.tgz"
+    mkdir -p "${pkg_dir}/scripts" "${pkg_dir}/scenarios/local/multipass"
+    cat >"${pkg_dir}/profile.env" <<'EOF'
+PK3S_INFRA_PROFILE_NAME=demo
+PK3S_INFRA_SCENARIO=multipass
+PK3S_INFRA_ENGINE=opentofu
+TF_VAR_cluster_name=demo
+TF_VAR_image=24.04
+TF_VAR_base_domain=k3s.lab.internal
+TF_VAR_remote_dir=/home/ubuntu/productive-k3s-core
+TF_VAR_server_cpus=4
+TF_VAR_server_memory=8G
+TF_VAR_server_disk=40G
+TF_VAR_agent_cpus=2
+TF_VAR_agent_memory=4G
+TF_VAR_agent_disk=30G
+EOF
+    cat >"${pkg_dir}/profile.yaml" <<'EOF'
+apiVersion: infra.productive-k3s.io/v1
+kind: Profile
+metadata:
+  name: demo
+  version: 0.1.0
+spec:
+  scenario:
+    type: multipass
+  engine:
+    type: opentofu
+  execution:
+    installScript: scripts/install.sh
+EOF
+    cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    chmod +x "${pkg_dir}/scripts/install.sh"
+    tar -czf "${archive}" -C "${pkg_dir}" .
+
+    When run bash -lc '"$1" profile export --tgz "$2" --output "$3"; printf "\n__FILES__\n"; find "$3" -maxdepth 2 -type f | sort; printf "\n__CONFIG__\n"; cat "$3/install-config.env"; printf "\n__MANIFEST__\n"; cat "$3/manifest.json"' bash "$SCRIPT" "$archive" "$output_dir"
+    The status should equal 0
+    The output should include '__FILES__'
+    The output should include 'install.sh'
+    The output should include 'profile.tgz'
+    The output should include 'install-config.env'
+    The output should include 'manifest.json'
+    The output should include '__CONFIG__'
+    The output should include "export TELEMETRY_ENABLED='false'"
+    The output should include '__MANIFEST__'
+    The output should include '"kind": "profile-tgz"'
+    The output should include '"profile_source": "packaged"'
+  End
+
+  It 'exports a source profile as a self-contained installer bundle'
+    work_dir="$(mktemp -d)"
+    profiles_repo="${work_dir}/profiles-repo"
+    profile_dir="${profiles_repo}/profiles/local/multipass"
+    scenario_dir="${profiles_repo}/scenarios/local/multipass"
+    output_dir="${work_dir}/bundle"
+    profile_env="${profile_dir}/demo.env"
+    mkdir -p "${profile_dir}" "${scenario_dir}/opentofu"
+    cat >"${profile_env}" <<'EOF'
+PK3S_INFRA_PROFILE_NAME=multipass-demo
+PK3S_INFRA_SCENARIO=multipass
+PK3S_INFRA_ENGINE=opentofu
+TF_VAR_cluster_name=demo
+TF_VAR_image=24.04
+TF_VAR_base_domain=k3s.lab.internal
+TF_VAR_remote_dir=/home/ubuntu/productive-k3s-core
+TF_VAR_server_cpus=4
+TF_VAR_server_memory=8G
+TF_VAR_server_disk=40G
+TF_VAR_agent_cpus=2
+TF_VAR_agent_memory=4G
+TF_VAR_agent_disk=30G
+EOF
+    cat >"${profile_dir}/demo.package.yaml" <<'EOF'
+inputs:
+  - name: TF_VAR_cluster_name
+    required: true
+    sensitive: false
+    source: package-default
+    description: Multipass cluster name
+EOF
+    cat >"${scenario_dir}/Makefile" <<'EOF'
+up status down:
+	@true
+EOF
+
+    When run bash -lc 'PRODUCTIVE_K3S_PROFILES_REPO_DIR="$4" "$1" export --profile "$2" --output "$3"; printf "\n__FILES__\n"; find "$3" -maxdepth 2 -type f | sort; printf "\n__MANIFEST__\n"; cat "$3/manifest.json"; printf "\n__TGZ__\n"; tar -tzf "$3/profile.tgz" | sort' bash "$SCRIPT" "$profile_env" "$output_dir" "$profiles_repo"
+    The status should equal 0
+    The output should include '__FILES__'
+    The output should include 'profile.tgz'
+    The output should include '__MANIFEST__'
+    The output should include '"kind": "source-profile"'
+    The output should include '"profile_source": "source-profile"'
+    The output should include '__TGZ__'
+    The output should include 'profile.yaml'
+    The output should include 'profile.env'
+    The output should include 'scripts/install.sh'
+    The output should include 'scenarios/local/multipass/Makefile'
+  End
 End

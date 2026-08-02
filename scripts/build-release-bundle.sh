@@ -48,6 +48,7 @@ mkdir -p "${STAGE_DIR}/${PREFIX}/scripts"
 cp "${REPO_ROOT}/scripts/productive-k3s-infra.sh" "${STAGE_DIR}/${PREFIX}/scripts/"
 cp "${REPO_ROOT}/scripts/release-config.sh" "${STAGE_DIR}/${PREFIX}/scripts/"
 cp "${REPO_ROOT}/scripts/send-telemetry-event.sh" "${STAGE_DIR}/${PREFIX}/scripts/"
+cp "${REPO_ROOT}/scripts/export-runtime.sh" "${STAGE_DIR}/${PREFIX}/scripts/"
 cat > "${STAGE_DIR}/${PREFIX}/scripts/release.env" <<EOF
 PK3S_INFRA_RELEASE_TAG=${PK3S_INFRA_RELEASE_TAG}
 PK3S_INFRA_SEMVER=${PK3S_INFRA_SEMVER}
