@@ -71,6 +71,12 @@ Semantics:
 - validates the bundled `profile status --tgz` path without using the source repo at execution time
 - destroys the created `multipass` instances during cleanup
 
+Contract reminder:
+
+- the exported bundle is self-contained with respect to Productive K3S tooling and source repos
+- it is not promised to be fully offline
+- it still depends on host prerequisites and, when applicable, external network access for `k3s`/`rke2` downloads, Helm charts, container images, and scenario-side dependencies such as `OpenTofu`, `Multipass`, SSH, or cloud APIs
+
 ## Current ShellSpec Focus
 
 - shared remote-cluster helper behavior

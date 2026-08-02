@@ -42,6 +42,7 @@ Instead of executing immediately, Infra can emit an executable bundle that:
 
 - does not require `productive-k3s-infra`, `productive-k3s-core`, `pk3s`, or source repositories on the target host
 - still may require host prerequisites and network access
+  Typical examples are downloading `k3s` or `rke2`, resolving Helm charts, pulling container images, and running scenario-side dependencies such as `OpenTofu`, `Multipass`, SSH, or cloud-provider APIs.
 - reproduces an auditable installation, not a fully offline installation
 
 For source-oriented workflows, Infra first normalizes the selected profile into an effective packaged `profile.tgz`, then exports from that package contract. The runtime behavior stays package-first even when the export originated from `--profile` or `dev profile`.

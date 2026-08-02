@@ -64,6 +64,7 @@ The exported bundle:
 
 - does not require Productive K3S tooling or source repositories on the target host
 - may still require host prerequisites and network access
+  Typical examples are downloading `k3s` or `rke2`, resolving Helm charts, pulling container images, or using scenario-side dependencies such as `OpenTofu`, `Multipass`, SSH, or cloud-provider APIs.
 - preserves the packaged profile runtime contract instead of inventing a separate install engine
 
 ## Use the development entry points
