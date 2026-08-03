@@ -5,22 +5,31 @@ REQUESTED_PRODUCTIVE_K3S_VERSION="${PRODUCTIVE_K3S_VERSION-}"
 REQUESTED_PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="${PRODUCTIVE_K3S_INFRA_REPO_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 RELEASE_ENV_FILE="${SCRIPT_DIR}/release.env"
+if [[ ! -f "${RELEASE_ENV_FILE}" && -f "${REPO_DIR}/scripts/release.env" ]]; then
+  RELEASE_ENV_FILE="${REPO_DIR}/scripts/release.env"
+fi
 if [[ -f "${RELEASE_ENV_FILE}" ]]; then
   set -a
   # shellcheck disable=SC1090
   source "${RELEASE_ENV_FILE}"
   set +a
 fi
-REPO_DIR="${PRODUCTIVE_K3S_INFRA_REPO_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 MAKE_BIN="${PRODUCTIVE_K3S_INFRA_MAKE_BIN:-make}"
 TOFU_BIN="${PRODUCTIVE_K3S_INFRA_TOFU_BIN:-}"
 VERSION="${PRODUCTIVE_K3S_INFRA_VERSION:-${PK3S_INFRA_RELEASE_TAG:-dev}}"
 PROFILES_SOURCE_REPO_DIR="${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}"
 TELEMETRY_EVENT_SENDER="${SCRIPT_DIR}/send-telemetry-event.sh"
+if [[ ! -f "${TELEMETRY_EVENT_SENDER}" && -f "${REPO_DIR}/scripts/send-telemetry-event.sh" ]]; then
+  TELEMETRY_EVENT_SENDER="${REPO_DIR}/scripts/send-telemetry-event.sh"
+fi
 TELEMETRY_MARKER="${TELEMETRY_MARKER:-pk3s-public-v1}"
 RUNTIME_SURFACE="${PK3S_INFRA_RUNTIME_SURFACE:-source-plus-package}"
 EXPORT_RUNTIME="${SCRIPT_DIR}/export-runtime.sh"
+if [[ ! -f "${EXPORT_RUNTIME}" && -f "${REPO_DIR}/scripts/export-runtime.sh" ]]; then
+  EXPORT_RUNTIME="${REPO_DIR}/scripts/export-runtime.sh"
+fi
 
 PROFILE_PATH=""
 TGZ_PATH=""

@@ -17,6 +17,7 @@ pass() {
 WORK_DIR="${TMP_DIR}/infra"
 mkdir -p "${WORK_DIR}/scripts" "${WORK_DIR}/profiles/local/test"
 cp "${ROOT_DIR}/scripts/productive-k3s-infra.sh" "${WORK_DIR}/scripts/"
+cp "${ROOT_DIR}/scripts/export-runtime.sh" "${WORK_DIR}/scripts/"
 
 SENDER_MARKER="${TMP_DIR}/sender-called"
 cat > "${WORK_DIR}/scripts/send-telemetry-event.sh" <<EOF
@@ -44,7 +45,8 @@ EOF
 
 ensure_not_called() {
   rm -f "${SENDER_MARKER}"
-  TELEMETRY_ENABLED=true PRODUCTIVE_K3S_INFRA_REPO_DIR="${WORK_DIR}" bash "${WORK_DIR}/scripts/productive-k3s-infra.sh" "$@" >/dev/null
+  TELEMETRY_ENABLED=true PRODUCTIVE_K3S_INFRA_REPO_DIR="${WORK_DIR}" PRODUCTIVE_K3S_PROFILES_REPO_DIR="${WORK_DIR}" \
+    bash "${WORK_DIR}/scripts/productive-k3s-infra.sh" "$@" >/dev/null
   [[ ! -e "${SENDER_MARKER}" ]] || fail "telemetry sender unexpectedly called for: $*"
 }
 

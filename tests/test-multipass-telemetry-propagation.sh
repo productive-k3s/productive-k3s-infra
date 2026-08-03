@@ -89,23 +89,28 @@ EOF
 chmod +x "${TEST_SCENARIO_DIR}/scripts/run_bootstrap_session.py"
 
 mkdir -p "${TMP_DIR}/bin"
-cat > "${TMP_DIR}/bin/multipass" <<'EOF'
+cat > "${TMP_DIR}/bin/ssh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ "${1:-}" == "exec" ]]; then
-  if [[ "${4:-}" == "sudo" && "${5:-}" == "cat" ]]; then
-    printf 'test-token\n'
-    exit 0
-  fi
-  if [[ "${4:-}" == "bash" && "${5:-}" == "-lc" && "${6:-}" == *"/server/node-token"* ]]; then
-    printf 'test-token\n'
-    exit 0
-  fi
+if [[ "$*" == *"/server/node-token"* ]]; then
+  printf 'test-token\n'
+  exit 0
 fi
-printf 'unexpected multipass invocation: %s\n' "$*" >&2
+printf 'unexpected ssh invocation: %s\n' "$*" >&2
 exit 1
 EOF
-chmod +x "${TMP_DIR}/bin/multipass"
+chmod +x "${TMP_DIR}/bin/ssh"
+
+cat > "${TMP_DIR}/bin/timeout" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "--foreground" ]]; then
+  shift
+fi
+shift
+exec "$@"
+EOF
+chmod +x "${TMP_DIR}/bin/timeout"
 
 export PATH="${TMP_DIR}/bin:${PATH}"
 export SCENARIO_DIR="${TEST_SCENARIO_DIR}"

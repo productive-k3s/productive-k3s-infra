@@ -72,7 +72,7 @@ remote_exec() {
   local script="$2"
 
   if [[ "${target}" == "rp5.local" && "${script}" == *"hostname -I"* ]]; then
-    printf '192.168.0.110 10.0.0.12\n'
+    printf '192.168.0.110\n'
     return 0
   fi
 
