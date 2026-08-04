@@ -77,6 +77,12 @@ force_delete_instances_by_prefix() {
   multipass purge >/dev/null 2>&1 || true
 }
 
+assert_server_namespace() {
+  local namespace="$1"
+  multipass exec "${CLUSTER_NAME}-server" -- bash -lc "sudo k3s kubectl get namespace '${namespace}' >/dev/null 2>&1" \
+    || fail "expected namespace '${namespace}' was not created on ${CLUSTER_NAME}-server"
+}
+
 prepare_profile_copy() {
   cp "${SOURCE_PROFILE}" "${PROFILE_COPY}"
   perl -0pi -e "s/^TF_VAR_cluster_name=.*/TF_VAR_cluster_name=${CLUSTER_NAME}/m" "${PROFILE_COPY}"
@@ -116,6 +122,12 @@ main() {
     PK3S_PROFILE_STATE_DIR="${STATE_DIR}" \
       bash ./productive-k3s-infra.sh profile status --tgz ./profile.tgz
   )
+
+  log "Validating exported installer stack resources"
+  assert_server_namespace cert-manager
+  assert_server_namespace longhorn-system
+  assert_server_namespace cattle-system
+  assert_server_namespace registry
 
   log "Exported profile installer flow succeeded"
 }

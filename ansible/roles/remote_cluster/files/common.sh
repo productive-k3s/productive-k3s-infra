@@ -11,7 +11,7 @@ if [[ -r "${REPO_ROOT}/scripts/release-config.sh" ]]; then
   source "${REPO_ROOT}/scripts/release-config.sh"
 else
   : "${PRODUCTIVE_K3S_SOURCE_DEFAULT:=remote}"
-  : "${PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=0.9.4}"
+  : "${PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=0.9.5}"
   : "${PRODUCTIVE_K3S_GITHUB_OWNER_DEFAULT:=productive-k3s}"
   : "${PRODUCTIVE_K3S_CORE_REPO_NAME_DEFAULT:=productive-k3s-core}"
   : "${PRODUCTIVE_K3S_ADDONS_REPO_NAME_DEFAULT:=productive-k3s-addons}"

@@ -27,7 +27,7 @@ build_bundle() {
 }
 
 FULL_ARCHIVE="${TMP_DIR}/productive-k3s-core-complete.tgz"
-build_bundle "${FULL_ARCHIVE}" "productive-k3s-core-0.9.4" \
+build_bundle "${FULL_ARCHIVE}" "productive-k3s-core-0.9.5" \
   "bundle-info.json" \
   "productive-k3s-core.sh" \
   "scripts/productive-k3s-core.sh" \
@@ -40,7 +40,7 @@ build_bundle "${FULL_ARCHIVE}" "productive-k3s-core-0.9.4" \
   "scripts/send-telemetry.sh"
 
 INCOMPLETE_ARCHIVE="${TMP_DIR}/productive-k3s-core-incomplete.tgz"
-build_bundle "${INCOMPLETE_ARCHIVE}" "productive-k3s-core-0.9.4" \
+build_bundle "${INCOMPLETE_ARCHIVE}" "productive-k3s-core-0.9.5" \
   "productive-k3s-core.sh" \
   "scripts/productive-k3s-core.sh"
 

@@ -255,6 +255,9 @@ spec:
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<EOF
 #!/usr/bin/env bash
+PACKAGE_ROOT="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1090
+source "\${PACKAGE_ROOT}/profile.env"
 printf '%s\n' "\${ONPREM_SERVER_IP}" >"${marker}"
 EOF
     chmod +x "${pkg_dir}/scripts/install.sh"
@@ -297,6 +300,9 @@ spec:
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<EOF
 #!/usr/bin/env bash
+PACKAGE_ROOT="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1090
+source "\${PACKAGE_ROOT}/profile.env"
 printf '%s\n' "\${ONPREM_SERVER_IP}" >"${marker}"
 EOF
     chmod +x "${pkg_dir}/scripts/install.sh"

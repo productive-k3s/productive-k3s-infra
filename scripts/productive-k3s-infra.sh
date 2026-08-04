@@ -1412,6 +1412,8 @@ run_install_profile_package() {
   }
   if [[ "${profile_env}" != "${package_root}/profile.env" ]]; then
     cleanup_env=1
+    cp "${profile_env}" "${package_root}/profile.env"
+    profile_env="${package_root}/profile.env"
   fi
   scenario_dir="$(packaged_profile_scenario_dir "${package_root}" "${scenario_type}")" || {
     local rc=$?
