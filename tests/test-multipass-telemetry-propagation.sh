@@ -131,6 +131,13 @@ EOF
 chmod +x "${TEST_SCENARIO_DIR}/scripts/bootstrap-server.sh"
 
 mkdir -p "${TMP_DIR}/bin"
+cat > "${TMP_DIR}/bin/multipass" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+exit 0
+EOF
+chmod +x "${TMP_DIR}/bin/multipass"
+
 cat > "${TMP_DIR}/bin/ssh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
