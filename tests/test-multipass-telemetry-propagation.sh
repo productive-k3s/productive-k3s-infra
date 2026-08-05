@@ -88,6 +88,48 @@ Path(os.environ["CAPTURE_FILE"]).write_text(json.dumps(capture, indent=2), encod
 EOF
 chmod +x "${TEST_SCENARIO_DIR}/scripts/run_bootstrap_session.py"
 
+cat > "${TEST_SCENARIO_DIR}/scripts/bootstrap-server.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+
+ensure_base_requirements
+ensure_logs_dir
+load_cluster_metadata
+export_resolved_telemetry_env
+export PRODUCTIVE_K3S_SSH_HOST="${SERVER_IP}"
+export PRODUCTIVE_K3S_SSH_USER="${SSH_USER:-ubuntu}"
+export PRODUCTIVE_K3S_SSH_PORT="${SSH_PORT:-22}"
+export PRODUCTIVE_K3S_SSH_KEY_PATH="${SSH_KEY_PATH:-}"
+export PRODUCTIVE_K3S_SSH_EXTRA_OPTS="${SSH_EXTRA_OPTS:-}"
+
+python3 "${SCRIPT_DIR}/run_bootstrap_session.py" \
+  --instance "${SERVER_NAME}" \
+  --mode server \
+  --remote-dir "${REMOTE_DIR}" \
+  --log-file "${LOG_DIR}/bootstrap-server.log"
+
+token_capture_tmp="$(mktemp)"
+trap 'rm -f "${token_capture_tmp}"' EXIT
+
+if ! ssh_exec_with_timeout "${SERVER_IP}" 30 "$(productive_k3s_remote_join_token_cmd)" > "${token_capture_tmp}" 2>/dev/null; then
+  err "failed to capture a non-empty ${PRODUCTIVE_K3S_DISTRO} server token"
+  exit 1
+fi
+
+[[ -s "${token_capture_tmp}" ]] || {
+  err "failed to capture a non-empty ${PRODUCTIVE_K3S_DISTRO} server token"
+  exit 1
+}
+
+mv "${token_capture_tmp}" "${SERVER_TOKEN_FILE}"
+printf '%s\n' "${SERVER_URL}" > "${SERVER_URL_FILE}"
+
+log "Server bootstrap completed"
+EOF
+chmod +x "${TEST_SCENARIO_DIR}/scripts/bootstrap-server.sh"
+
 mkdir -p "${TMP_DIR}/bin"
 cat > "${TMP_DIR}/bin/ssh" <<'EOF'
 #!/usr/bin/env bash
