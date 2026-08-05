@@ -4,9 +4,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 TAG_NAME="1.2.3-4.5.6"
+WORKTREE="${TMP_DIR}/infra"
 
 cleanup_tag() {
-  git -C "${ROOT_DIR}" tag -d "${TAG_NAME}" >/dev/null 2>&1 || true
+  git -C "${WORKTREE}" tag -d "${TAG_NAME}" >/dev/null 2>&1 || true
 }
 cleanup() {
   cleanup_tag
@@ -14,10 +15,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
+git clone --quiet "${ROOT_DIR}" "${WORKTREE}"
 cleanup_tag
-git -C "${ROOT_DIR}" tag "${TAG_NAME}" HEAD
+git -C "${WORKTREE}" tag "${TAG_NAME}" HEAD
 
-ARCHIVE_PATH="$(bash "${ROOT_DIR}/scripts/build-release-bundle.sh" "${TAG_NAME}" "${TMP_DIR}")"
+ARCHIVE_PATH="$(PRODUCTIVE_K3S_INFRA_REPO_DIR="${WORKTREE}" bash "${WORKTREE}/scripts/build-release-bundle.sh" "${TAG_NAME}" "${TMP_DIR}")"
 ARCHIVE_NAME="$(basename "${ARCHIVE_PATH}")"
 tar -xzf "${ARCHIVE_PATH}" -C "${TMP_DIR}"
 

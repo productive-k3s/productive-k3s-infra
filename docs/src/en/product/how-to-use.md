@@ -53,6 +53,20 @@ pk3s infra install aws-single-node-basic --env-file ./aws.env
 
 The `profile.env` embedded in a public `profile.tgz` is treated as the package base/default file, not as the final installation-specific configuration. For real installations, especially cloud and on-prem targets, provide local overrides from the invoking machine through `--env-file`.
 
+Infra can also export the same resolved installation as an executable bundle instead of running it immediately:
+
+```bash
+./productive-k3s-infra.sh profile export --tgz ./multipass-1-server-2-agents.tgz --output ./multipass-installer.tgz
+./productive-k3s-infra.sh export --profile ./profiles/local/multipass/1-server-2-agents.env --output ./multipass-installer.tgz
+```
+
+The exported bundle:
+
+- does not require Productive K3S tooling or source repositories on the target host
+- may still require host prerequisites and network access
+  Typical examples are downloading `k3s` or `rke2`, resolving Helm charts, pulling container images, or using scenario-side dependencies such as `OpenTofu`, `Multipass`, SSH, or cloud-provider APIs.
+- preserves the packaged profile runtime contract instead of inventing a separate install engine
+
 ## Use the development entry points
 
 Source-based `.env` profiles remain valid for repository development and CI. In the split model, those files come from a temporary clone or explicit checkout of `productive-k3s-profiles`, exposed to the engine through `PRODUCTIVE_K3S_PROFILES_REPO_DIR`.
@@ -64,6 +78,13 @@ export PRODUCTIVE_K3S_PROFILES_REPO_DIR=/tmp/productive-k3s-profiles
 git clone https://github.com/productive-k3s/productive-k3s-profiles.git "$PRODUCTIVE_K3S_PROFILES_REPO_DIR"
 ./productive-k3s-infra.sh dev profile validate --profile-env "$PRODUCTIVE_K3S_PROFILES_REPO_DIR/profiles/edge/on-prem/basic.env"
 make infra-validate PROFILE="$PRODUCTIVE_K3S_PROFILES_REPO_DIR/profiles/edge/on-prem/basic.env"
+```
+
+The same source-oriented surface can now also emit an executable installer bundle:
+
+```bash
+./productive-k3s-infra.sh export --profile "$PRODUCTIVE_K3S_PROFILES_REPO_DIR/profiles/local/multipass/1-server-2-agents.env" --output ./multipass-installer.tgz
+./productive-k3s-infra.sh dev profile export --profile-env "$PRODUCTIVE_K3S_PROFILES_REPO_DIR/profiles/local/multipass/1-server-2-agents.env" --output ./multipass-installer.tgz
 ```
 
 Use `dev profile validate` when you only want to check that the `.env` contract is valid. Engine-side CI should clone `productive-k3s-profiles` into a temporary workspace and run the existing integration checks so runtime changes do not silently break public profiles.

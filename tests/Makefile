@@ -30,6 +30,7 @@ PROFILES_SOURCE_SCENARIOS_DIR := $(PROFILES_SOURCE_REPO)/scenarios
 	test-k3s-engine-propagation \
 	test-aws-localstack-contract \
 	test-productive-k3s-infra-cli \
+	test-profile-export-artifact \
 	test-matrix-all
 
 test: test-unit test-lint test-format test-spell
@@ -102,6 +103,9 @@ test-aws-localstack-contract:
 
 test-productive-k3s-infra-cli:
 	bash $(DEV_WRAPPER) test-productive-k3s-infra-cli
+
+test-profile-export-artifact:
+	bash ./test-profile-export-artifact.sh
 
 test-matrix-all:
 	bash $(DEV_WRAPPER) test-matrix-all

@@ -5,29 +5,43 @@ REQUESTED_PRODUCTIVE_K3S_VERSION="${PRODUCTIVE_K3S_VERSION-}"
 REQUESTED_PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="${PRODUCTIVE_K3S_INFRA_REPO_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 RELEASE_ENV_FILE="${SCRIPT_DIR}/release.env"
+if [[ ! -f "${RELEASE_ENV_FILE}" && -f "${REPO_DIR}/scripts/release.env" ]]; then
+  RELEASE_ENV_FILE="${REPO_DIR}/scripts/release.env"
+fi
 if [[ -f "${RELEASE_ENV_FILE}" ]]; then
   set -a
   # shellcheck disable=SC1090
   source "${RELEASE_ENV_FILE}"
   set +a
 fi
-REPO_DIR="${PRODUCTIVE_K3S_INFRA_REPO_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 MAKE_BIN="${PRODUCTIVE_K3S_INFRA_MAKE_BIN:-make}"
 TOFU_BIN="${PRODUCTIVE_K3S_INFRA_TOFU_BIN:-}"
 VERSION="${PRODUCTIVE_K3S_INFRA_VERSION:-${PK3S_INFRA_RELEASE_TAG:-dev}}"
 PROFILES_SOURCE_REPO_DIR="${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}"
 TELEMETRY_EVENT_SENDER="${SCRIPT_DIR}/send-telemetry-event.sh"
+if [[ ! -f "${TELEMETRY_EVENT_SENDER}" && -f "${REPO_DIR}/scripts/send-telemetry-event.sh" ]]; then
+  TELEMETRY_EVENT_SENDER="${REPO_DIR}/scripts/send-telemetry-event.sh"
+fi
 TELEMETRY_MARKER="${TELEMETRY_MARKER:-pk3s-public-v1}"
 RUNTIME_SURFACE="${PK3S_INFRA_RUNTIME_SURFACE:-source-plus-package}"
+EXPORT_RUNTIME="${SCRIPT_DIR}/export-runtime.sh"
+if [[ ! -f "${EXPORT_RUNTIME}" && -f "${REPO_DIR}/scripts/export-runtime.sh" ]]; then
+  EXPORT_RUNTIME="${REPO_DIR}/scripts/export-runtime.sh"
+fi
 
 PROFILE_PATH=""
 TGZ_PATH=""
 OVERRIDE_ENV_PATH="${PK3S_PROFILE_OVERRIDE_ENV_FILE:-}"
+OUTPUT_PATH=""
 GLOBAL_DEBUG=0
 GLOBAL_YES=0
 GLOBAL_DRY_RUN=0
 GLOBAL_JSON=0
+
+# shellcheck disable=SC1090
+source "${EXPORT_RUNTIME}"
 
 can_use_tty() {
   [[ -t 0 && -t 1 ]]
@@ -165,7 +179,7 @@ usage() {
     cat <<'EOF'
 Usage:
   ./productive-k3s-infra.sh <command> [flags]
-  ./productive-k3s-infra.sh profile <validate|install|plan|apply|destroy|status> --tgz <file> [flags]
+  ./productive-k3s-infra.sh profile <validate|install|plan|apply|destroy|status|export> --tgz <file> [flags]
 
 Package-oriented commands:
   help
@@ -179,10 +193,12 @@ Package-oriented commands:
   profile apply --tgz <file>
   profile destroy --tgz <file>
   profile status --tgz <file>
+  profile export --tgz <file> --output <file|dir>
 
 Supported global flags:
   --tgz <file>
   --env-file <file>
+  --output <file|dir>
   --debug
   --yes
   --dry-run
@@ -194,8 +210,9 @@ EOF
   cat <<'EOF'
 Usage:
   ./productive-k3s-infra.sh <command> --profile <file> [flags]
-  ./productive-k3s-infra.sh profile <validate|install|plan|apply|destroy|status> --tgz <file> [flags]
-  ./productive-k3s-infra.sh dev profile <validate|plan|apply|destroy|status> --profile-env <file> [flags]
+  ./productive-k3s-infra.sh export --profile <file> --output <file|dir> [flags]
+  ./productive-k3s-infra.sh profile <validate|install|plan|apply|destroy|status|export> --tgz <file> [flags]
+  ./productive-k3s-infra.sh dev profile <validate|plan|apply|destroy|status|export> --profile-env <file> [flags]
   ./productive-k3s-infra.sh <scenario> [command] [make-args...]
 
 Profile-driven commands:
@@ -211,12 +228,14 @@ Profile-driven commands:
   profile apply --tgz <file>
   profile destroy --tgz <file>
   profile status --tgz <file>
+  profile export --tgz <file> --output <file|dir>
   validate-profile --profile <file>
   validate --profile <file>
   plan --profile <file>
   apply --profile <file>
   destroy --profile <file>
   status --profile <file>
+  export --profile <file> --output <file|dir>
 
 Legacy compatibility:
   multipass [command]
@@ -228,6 +247,7 @@ Supported global flags:
   --profile <file>
   --profile-env <file>
   --tgz <file>
+  --output <file|dir>
   --debug
   --yes
   --dry-run
@@ -523,6 +543,23 @@ profile_env_var_name() {
   esac
 }
 
+profile_category() {
+  case "${1:-}" in
+    multipass)
+      printf 'local\n'
+      ;;
+    onprem-basic|onprem-basic-arm)
+      printf 'edge\n'
+      ;;
+    aws-single-node)
+      printf 'cloud\n'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 command_to_target() {
   local command="$1"
   local scenario="$2"
@@ -813,6 +850,167 @@ profile_yaml_get() {
   ' "${file}"
 }
 
+profile_package_metadata_path() {
+  local profile="$1"
+  case "${profile}" in
+    *.env)
+      printf '%s\n' "${profile%.env}.package.yaml"
+      ;;
+    *)
+      die 4 "profile source metadata path could not be derived from: ${profile}"
+      ;;
+  esac
+}
+
+copy_profile_package_inputs_block() {
+  local package_metadata="$1"
+  local target_path="$2"
+  [[ -f "${package_metadata}" ]] || return 0
+  awk '
+    /^inputs:/ { in_inputs=1 }
+    in_inputs { print }
+  ' "${package_metadata}" >> "${target_path}"
+}
+
+write_source_profile_install_wrapper() {
+  local target_path="$1"
+  local scenario_type="$2"
+  local scenario_dir="$3"
+  local env_var
+  env_var="$(profile_env_var_name "${scenario_type}")"
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'set -euo pipefail\n\n'
+    printf 'PACKAGE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"\n'
+    printf 'SCENARIO_DIR="${PACKAGE_ROOT}/%s"\n' "${scenario_dir}"
+    printf 'PROFILE_ENV="${PACKAGE_ROOT}/profile.env"\n'
+    printf 'set -a\n'
+    printf 'source "${PROFILE_ENV}"\n'
+    printf 'set +a\n'
+    printf 'cd "${PACKAGE_ROOT}"\n'
+    printf 'export REPO_ROOT="${PACKAGE_ROOT}"\n'
+    printf 'export PRODUCTIVE_K3S_REPO="${PK3S_PROFILE_PACKAGE_PRODUCTIVE_K3S_REPO:-${PACKAGE_ROOT}}"\n'
+    printf 'export PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE:-remote}"\n'
+    if [[ -n "${env_var}" ]]; then
+      printf 'export %s="${PROFILE_ENV}"\n' "${env_var}"
+    fi
+    printf 'exec make -C "${SCENARIO_DIR}" up "$@"\n'
+  } > "${target_path}"
+  chmod +x "${target_path}"
+}
+
+write_source_profile_manifest() {
+  local target_path="$1"
+  local profile_name="$2"
+  local scenario_type="$3"
+  local engine_type="$4"
+  local package_metadata="$5"
+
+  {
+    printf 'apiVersion: infra.productive-k3s.io/v1\n'
+    printf 'kind: Profile\n'
+    printf 'metadata:\n'
+    printf '  name: %s\n' "${profile_name}"
+    printf '  version: exported\n'
+    printf '  category: %s\n' "$(profile_category "${scenario_type}")"
+    printf 'spec:\n'
+    printf '  scenario:\n'
+    printf '    type: %s\n' "${scenario_type}"
+    printf '  engine:\n'
+    printf '    type: %s\n' "${engine_type}"
+    printf '  execution:\n'
+    printf '    installScript: scripts/install.sh\n'
+    copy_profile_package_inputs_block "${package_metadata}" /dev/stdout
+  } > "${target_path}"
+}
+
+create_source_profile_tgz() {
+  local profile="$1"
+  local output_tgz="$2"
+  local package_root profile_name scenario_type engine_type source_repo scenario_dir_rel scenario_dir package_metadata
+
+  enforce_release_bound_productive_k3s_version
+  source_profile "${profile}"
+  enforce_release_bound_productive_k3s_version
+  validate_profile
+
+  profile_name="${PK3S_INFRA_PROFILE_NAME}"
+  scenario_type="${PK3S_INFRA_SCENARIO}"
+  engine_type="${PK3S_INFRA_ENGINE}"
+  source_repo="$(resolve_source_repo_dir)"
+  scenario_dir_rel="$(scenario_rel_dir "${scenario_type}")"
+  scenario_dir="${source_repo}/${scenario_dir_rel}"
+  package_metadata="$(profile_package_metadata_path "${profile}")"
+
+  package_root="$(mktemp -d)"
+  mkdir -p "${package_root}/scripts" "${package_root}/${scenario_dir_rel}"
+  cp "${profile}" "${package_root}/profile.env"
+  cp -R "${scenario_dir}/." "${package_root}/${scenario_dir_rel}/"
+  write_source_profile_manifest "${package_root}/profile.yaml" "${profile_name}" "${scenario_type}" "${engine_type}" "${package_metadata}"
+  write_source_profile_install_wrapper "${package_root}/scripts/install.sh" "${scenario_type}" "${scenario_dir_rel}"
+  tar -czf "${output_tgz}" -C "${package_root}" .
+  rm -rf "${package_root}"
+}
+
+run_profile_export_from_tgz() {
+  local tgz_path="$1"
+  local output_path="$2"
+  local subject_kind="${3:-profile-tgz}"
+  local subject_ref="${4:-${tgz_path}}"
+  local subject_source="${5:-packaged}"
+  local artifact_name="profile.tgz"
+  local bundle_root stage_dir has_override_env="false"
+
+  [[ -n "${output_path}" ]] || die 3 "the 'profile export' command requires --output <file|dir>"
+  [[ -f "${tgz_path}" ]] || die 3 "tgz package not found: ${tgz_path}"
+
+  export_runtime_init
+  stage_dir="$(mktemp -d)"
+  bundle_root="${stage_dir}/bundle"
+  mkdir -p "${bundle_root}"
+
+  cp "${tgz_path}" "${bundle_root}/${artifact_name}"
+  if [[ -n "${OVERRIDE_ENV_PATH}" ]]; then
+    [[ -f "${OVERRIDE_ENV_PATH}" ]] || die 4 "override env file not found: ${OVERRIDE_ENV_PATH}"
+    cp "${OVERRIDE_ENV_PATH}" "${bundle_root}/override.env"
+    has_override_env="true"
+  fi
+
+  export_runtime_set_metadata command "profile export"
+  export_runtime_set_metadata subject_kind "${subject_kind}"
+  export_runtime_set_metadata subject_ref "${subject_ref}"
+  export_runtime_set_metadata artifact_name "${artifact_name}"
+  export_runtime_set_metadata profile_source "${subject_source}"
+  export_runtime_add_env "TELEMETRY_ENABLED" "${TELEMETRY_ENABLED:-false}"
+  export_runtime_copy_infra_runtime "${REPO_DIR}" "${bundle_root}"
+  export_runtime_write_install_config "${bundle_root}/install-config.env"
+  export_runtime_write_manifest "${bundle_root}/manifest.json"
+  export_runtime_write_profile_install_script "${bundle_root}/install.sh" "${artifact_name}" "${has_override_env}"
+  export_runtime_write_readme "${bundle_root}/README.md" "${subject_ref}" "${artifact_name}"
+
+  if [[ "${output_path}" == *.tgz || "${output_path}" == *.tar.gz ]]; then
+    mkdir -p "$(dirname "${output_path}")"
+    tar -czf "${output_path}" -C "${stage_dir}" bundle
+  else
+    rm -rf "${output_path}"
+    mkdir -p "$(dirname "${output_path}")"
+    cp -R "${bundle_root}" "${output_path}"
+  fi
+
+  rm -rf "${stage_dir}"
+  log "OK" "Exported profile bundle written to: ${output_path}"
+}
+
+run_profile_export_from_source_profile() {
+  local profile="$1"
+  local output_path="$2"
+  local normalized_tgz
+  normalized_tgz="$(mktemp -t pk3s-infra-export-profile.XXXXXX.tgz)"
+  create_source_profile_tgz "${profile}" "${normalized_tgz}"
+  run_profile_export_from_tgz "${normalized_tgz}" "${output_path}" "source-profile" "${profile}" "source-profile"
+  rm -f "${normalized_tgz}"
+}
+
 profile_input_records() {
   local file="$1"
   awk '
@@ -1048,11 +1246,15 @@ profile_state_dir() {
     printf '%s\n' "${PK3S_PROFILE_STATE_DIR}"
     return 0
   fi
-  if [[ -n "${XDG_CACHE_HOME:-}" ]]; then
+  if [[ -n "${XDG_CACHE_HOME:-}" && -w "${XDG_CACHE_HOME}" ]]; then
     printf '%s\n' "${XDG_CACHE_HOME}/pk3s/profiles"
     return 0
   fi
-  printf '%s\n' "${HOME}/.cache/pk3s/profiles"
+  if [[ -d "${HOME}/.cache" && -w "${HOME}/.cache" ]]; then
+    printf '%s\n' "${HOME}/.cache/pk3s/profiles"
+    return 0
+  fi
+  printf '%s\n' "${TMPDIR:-/tmp}/pk3s/profiles"
 }
 
 profile_state_path() {
@@ -1210,6 +1412,8 @@ run_install_profile_package() {
   }
   if [[ "${profile_env}" != "${package_root}/profile.env" ]]; then
     cleanup_env=1
+    cp "${profile_env}" "${package_root}/profile.env"
+    profile_env="${package_root}/profile.env"
   fi
   scenario_dir="$(packaged_profile_scenario_dir "${package_root}" "${scenario_type}")" || {
     local rc=$?
@@ -1301,6 +1505,9 @@ run_dev_profile_command() {
     validate)
       run_validate_profile_only "${PROFILE_PATH}"
       ;;
+    export)
+      run_profile_export_from_source_profile "${PROFILE_PATH}" "${OUTPUT_PATH}"
+      ;;
     plan|apply|destroy|status)
       profile_command_dispatch "${action}" "${PROFILE_PATH}"
       ;;
@@ -1336,6 +1543,11 @@ while (($# > 0)); do
     --env-file)
       [[ $# -ge 2 ]] || die 2 "--env-file requires a value"
       OVERRIDE_ENV_PATH="$2"
+      shift 2
+      ;;
+    --output)
+      [[ $# -ge 2 ]] || die 2 "--output requires a value"
+      OUTPUT_PATH="$2"
       shift 2
       ;;
     --debug)
@@ -1413,6 +1625,10 @@ case "${COMMAND}" in
         [[ -n "${TGZ_PATH}" ]] || die 3 "the 'profile validate' command requires --tgz <file>"
         run_validate_profile_package "${TGZ_PATH}" || RC=$?
         ;;
+      export)
+        [[ -n "${TGZ_PATH}" ]] || die 3 "the 'profile export' command requires --tgz <file>"
+        run_profile_export_from_tgz "${TGZ_PATH}" "${OUTPUT_PATH}" || RC=$?
+        ;;
       install|plan|apply|destroy|status)
         [[ -n "${TGZ_PATH}" ]] || die 3 "the 'profile ${2:-}' command requires --tgz <file>"
         run_install_profile_package "${TGZ_PATH}" "${2:-}" || RC=$?
@@ -1436,6 +1652,11 @@ case "${COMMAND}" in
     require_source_surface "${COMMAND}"
     [[ -n "${PROFILE_PATH}" ]] || die 3 "the '${COMMAND}' command requires --profile <file>"
     profile_command_dispatch "${COMMAND}" "${PROFILE_PATH}" || RC=$?
+    ;;
+  export)
+    require_source_surface "${COMMAND}"
+    [[ -n "${PROFILE_PATH}" ]] || die 3 "the '${COMMAND}' command requires --profile <file>"
+    run_profile_export_from_source_profile "${PROFILE_PATH}" "${OUTPUT_PATH}" || RC=$?
     ;;
   multipass|onprem|onprem-basic|on-prem|onprem-arm|onprem-basic-arm|on-prem-arm|aws-single-node)
     require_source_surface "${COMMAND}"

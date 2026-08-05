@@ -49,9 +49,33 @@ make -C tests test-contract
 make -C tests test-live
 make -C tests test-checkstatus
 make -C tests test-clean
+make -C tests test-profile-export-artifact
 ```
 
 The root targets stay intentionally small. Scenario-specific, telemetry-specific, and maintenance targets now belong in `tests/`.
+
+## Exported profile artifact check
+
+Use this target to validate the self-contained exported-installer flow for Infra on the local workstation through `multipass`:
+
+```bash
+make -C tests test-profile-export-artifact
+```
+
+Semantics:
+
+- copies the local `multipass` source profile to a temporary env file
+- exports that profile through `productive-k3s-infra.sh export --profile ...`
+- extracts the generated installer bundle
+- runs the bundled `install.sh` locally
+- validates the bundled `profile status --tgz` path without using the source repo at execution time
+- destroys the created `multipass` instances during cleanup
+
+Contract reminder:
+
+- the exported bundle is self-contained with respect to Productive K3S tooling and source repos
+- it is not promised to be fully offline
+- it still depends on host prerequisites and, when applicable, external network access for `k3s`/`rke2` downloads, Helm charts, container images, and scenario-side dependencies such as `OpenTofu`, `Multipass`, SSH, or cloud APIs
 
 ## Current ShellSpec Focus
 

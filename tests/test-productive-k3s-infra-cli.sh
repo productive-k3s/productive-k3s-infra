@@ -109,7 +109,7 @@ assert_json_field "$BOM_INFO" '.implementation.language' 'bash'
 assert_json_field "$BOM_INFO" '.bundle.bundle_name' 'productive-k3s-infra'
 assert_json_field "$BOM_INFO" '.bundle.api_compatibility.contract' 'productive-k3s-cli-bundle-info/v1'
 assert_json_field "$BOM_INFO" '.productive_k3s.default_source' 'remote'
-assert_json_field "$BOM_INFO" '.productive_k3s.default_core_version' '0.9.4'
+assert_json_field "$BOM_INFO" '.productive_k3s.default_core_version' '0.9.5'
 assert_contains "$BOM_INFO" '"name": "bash"'
 assert_contains "$BOM_INFO" '"min_version": "5.1"'
 assert_contains "$BOM_INFO" '"name": "make"'
@@ -295,6 +295,7 @@ RELEASE_REPO="${TMP_DIR}/release-repo"
 mkdir -p "${RELEASE_REPO}/scripts" "${RELEASE_REPO}/scenarios/local/multipass"
 cp "${REPO_DIR}/productive-k3s-infra.sh" "${RELEASE_REPO}/productive-k3s-infra.sh"
 cp "${REPO_DIR}/scripts/productive-k3s-infra.sh" "${RELEASE_REPO}/scripts/productive-k3s-infra.sh"
+cp "${REPO_DIR}/scripts/export-runtime.sh" "${RELEASE_REPO}/scripts/export-runtime.sh"
 cat > "${RELEASE_REPO}/scripts/release.env" <<'EOF'
 PK3S_INFRA_RELEASE_TAG=1.2.3-4.5.6
 PK3S_INFRA_SEMVER=1.2.3

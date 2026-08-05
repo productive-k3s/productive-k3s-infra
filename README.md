@@ -31,9 +31,21 @@ Public runtime examples:
 ./productive-k3s-infra.sh bom --json
 ./productive-k3s-infra.sh profile validate --tgz ./multipass-1-server-2-agents.tgz
 ./productive-k3s-infra.sh profile install --tgz ./aws-single-node-basic.tgz --env-file ./aws.env
+./productive-k3s-infra.sh profile export --tgz ./multipass-1-server-2-agents.tgz --output ./multipass-installer.tgz
+./productive-k3s-infra.sh export --profile ./profiles/local/multipass/1-server-2-agents.env --output ./multipass-installer.tgz
 ```
 
 For packaged installs, the `profile.env` embedded in the TGZ is only the base/default contract of the package. `profile.yaml` now carries `spec.inputs` metadata that declares which values can come from package defaults and which values must be supplied locally. Using a packaged profile without local overrides only makes sense for self-contained targets such as local host-driven scenarios. Installation-specific values should be passed from the invoking machine through `--env-file`, especially for cloud and on-prem profiles.
+
+`export` is an alternate output mode for the same resolved profile contract.
+Instead of executing immediately, Infra can emit an executable bundle that:
+
+- does not require `productive-k3s-infra`, `productive-k3s-core`, `pk3s`, or source repositories on the target host
+- still may require host prerequisites and network access
+  Typical examples are downloading `k3s` or `rke2`, resolving Helm charts, pulling container images, and running scenario-side dependencies such as `OpenTofu`, `Multipass`, SSH, or cloud-provider APIs.
+- reproduces an auditable installation, not a fully offline installation
+
+For source-oriented workflows, Infra first normalizes the selected profile into an effective packaged `profile.tgz`, then exports from that package contract. The runtime behavior stays package-first even when the export originated from `--profile` or `dev profile`.
 
 Telemetry consent is only relevant for mutating public CLI flows such as `profile install`, `apply`, and `destroy`. Read-only commands like `help`, `version`, `bundle info --json`, `bom --json`, and source-surface listing/validation commands do not prompt for telemetry and do not emit command-level telemetry events.
 
@@ -52,6 +64,14 @@ For local development convenience, the root `Makefile` still exposes source-base
 - `make infra-apply PROFILE=profiles/local/multipass/1-server-2-agents.env`
 - generic scenario dispatch such as `make scenario-up SCENARIO=aws-single-node`
 - scenario shortcuts such as `make multipass`, `make onprem`, and `make aws-single-node` for direct `up` workflows
+
+The exported-profile contract is also validated locally through `multipass`:
+
+- source profile export
+- bundled `install.sh` replay
+- bundled `profile status --tgz ...` replay
+
+See [tests/README.md](./tests/README.md) and `make -C tests test-profile-export-artifact`.
 
 The root `Makefile` now stays intentionally small:
 

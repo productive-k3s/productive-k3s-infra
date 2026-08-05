@@ -7,10 +7,12 @@ HELPERS_DIR="${ROOT_DIR}/tests/helpers"
 source "${HELPERS_DIR}/profiles-source.sh"
 SCENARIO_DIR="$(profiles_scenario_dir multipass)"
 TOFU_BIN="${TOFU_BIN:-$(command -v tofu || command -v terraform || true)}"
+TOFU_APPLY_PARALLELISM="${TOFU_APPLY_PARALLELISM:-1}"
 SCENARIO_CLEANUP_TIMEOUT_SECONDS="${SCENARIO_CLEANUP_TIMEOUT_SECONDS:-120}"
 MULTIPASS_INSTANCE_REMOVAL_TIMEOUT_SECONDS="${MULTIPASS_INSTANCE_REMOVAL_TIMEOUT_SECONDS:-180}"
 MULTIPASS_INSTANCE_REMOVAL_POLL_SECONDS="${MULTIPASS_INSTANCE_REMOVAL_POLL_SECONDS:-5}"
 MULTIPASS_SCENARIO_PREFIX="${MULTIPASS_SCENARIO_PREFIX:-productive-k3s-mp}"
+MULTIPASS_LAUNCH_MAX_ATTEMPTS="${MULTIPASS_LAUNCH_MAX_ATTEMPTS:-5}"
 
 [[ -n "${TOFU_BIN}" ]] || {
   printf '[FAIL] tofu or terraform is required for multipass live tests\n' >&2
@@ -108,7 +110,10 @@ main() {
       exit 1
     }
   fi
-  make -C "${SCENARIO_DIR}" up TOFU_BIN="${TOFU_BIN}"
+  make -C "${SCENARIO_DIR}" up \
+    TOFU_BIN="${TOFU_BIN}" \
+    TOFU_APPLY_PARALLELISM="${TOFU_APPLY_PARALLELISM}" \
+    MULTIPASS_LAUNCH_MAX_ATTEMPTS="${MULTIPASS_LAUNCH_MAX_ATTEMPTS}"
   make -C "${SCENARIO_DIR}" validate
 
   printf '[PASS] multipass live test completed\n'

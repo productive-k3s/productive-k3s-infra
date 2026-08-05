@@ -32,7 +32,7 @@ source "${CONFIG}"
 set +a
 
 assert_eq "${PRODUCTIVE_K3S_SOURCE_DEFAULT}" "remote" "default source"
-assert_eq "${PRODUCTIVE_K3S_CORE_VERSION_DEFAULT}" "0.9.4" "default core version"
+assert_eq "${PRODUCTIVE_K3S_CORE_VERSION_DEFAULT}" "0.9.5" "default core version"
 assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT}" "productive-k3s/productive-k3s-core" "default core release repo"
 
 grep -q '^export PRODUCTIVE_K3S_SOURCE ?= remote$' "${MULTIPASS_SCENARIO_DIR}/Makefile" || {
@@ -55,7 +55,7 @@ grep -q '^PRODUCTIVE_K3S_SOURCE ?= remote$' "${ONPREM_ARM_SCENARIO_DIR}/Makefile
   # shellcheck disable=SC1090
   source "${MULTIPASS_SCENARIO_DIR}/scripts/common.sh"
   assert_eq "${PRODUCTIVE_K3S_SOURCE}" "remote" "multipass default source"
-  assert_eq "${PRODUCTIVE_K3S_VERSION}" "0.9.4" "multipass default core version"
+  assert_eq "${PRODUCTIVE_K3S_VERSION}" "0.9.5" "multipass default core version"
   assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO}" "productive-k3s/productive-k3s-core" "multipass default release repo"
 )
 
@@ -86,7 +86,7 @@ grep -q '^PRODUCTIVE_K3S_SOURCE ?= remote$' "${ONPREM_ARM_SCENARIO_DIR}/Makefile
   # shellcheck disable=SC1090
   source "${ROOT_DIR}/ansible/roles/remote_cluster/files/common.sh"
   assert_eq "${PRODUCTIVE_K3S_SOURCE}" "remote" "shared remote-cluster default source"
-  assert_eq "${PRODUCTIVE_K3S_VERSION}" "0.9.4" "shared remote-cluster default core version"
+  assert_eq "${PRODUCTIVE_K3S_VERSION}" "0.9.5" "shared remote-cluster default core version"
   assert_eq "${PRODUCTIVE_K3S_RELEASE_REPO}" "productive-k3s/productive-k3s-core" "shared remote-cluster default release repo"
 )
 

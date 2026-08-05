@@ -219,17 +219,37 @@ prepare_addons_repo_checkout() {
 
 prepare_profiles_repo_checkout() {
   local sibling_repo="${REPO_DIR}/../productive-k3s-profiles"
-  local clone_target repo_url repo_ref
+  local clone_target repo_url repo_ref source_repo
   TEMP_PROFILES_CLONE_DIR="$(mktemp -d)"
   trap cleanup_temp_profiles_clone EXIT
+
+  clone_local_profiles_repo() {
+    local source_repo="$1"
+    local target_repo="${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles"
+    if git -C "${source_repo}" rev-parse --git-dir >/dev/null 2>&1; then
+      git clone --quiet "${source_repo}" "${target_repo}" || {
+        printf 'failed to clone productive-k3s-profiles from local checkout %s\n' "${source_repo}" >&2
+        exit 1
+      }
+      (
+        cd "${source_repo}"
+        tar --exclude=.git -cf - .
+      ) | (
+        cd "${target_repo}"
+        tar -xf -
+      )
+    else
+      mkdir -p "${target_repo}"
+      cp -a "${source_repo}/." "${target_repo}/"
+    fi
+  }
+
   if [[ -n "${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}" ]]; then
     [[ -d "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/profiles" && -d "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/scenarios" ]] || {
       printf 'invalid PRODUCTIVE_K3S_PROFILES_REPO_DIR: %s\n' "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}" >&2
       exit 1
     }
-    mkdir -p "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles"
-    cp -a "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/." \
-      "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/"
+    clone_local_profiles_repo "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}"
   elif [[ -n "${PRODUCTIVE_K3S_PROFILES_REPO_URL:-}" || -n "${PRODUCTIVE_K3S_PROFILES_REPO_REF:-}" ]]; then
     repo_url="${PRODUCTIVE_K3S_PROFILES_REPO_URL:-${PRODUCTIVE_K3S_PROFILES_GIT_REMOTE_URL_DEFAULT}}"
     repo_ref="$(resolve_default_profiles_ref)"
@@ -242,9 +262,7 @@ prepare_profiles_repo_checkout() {
     }
   elif [[ -d "${sibling_repo}/profiles" && -d "${sibling_repo}/scenarios" ]]; then
     log "Using productive-k3s-profiles from sibling checkout: ${sibling_repo}"
-    mkdir -p "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles"
-    cp -a "${sibling_repo}/." \
-      "${TEMP_PROFILES_CLONE_DIR}/productive-k3s-profiles/"
+    clone_local_profiles_repo "${sibling_repo}"
   else
     repo_url="${PRODUCTIVE_K3S_PROFILES_REPO_URL:-${PRODUCTIVE_K3S_PROFILES_GIT_REMOTE_URL_DEFAULT}}"
     repo_ref="$(resolve_default_profiles_ref)"

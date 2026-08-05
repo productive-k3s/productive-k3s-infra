@@ -15,6 +15,15 @@ err() {
   printf '%s\n' "$*" >&2
 }
 
+git_ls_remote_safe() {
+  local remote_url="$1"
+  shift
+  (
+    cd /tmp
+    git ls-remote --tags "${remote_url}" "$@"
+  )
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${PRODUCTIVE_K3S_INFRA_REPO_DIR:-}"
 if [[ -z "${REPO_ROOT}" ]]; then
@@ -52,7 +61,7 @@ if [[ ! "${CORE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 
 core_remote_url="${PRODUCTIVE_K3S_CORE_GIT_REMOTE_URL:-https://github.com/${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT}.git}"
-remote_refs="$(git ls-remote --tags "${core_remote_url}" "refs/tags/${CORE_VERSION}" "refs/tags/v${CORE_VERSION}" || true)"
+remote_refs="$(git_ls_remote_safe "${core_remote_url}" "refs/tags/${CORE_VERSION}" "refs/tags/v${CORE_VERSION}" || true)"
 if [[ -z "${remote_refs}" ]]; then
   err "productive-k3s-core version ${CORE_VERSION} was not found in ${core_remote_url}"
   exit 1
