@@ -23,6 +23,14 @@ if (( ${#ALL_NODE_IPS[@]} > 1 )); then
   replica_count=2
 fi
 
+stack_tgz_arg=()
+if [[ "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" == "remote" ]]; then
+  log "Downloading published stack artifact from ${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}"
+  remote_exec "${SERVER_IP}" "curl -fsSL '${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}' -o '${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}'"
+  remote_exec "${SERVER_IP}" "tar -tzf '${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}' >/dev/null"
+  stack_tgz_arg=(--stack-tgz "${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}")
+fi
+
 python3 "${SCRIPT_DIR}/run_remote_bootstrap_session.py" \
   --host "${SERVER_IP}" \
   --user "${SSH_USER}" \
@@ -31,6 +39,7 @@ python3 "${SCRIPT_DIR}/run_remote_bootstrap_session.py" \
   --extra-opts "${SSH_EXTRA_OPTS}" \
   --mode stack \
   --remote-dir "${REMOTE_DIR}" \
+  "${stack_tgz_arg[@]}" \
   --base-domain "${BASE_DOMAIN}" \
   --rancher-host "${RANCHER_HOST}" \
   --registry-host "${REGISTRY_HOST}" \

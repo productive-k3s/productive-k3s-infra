@@ -109,6 +109,7 @@ def main():
     parser.add_argument("--registry-size", default="20Gi")
     parser.add_argument("--longhorn-data-path", default="/data")
     parser.add_argument("--longhorn-replica-count", type=int, default=2)
+    parser.add_argument("--stack-tgz")
     parser.add_argument("--log-file")
     args = parser.parse_args()
 
@@ -138,7 +139,13 @@ def main():
     telemetry_prefix = telemetry_env_prefix()
     if telemetry_prefix:
         remote_script += f"{telemetry_prefix} "
-    remote_script += f"./scripts/apply.sh --mode {shlex.quote(args.mode)}"
+    if args.mode == "stack" and args.stack_tgz:
+        remote_script += (
+            "unset PRODUCTIVE_K3S_ADDONS_REPO_DIR && "
+            f"./productive-k3s-core.sh stack install --tgz {shlex.quote(args.stack_tgz)}"
+        )
+    else:
+        remote_script += f"./scripts/apply.sh --mode {shlex.quote(args.mode)}"
     command.extend(
         [
             f"{args.user}@{args.host}",
