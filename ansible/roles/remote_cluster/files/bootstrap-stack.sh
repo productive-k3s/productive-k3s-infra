@@ -26,7 +26,7 @@ fi
 stack_tgz_arg=()
 if [[ "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" == "remote" ]]; then
   log "Downloading published stack artifact from ${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}"
-  remote_exec "${SERVER_IP}" "curl -fsSL '${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}' -o '${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}'"
+  remote_exec "${SERVER_IP}" "curl --fail --silent --show-error --location --retry '${PRODUCTIVE_K3S_STACK_DOWNLOAD_MAX_RETRIES}' --retry-all-errors --retry-delay 2 --connect-timeout '${PRODUCTIVE_K3S_STACK_DOWNLOAD_CONNECT_TIMEOUT_SECONDS}' --max-time '${PRODUCTIVE_K3S_STACK_DOWNLOAD_REQUEST_TIMEOUT_SECONDS}' '${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}' -o '${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}'"
   remote_exec "${SERVER_IP}" "tar -tzf '${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}' >/dev/null"
   stack_tgz_arg=(--stack-tgz "${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}")
 fi
