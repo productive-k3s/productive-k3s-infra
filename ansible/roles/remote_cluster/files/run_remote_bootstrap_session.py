@@ -210,7 +210,8 @@ def main():
 
     log_path = Path(args.log_file) if args.log_file else None
     log_handle = log_path.open("w", encoding="utf-8") if log_path else None
-    buffer = ""
+    prompt_buffer = ""
+    state_buffer = ""
     first_output_seen = False
     idle_heartbeat_count = 0
     detected_state: dict[str, str] = {}
@@ -272,16 +273,18 @@ def main():
             if log_handle:
                 log_handle.write(ch)
                 log_handle.flush()
-            buffer = (buffer + ch)[-6000:]
-            normalized_buffer = sanitize_prompt_buffer(buffer)
-            update_detected_state(detected_state, normalized_buffer)
+            prompt_buffer = (prompt_buffer + ch)[-6000:]
+            state_buffer = (state_buffer + ch)[-50000:]
+            normalized_prompt_buffer = sanitize_prompt_buffer(prompt_buffer)
+            normalized_state_buffer = sanitize_prompt_buffer(state_buffer)
+            update_detected_state(detected_state, normalized_state_buffer)
             if pending:
                 pending = prune_conflicting_prompts(pending, detected_state, log_handle)
                 matched_index = None
                 matched_prompt = None
                 matched_answer = None
                 for idx, (prompt_text, answer) in enumerate(pending):
-                    if prompt_text in normalized_buffer:
+                    if prompt_text in normalized_prompt_buffer:
                         matched_index = idx
                         matched_prompt = prompt_text
                         matched_answer = answer
@@ -299,7 +302,7 @@ def main():
                             log_handle.write(f"[auto-response] {matched_answer}\n")
                         log_handle.flush()
                     pending.pop(matched_index)
-                    buffer = ""
+                    prompt_buffer = ""
         rc = proc.wait()
         emit_info(f"remote bootstrap session exited with code {rc}", log_handle)
     finally:
