@@ -26,6 +26,7 @@ PROFILES_SOURCE_SCENARIOS_DIR := $(PROFILES_SOURCE_REPO)/scenarios
 	test-live-onprem-basic \
 	test-live-onprem-basic-arm \
 	test-live-onprem-arm \
+	test-live-gha-onprem-bootstrap \
 	test-live-gha-onprem \
 	test-k3s-engine-propagation \
 	test-aws-localstack-contract \
@@ -91,6 +92,9 @@ test-live-onprem-basic-arm:
 
 test-live-onprem-arm:
 	$(MAKE) -C $(PROFILES_SOURCE_SCENARIOS_DIR)/edge/onprem-basic-arm test-live
+
+test-live-gha-onprem-bootstrap:
+	bash ./live-onprem-basic-github-host.sh
 
 test-live-gha-onprem:
 	bash $(DEV_WRAPPER) test-live-gha-onprem
