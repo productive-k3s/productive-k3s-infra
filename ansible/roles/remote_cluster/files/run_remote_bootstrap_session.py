@@ -175,6 +175,7 @@ def main():
     log_handle = log_path.open("w", encoding="utf-8") if log_path else None
     buffer = ""
     first_output_seen = False
+    idle_heartbeat_count = 0
 
     rc = 1
     try:
@@ -188,12 +189,29 @@ def main():
             if not ready:
                 if proc.poll() is not None:
                     break
+                idle_heartbeat_count += 1
                 if pending:
                     sample = ", ".join(prompt for prompt, _ in pending[:3])
                     emit_info(
                         f"remote bootstrap heartbeat: waiting for output; pending_prompts={len(pending)} next={sample}",
                         log_handle,
                     )
+                    if first_output_seen:
+                        matched_prompt, matched_answer = pending.pop(0)
+                        if proc.stdin is None:
+                            raise RuntimeError("stdin unexpectedly unavailable")
+                        emit_info(
+                            f"proactively sending answer after idle heartbeat #{idle_heartbeat_count}: {matched_prompt}",
+                            log_handle,
+                        )
+                        proc.stdin.write(f"{matched_answer}\n")
+                        proc.stdin.flush()
+                        if log_handle:
+                            if "token" in matched_prompt.lower():
+                                log_handle.write("[proactive auto-response hidden]\n")
+                            else:
+                                log_handle.write(f"[proactive auto-response] {matched_answer}\n")
+                            log_handle.flush()
                 else:
                     emit_info("remote bootstrap heartbeat: waiting for output; no pending prompts", log_handle)
                 continue
@@ -206,6 +224,7 @@ def main():
             if not first_output_seen:
                 emit_info("remote bootstrap session produced first output byte", log_handle)
                 first_output_seen = True
+            idle_heartbeat_count = 0
             sys.stdout.write(ch)
             sys.stdout.flush()
             if log_handle:
