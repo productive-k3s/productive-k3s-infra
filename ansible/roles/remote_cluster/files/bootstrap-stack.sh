@@ -3,9 +3,17 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 COMMAND_NAME="stack-up"
+stack_artifact_local_tgz=""
+
+cleanup_stack_artifact() {
+  if [[ -n "${stack_artifact_local_tgz}" ]]; then
+    rm -f "${stack_artifact_local_tgz}"
+  fi
+}
 
 cleanup_telemetry() {
   local exit_code=$?
+  cleanup_stack_artifact
   complete_infra_command_telemetry "${exit_code}" "${COMMAND_NAME}"
 }
 
@@ -25,9 +33,22 @@ fi
 
 stack_tgz_arg=()
 if [[ "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" == "remote" ]]; then
-  log "Downloading published stack artifact from ${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}"
-  remote_exec "${SERVER_IP}" "curl --fail --silent --show-error --location --retry '${PRODUCTIVE_K3S_STACK_DOWNLOAD_MAX_RETRIES}' --retry-all-errors --retry-delay 2 --connect-timeout '${PRODUCTIVE_K3S_STACK_DOWNLOAD_CONNECT_TIMEOUT_SECONDS}' --max-time '${PRODUCTIVE_K3S_STACK_DOWNLOAD_REQUEST_TIMEOUT_SECONDS}' '${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}' -o '${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}'"
+  stack_artifact_local_tgz="$(mktemp "${GENERATED_DIR}/stack-artifact.XXXXXX.tgz")"
+  log "Downloading published stack artifact on controller from ${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}"
+  curl --fail --silent --show-error --location \
+    --retry "${PRODUCTIVE_K3S_STACK_DOWNLOAD_MAX_RETRIES}" \
+    --retry-all-errors \
+    --retry-delay 2 \
+    --connect-timeout "${PRODUCTIVE_K3S_STACK_DOWNLOAD_CONNECT_TIMEOUT_SECONDS}" \
+    --max-time "${PRODUCTIVE_K3S_STACK_DOWNLOAD_REQUEST_TIMEOUT_SECONDS}" \
+    "${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}" \
+    -o "${stack_artifact_local_tgz}"
+  tar -tzf "${stack_artifact_local_tgz}" >/dev/null
+  remote_exec "${SERVER_IP}" "rm -f '${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}'"
+  scp_to "${stack_artifact_local_tgz}" "${SERVER_IP}" "${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}"
   remote_exec "${SERVER_IP}" "tar -tzf '${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}' >/dev/null"
+  rm -f "${stack_artifact_local_tgz}"
+  stack_artifact_local_tgz=""
   stack_tgz_arg=(--stack-tgz "${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}")
 fi
 
