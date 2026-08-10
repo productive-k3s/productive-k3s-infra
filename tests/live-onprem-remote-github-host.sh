@@ -262,7 +262,7 @@ write_env_file
 
 cp "${ENV_FILE}" "${ARTIFACT_DIR}/onprem-remote.env"
 
-run_step "profile-validate" run_infra validate --profile "${ENV_FILE}"
+run_step "profile-validate" run_infra validate-profile --profile "${ENV_FILE}"
 run_step "plan" run_infra plan --profile "${ENV_FILE}"
 run_step "apply" run_infra apply --profile "${ENV_FILE}"
 run_step "status" run_infra status --profile "${ENV_FILE}"
