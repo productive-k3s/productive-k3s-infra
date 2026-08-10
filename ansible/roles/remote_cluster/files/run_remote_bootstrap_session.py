@@ -74,7 +74,7 @@ def build_prompt_map(args):
             ("Proceed with this plan?", "y"),
         ]
     if args.mode == "stack":
-        return common + [
+        return [
             ("Longhorn is already present. Leave it unchanged and continue? [optional]", "y"),
             ("Longhorn is missing. Install it now? [optional]", "y"),
             ("Rancher is already present. Leave it unchanged and continue? [optional]", "y"),
@@ -97,6 +97,7 @@ def build_prompt_map(args):
             ("Install the missing packages for Longhorn?", "y"),
             ("Enable and start 'iscsid' now?", "y"),
             ("Make Longhorn the default StorageClass?", "y"),
+            ("Proceed with this plan?", "y"),
         ]
     raise ValueError(f"unsupported mode: {args.mode}")
 
