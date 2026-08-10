@@ -265,23 +265,14 @@ def main():
                         log_handle,
                     )
                     if first_output_seen:
-                        matched_index = None
-                        matched_prompt = None
-                        matched_answer = None
-                        for idx, (prompt_text, answer) in enumerate(pending):
-                            if not prompt_is_safe_for_proactive_answer(prompt_text):
-                                continue
-                            matched_index = idx
-                            matched_prompt = prompt_text
-                            matched_answer = answer
-                            break
-                        if matched_prompt is None:
+                        matched_prompt, matched_answer = pending[0]
+                        if not prompt_is_safe_for_proactive_answer(matched_prompt):
                             emit_info(
-                                "no safe proactive prompt candidate found; waiting for explicit prompt output",
+                                "next pending prompt is not safe for proactive answer; waiting for explicit prompt output",
                                 log_handle,
                             )
                             continue
-                        pending.pop(matched_index)
+                        pending.pop(0)
                         if proc.stdin is None:
                             raise RuntimeError("stdin unexpectedly unavailable")
                         emit_info(
