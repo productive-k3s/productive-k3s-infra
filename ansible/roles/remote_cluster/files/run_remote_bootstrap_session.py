@@ -131,7 +131,6 @@ def main():
 
     command = [
         "ssh",
-        "-tt",
         "-o",
         "BatchMode=yes",
         "-o",
@@ -141,6 +140,8 @@ def main():
         "-p",
         args.port,
     ]
+    if args.mode != "stack":
+        command.insert(1, "-tt")
     if args.key_path:
         command.extend(["-i", args.key_path])
     if args.extra_opts:
@@ -180,7 +181,7 @@ def main():
     rc = 1
     try:
         emit_info(
-            f"remote bootstrap session launched for mode={args.mode} host={args.host} pending_prompts={len(pending)}",
+            f"remote bootstrap session launched for mode={args.mode} host={args.host} pending_prompts={len(pending)} tty={'forced' if args.mode != 'stack' else 'disabled'}",
             log_handle,
         )
         emit_info(f"ssh pid={proc.pid}", log_handle)
