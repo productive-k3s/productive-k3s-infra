@@ -35,14 +35,19 @@ stack_tgz_arg=()
 if [[ "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" == "remote" ]]; then
   stack_artifact_local_tgz="$(mktemp "${GENERATED_DIR}/stack-artifact.XXXXXX.tgz")"
   log "Downloading published stack artifact on controller from ${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}"
-  curl --fail --silent --show-error --location \
-    --retry "${PRODUCTIVE_K3S_STACK_DOWNLOAD_MAX_RETRIES}" \
-    --retry-all-errors \
-    --retry-delay 2 \
-    --connect-timeout "${PRODUCTIVE_K3S_STACK_DOWNLOAD_CONNECT_TIMEOUT_SECONDS}" \
-    --max-time "${PRODUCTIVE_K3S_STACK_DOWNLOAD_REQUEST_TIMEOUT_SECONDS}" \
-    "${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}" \
-    -o "${stack_artifact_local_tgz}"
+  log "Controller download started at $(date -Iseconds)"
+  timeout --foreground "$((PRODUCTIVE_K3S_STACK_DOWNLOAD_REQUEST_TIMEOUT_SECONDS + 30))" \
+    curl --fail --silent --show-error --location \
+      --retry "${PRODUCTIVE_K3S_STACK_DOWNLOAD_MAX_RETRIES}" \
+      --retry-all-errors \
+      --retry-delay 2 \
+      --connect-timeout "${PRODUCTIVE_K3S_STACK_DOWNLOAD_CONNECT_TIMEOUT_SECONDS}" \
+      --max-time "${PRODUCTIVE_K3S_STACK_DOWNLOAD_REQUEST_TIMEOUT_SECONDS}" \
+      --write-out '\n[INFO] curl stats: code=%{http_code} dns=%{time_namelookup}s connect=%{time_connect}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s total=%{time_total}s size=%{size_download} bytes speed=%{speed_download} bytes/s\n' \
+      "${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}" \
+      -o "${stack_artifact_local_tgz}"
+  log "Controller download finished at $(date -Iseconds)"
+  log "Controller download stored at ${stack_artifact_local_tgz} ($(wc -c < "${stack_artifact_local_tgz}") bytes)"
   tar -tzf "${stack_artifact_local_tgz}" >/dev/null
   remote_exec "${SERVER_IP}" "rm -f '${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}'"
   scp_to "${stack_artifact_local_tgz}" "${SERVER_IP}" "${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}"
