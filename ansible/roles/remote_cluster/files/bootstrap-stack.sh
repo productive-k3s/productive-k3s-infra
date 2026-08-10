@@ -37,7 +37,7 @@ if [[ "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" == "remote" ]]; then
   log "Downloading published stack artifact on controller from ${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}"
   log "Controller download started at $(date -Iseconds)"
   timeout --foreground "$((PRODUCTIVE_K3S_STACK_DOWNLOAD_REQUEST_TIMEOUT_SECONDS + 30))" \
-    curl --fail --silent --show-error --location \
+  curl --fail --silent --show-error --location \
       --retry "${PRODUCTIVE_K3S_STACK_DOWNLOAD_MAX_RETRIES}" \
       --retry-all-errors \
       --retry-delay 2 \
@@ -48,15 +48,21 @@ if [[ "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" == "remote" ]]; then
       -o "${stack_artifact_local_tgz}"
   log "Controller download finished at $(date -Iseconds)"
   log "Controller download stored at ${stack_artifact_local_tgz} ($(wc -c < "${stack_artifact_local_tgz}") bytes)"
+  log "Preparing remote destination ${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}"
   tar -tzf "${stack_artifact_local_tgz}" >/dev/null
   remote_exec "${SERVER_IP}" "rm -f '${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}'"
+  log "Uploading stack artifact to remote host ${SERVER_IP}"
   scp_to "${stack_artifact_local_tgz}" "${SERVER_IP}" "${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}"
+  log "Remote upload finished at $(date -Iseconds)"
+  log "Validating remote stack artifact at ${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}"
   remote_exec "${SERVER_IP}" "tar -tzf '${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}' >/dev/null"
+  log "Remote stack artifact validation finished at $(date -Iseconds)"
   rm -f "${stack_artifact_local_tgz}"
   stack_artifact_local_tgz=""
   stack_tgz_arg=(--stack-tgz "${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}")
 fi
 
+log "Starting remote stack bootstrap session"
 python3 "${SCRIPT_DIR}/run_remote_bootstrap_session.py" \
   --host "${SERVER_IP}" \
   --user "${SSH_USER}" \
@@ -74,6 +80,7 @@ python3 "${SCRIPT_DIR}/run_remote_bootstrap_session.py" \
   --longhorn-data-path "/data" \
   --longhorn-replica-count "${replica_count}" \
   --log-file "${LOG_DIR}/bootstrap-stack.log"
+log "Remote stack bootstrap session completed"
 
 "${SCRIPT_DIR}/reconcile-cluster-defaults.sh"
 
