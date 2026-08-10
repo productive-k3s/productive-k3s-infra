@@ -26,6 +26,7 @@ TELEMETRY_ENV_KEYS = [
 ]
 
 ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+DETECTED_STATE_RE = re.compile(r"-\s+(k3s|helm|Longhorn|Rancher|Registry):\s+(present|missing)")
 
 
 def sanitize_prompt_buffer(value: str) -> str:
@@ -55,23 +56,38 @@ def emit_info(message: str, log_handle=None) -> None:
         log_handle.flush()
 
 
-def prompt_conflicts_with_detected_state(prompt_text: str, normalized_buffer: str) -> bool:
+def update_detected_state(detected_state: dict[str, str], normalized_buffer: str) -> None:
+    for component, state in DETECTED_STATE_RE.findall(normalized_buffer):
+        detected_state[component] = state
+
+
+def prompt_conflicts_with_detected_state(prompt_text: str, detected_state: dict[str, str]) -> bool:
     checks = [
-        ("Existing k3s installation detected. Continue using it without changes? [required]", "- k3s: missing"),
-        ("k3s was not detected. Install it now? [required]", "- k3s: present"),
-        ("Helm is already installed. Continue using it without changes? [required]", "- helm: missing"),
-        ("Helm was not detected. Install it now? [required]", "- helm: present"),
-        ("Longhorn is already present. Leave it unchanged and continue? [optional]", "- Longhorn: missing"),
-        ("Longhorn is missing. Install it now? [optional]", "- Longhorn: present"),
-        ("Rancher is already present. Leave it unchanged and continue? [optional]", "- Rancher: missing"),
-        ("Rancher is missing. Install it now? [optional]", "- Rancher: present"),
-        ("The in-cluster registry is already present. Leave it unchanged and continue? [optional]", "- Registry: missing"),
-        ("The in-cluster registry is missing. Install it now? [optional]", "- Registry: present"),
+        ("Existing k3s installation detected. Continue using it without changes? [required]", "k3s", "missing"),
+        ("k3s was not detected. Install it now? [required]", "k3s", "present"),
+        ("Helm is already installed. Continue using it without changes? [required]", "helm", "missing"),
+        ("Helm was not detected. Install it now? [required]", "helm", "present"),
+        ("Longhorn is already present. Leave it unchanged and continue? [optional]", "Longhorn", "missing"),
+        ("Longhorn is missing. Install it now? [optional]", "Longhorn", "present"),
+        ("Rancher is already present. Leave it unchanged and continue? [optional]", "Rancher", "missing"),
+        ("Rancher is missing. Install it now? [optional]", "Rancher", "present"),
+        ("The in-cluster registry is already present. Leave it unchanged and continue? [optional]", "Registry", "missing"),
+        ("The in-cluster registry is missing. Install it now? [optional]", "Registry", "present"),
     ]
-    for prompt_prefix, state_marker in checks:
-        if prompt_text == prompt_prefix and state_marker in normalized_buffer:
+    for prompt_prefix, component, conflict_state in checks:
+        if prompt_text == prompt_prefix and detected_state.get(component) == conflict_state:
             return True
     return False
+
+
+def prune_conflicting_prompts(pending: list[tuple[str, str]], detected_state: dict[str, str], log_handle=None) -> list[tuple[str, str]]:
+    kept: list[tuple[str, str]] = []
+    for prompt_text, answer in pending:
+        if prompt_conflicts_with_detected_state(prompt_text, detected_state):
+            emit_info(f"skipping conflicting prompt based on detected state: {prompt_text}", log_handle)
+            continue
+        kept.append((prompt_text, answer))
+    return kept
 
 
 def build_prompt_map(args):
@@ -197,6 +213,7 @@ def main():
     buffer = ""
     first_output_seen = False
     idle_heartbeat_count = 0
+    detected_state: dict[str, str] = {}
 
     rc = 1
     try:
@@ -212,38 +229,17 @@ def main():
                     break
                 idle_heartbeat_count += 1
                 if pending:
+                    pending = prune_conflicting_prompts(pending, detected_state, log_handle)
+                    if not pending:
+                        emit_info("remote bootstrap heartbeat: no pending prompts remain after pruning", log_handle)
+                        continue
                     sample = ", ".join(prompt for prompt, _ in pending[:3])
                     emit_info(
                         f"remote bootstrap heartbeat: waiting for output; pending_prompts={len(pending)} next={sample}",
                         log_handle,
                     )
                     if first_output_seen:
-                        matched_index = None
-                        matched_prompt = None
-                        matched_answer = None
-                        skipped_prompts = []
-                        for idx, (prompt_text, answer) in enumerate(pending):
-                            if prompt_conflicts_with_detected_state(prompt_text, normalized_buffer):
-                                skipped_prompts.append(prompt_text)
-                                continue
-                            matched_index = idx
-                            matched_prompt = prompt_text
-                            matched_answer = answer
-                            break
-                        if skipped_prompts:
-                            for skipped_prompt in skipped_prompts:
-                                emit_info(
-                                    f"skipping conflicting prompt based on detected state: {skipped_prompt}",
-                                    log_handle,
-                                )
-                                pending = [entry for entry in pending if entry[0] != skipped_prompt]
-                        if matched_prompt is None:
-                            emit_info(
-                                "no safe proactive prompt candidate found; waiting for more output",
-                                log_handle,
-                            )
-                            continue
-                        pending.pop(matched_index)
+                        matched_prompt, matched_answer = pending.pop(0)
                         if proc.stdin is None:
                             raise RuntimeError("stdin unexpectedly unavailable")
                         emit_info(
@@ -278,7 +274,9 @@ def main():
                 log_handle.flush()
             buffer = (buffer + ch)[-6000:]
             normalized_buffer = sanitize_prompt_buffer(buffer)
+            update_detected_state(detected_state, normalized_buffer)
             if pending:
+                pending = prune_conflicting_prompts(pending, detected_state, log_handle)
                 matched_index = None
                 matched_prompt = None
                 matched_answer = None
