@@ -90,6 +90,32 @@ def prune_conflicting_prompts(pending: list[tuple[str, str]], detected_state: di
     return kept
 
 
+def prompt_is_safe_for_proactive_answer(prompt_text: str) -> bool:
+    safe_prefixes = [
+        "Existing k3s installation detected. Continue using it without changes?",
+        "k3s was not detected. Install it now?",
+        "Helm is already installed. Continue using it without changes?",
+        "Helm was not detected. Install it now?",
+        "Existing k3s agent installation detected. Continue using it without changes?",
+        "k3s agent was not detected. Install it now?",
+        "Longhorn is already present. Leave it unchanged and continue?",
+        "Longhorn is missing. Install it now?",
+        "Rancher is already present. Leave it unchanged and continue?",
+        "Rancher is missing. Install it now?",
+        "The in-cluster registry is already present. Leave it unchanged and continue?",
+        "The in-cluster registry is missing. Install it now?",
+        "cert-manager is missing. Install it now?",
+        "Do you want to enable basic auth on the in-cluster registry?",
+        "ClusterIssuer 'selfsigned' is missing. Create it now?",
+        "Longhorn preflight found warnings. Continue anyway?",
+        "Install the missing packages for Longhorn?",
+        "Enable and start 'iscsid' now?",
+        "Make Longhorn the default StorageClass?",
+        "Proceed with this plan?",
+    ]
+    return any(prompt_text.startswith(prefix) for prefix in safe_prefixes)
+
+
 def build_prompt_map(args):
     common = [
         ("Existing k3s installation detected. Continue using it without changes? [required]", "y"),
@@ -240,7 +266,23 @@ def main():
                         log_handle,
                     )
                     if first_output_seen:
-                        matched_prompt, matched_answer = pending.pop(0)
+                        matched_index = None
+                        matched_prompt = None
+                        matched_answer = None
+                        for idx, (prompt_text, answer) in enumerate(pending):
+                            if not prompt_is_safe_for_proactive_answer(prompt_text):
+                                continue
+                            matched_index = idx
+                            matched_prompt = prompt_text
+                            matched_answer = answer
+                            break
+                        if matched_prompt is None:
+                            emit_info(
+                                "no safe proactive prompt candidate found; waiting for explicit prompt output",
+                                log_handle,
+                            )
+                            continue
+                        pending.pop(matched_index)
                         if proc.stdin is None:
                             raise RuntimeError("stdin unexpectedly unavailable")
                         emit_info(
