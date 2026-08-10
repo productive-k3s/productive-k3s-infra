@@ -55,6 +55,25 @@ def emit_info(message: str, log_handle=None) -> None:
         log_handle.flush()
 
 
+def prompt_conflicts_with_detected_state(prompt_text: str, normalized_buffer: str) -> bool:
+    checks = [
+        ("Existing k3s installation detected. Continue using it without changes? [required]", "- k3s: missing"),
+        ("k3s was not detected. Install it now? [required]", "- k3s: present"),
+        ("Helm is already installed. Continue using it without changes? [required]", "- helm: missing"),
+        ("Helm was not detected. Install it now? [required]", "- helm: present"),
+        ("Longhorn is already present. Leave it unchanged and continue? [optional]", "- Longhorn: missing"),
+        ("Longhorn is missing. Install it now? [optional]", "- Longhorn: present"),
+        ("Rancher is already present. Leave it unchanged and continue? [optional]", "- Rancher: missing"),
+        ("Rancher is missing. Install it now? [optional]", "- Rancher: present"),
+        ("The in-cluster registry is already present. Leave it unchanged and continue? [optional]", "- Registry: missing"),
+        ("The in-cluster registry is missing. Install it now? [optional]", "- Registry: present"),
+    ]
+    for prompt_prefix, state_marker in checks:
+        if prompt_text == prompt_prefix and state_marker in normalized_buffer:
+            return True
+    return False
+
+
 def build_prompt_map(args):
     common = [
         ("Existing k3s installation detected. Continue using it without changes? [required]", "y"),
@@ -92,6 +111,7 @@ def build_prompt_map(args):
             ("Choose TLS mode (1/2)", "2"),
             ("Longhorn data mount path", args.longhorn_data_path),
             ("Longhorn default replica count (1 for single-node)", str(args.longhorn_replica_count)),
+            ("Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)", "10"),
             ("ClusterIssuer 'selfsigned' is missing. Create it now?", "y"),
             ("Longhorn preflight found warnings. Continue anyway?", "y"),
             ("Install the missing packages for Longhorn?", "y"),
@@ -198,7 +218,32 @@ def main():
                         log_handle,
                     )
                     if first_output_seen:
-                        matched_prompt, matched_answer = pending.pop(0)
+                        matched_index = None
+                        matched_prompt = None
+                        matched_answer = None
+                        skipped_prompts = []
+                        for idx, (prompt_text, answer) in enumerate(pending):
+                            if prompt_conflicts_with_detected_state(prompt_text, normalized_buffer):
+                                skipped_prompts.append(prompt_text)
+                                continue
+                            matched_index = idx
+                            matched_prompt = prompt_text
+                            matched_answer = answer
+                            break
+                        if skipped_prompts:
+                            for skipped_prompt in skipped_prompts:
+                                emit_info(
+                                    f"skipping conflicting prompt based on detected state: {skipped_prompt}",
+                                    log_handle,
+                                )
+                                pending = [entry for entry in pending if entry[0] != skipped_prompt]
+                        if matched_prompt is None:
+                            emit_info(
+                                "no safe proactive prompt candidate found; waiting for more output",
+                                log_handle,
+                            )
+                            continue
+                        pending.pop(matched_index)
                         if proc.stdin is None:
                             raise RuntimeError("stdin unexpectedly unavailable")
                         emit_info(
