@@ -2,6 +2,7 @@
 import argparse
 import os
 import re
+import select
 import shlex
 import subprocess
 import sys
@@ -43,6 +44,15 @@ def telemetry_env_prefix():
             continue
         assignments.append(f"{key}={shlex.quote(value)}")
     return " ".join(assignments)
+
+
+def emit_info(message: str, log_handle=None) -> None:
+    line = f"[INFO] {message}\n"
+    sys.stdout.write(line)
+    sys.stdout.flush()
+    if log_handle:
+        log_handle.write(line)
+        log_handle.flush()
 
 
 def build_prompt_map(args):
@@ -165,15 +175,38 @@ def main():
     log_path = Path(args.log_file) if args.log_file else None
     log_handle = log_path.open("w", encoding="utf-8") if log_path else None
     buffer = ""
+    first_output_seen = False
 
     rc = 1
     try:
+        emit_info(
+            f"remote bootstrap session launched for mode={args.mode} host={args.host} pending_prompts={len(pending)}",
+            log_handle,
+        )
+        emit_info(f"ssh pid={proc.pid}", log_handle)
         while True:
+            ready, _, _ = select.select([proc.stdout], [], [], 15)
+            if not ready:
+                if proc.poll() is not None:
+                    break
+                if pending:
+                    sample = ", ".join(prompt for prompt, _ in pending[:3])
+                    emit_info(
+                        f"remote bootstrap heartbeat: waiting for output; pending_prompts={len(pending)} next={sample}",
+                        log_handle,
+                    )
+                else:
+                    emit_info("remote bootstrap heartbeat: waiting for output; no pending prompts", log_handle)
+                continue
+
             ch = proc.stdout.read(1)
             if ch == "" and proc.poll() is not None:
                 break
             if ch == "":
                 continue
+            if not first_output_seen:
+                emit_info("remote bootstrap session produced first output byte", log_handle)
+                first_output_seen = True
             sys.stdout.write(ch)
             sys.stdout.flush()
             if log_handle:
@@ -194,6 +227,7 @@ def main():
                 if matched_prompt is not None:
                     if proc.stdin is None:
                         raise RuntimeError("stdin unexpectedly unavailable")
+                    emit_info(f"auto-responding to prompt: {matched_prompt}", log_handle)
                     proc.stdin.write(f"{matched_answer}\n")
                     proc.stdin.flush()
                     if log_handle:
@@ -205,6 +239,7 @@ def main():
                     pending.pop(matched_index)
                     buffer = ""
         rc = proc.wait()
+        emit_info(f"remote bootstrap session exited with code {rc}", log_handle)
     finally:
         if log_handle:
             log_handle.close()
