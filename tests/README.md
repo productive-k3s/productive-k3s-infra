@@ -50,6 +50,8 @@ make -C tests test-live
 make -C tests test-checkstatus
 make -C tests test-clean
 make -C tests test-profile-export-artifact
+make -C tests test-live-gha-onprem
+make -C tests test-live-gha-onprem-bootstrap
 ```
 
 The root targets stay intentionally small. Scenario-specific, telemetry-specific, and maintenance targets now belong in `tests/`.
@@ -76,6 +78,23 @@ Contract reminder:
 - the exported bundle is self-contained with respect to Productive K3S tooling and source repos
 - it is not promised to be fully offline
 - it still depends on host prerequisites and, when applicable, external network access for `k3s`/`rke2` downloads, Helm charts, container images, and scenario-side dependencies such as `OpenTofu`, `Multipass`, SSH, or cloud APIs
+
+## GitHub-hosted on-prem live checks
+
+Use these targets when you want the GitHub-hosted runner to behave as the remote `onprem-basic` host:
+
+```bash
+make -C tests test-live-gha-onprem
+make -C tests test-live-gha-onprem-bootstrap
+```
+
+Semantics:
+
+- `test-live-gha-onprem` is the full-stack validation path
+- it runs `validate-profile`, `plan`, `apply`, `status`, and `validate`
+- it exercises `cluster-up`, `bootstrap-server`, `bootstrap-agents`, `bootstrap-stack`, and `validate-cluster`
+- it is intended to catch remote stack/bootstrap regressions in `infra` before they surface in downstream `cli` CI
+- `test-live-gha-onprem-bootstrap` is the smaller smoke path that validates remote host preparation and base cluster bootstrap only
 
 ## Current ShellSpec Focus
 

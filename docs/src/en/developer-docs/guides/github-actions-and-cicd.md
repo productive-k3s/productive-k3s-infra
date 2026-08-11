@@ -8,7 +8,8 @@ This repository has a CI-friendly validation model and now includes a post-merge
 - structured `static`, `contract`, and `live` levels
 - anonymous JSON artifacts under `test-artifacts/` for run evidence, including per-scenario manifests and matrix summaries
 - a clear split between operator entry points and implementation scripts
-- a dedicated `test-live-gha-onprem` target that treats the GitHub runner as the remote `onprem-basic` host
+- a dedicated `test-live-gha-onprem` target that treats the GitHub runner as the remote `onprem-basic` host and runs the full profile lifecycle
+- a smaller `test-live-gha-onprem-bootstrap` smoke target for remote host preparation and base cluster bootstrap only
 - a tag-driven release workflow for `productive-k3s-infra-cli.sh`
 
 ## Release tags
@@ -72,9 +73,9 @@ The checked-in workflow still benefits from documenting the CI/CD contract becau
 
 ## Current public workflow
 
-The repository includes `.github/workflows/post-merge-onprem-github-host.yml`.
+The repository includes `.github/workflows/pr-validation.yml`.
 
-That workflow runs when a pull request targeting `main` is closed in the merged state. It:
+That workflow runs for pull requests targeting `main` and in manual `workflow_dispatch` mode. It:
 
 1. runs `make test-static`
 2. runs `make test-contract`
@@ -82,6 +83,16 @@ That workflow runs when a pull request targeting `main` is closed in the merged 
 4. runs `make test-live-gha-onprem`
 
 The live job prepares `openssh-server` on the GitHub-hosted runner and then exercises `scenarios/edge/onprem-basic` against `127.0.0.1` as a single-node remote host.
+
+That hosted target is now the full-stack remote on-prem validation path. It runs:
+
+- `validate-profile`
+- `plan`
+- `apply`
+- `status`
+- `validate`
+
+As a result, it covers both base cluster bootstrap and the shared remote stack path (`cert-manager`, `longhorn`, `rancher`, and `registry`) before downstream consumers such as `productive-k3s-cli` exercise the same contract.
 
 When the checked out sibling `productive-k3s-core` revision already includes `scripts/preflight-host.sh`, that same hosted path also exercises the remote Productive K3S Core host preflight before bootstrap starts.
 
