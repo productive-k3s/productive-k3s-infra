@@ -38,6 +38,7 @@ Development commands:
   test-live-scenario
   test-live-onprem-basic
   test-live-onprem-basic-arm
+  test-live-gha-onprem-bootstrap
   test-live-gha-onprem
   test-k3s-engine-propagation
   test-productive-k3s-infra-cli
@@ -348,6 +349,7 @@ run_local_bash_suite() {
   bash "${TESTS_DIR}/test-live-onprem-basic-cleanup-timeout.sh"
   bash "${TESTS_DIR}/test-live-onprem-basic-launch-recovery-hints.sh"
   bash -n "${TESTS_DIR}/live-onprem-basic-github-host.sh"
+  bash -n "${TESTS_DIR}/live-onprem-remote-github-host.sh"
 }
 
 COMMAND="$1"
@@ -477,9 +479,13 @@ case "$COMMAND" in
     export SCENARIO_DIR="${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/scenarios/edge/onprem-basic-arm"
     exec "${TESTS_DIR}/live-onprem-basic.sh" "$@"
     ;;
-  test-live-gha-onprem)
+  test-live-gha-onprem-bootstrap)
     prepare_profiles_repo_checkout
     exec "${TESTS_DIR}/live-onprem-basic-github-host.sh" "$@"
+    ;;
+  test-live-gha-onprem)
+    prepare_profiles_repo_checkout
+    exec "${TESTS_DIR}/live-onprem-remote-github-host.sh" "$@"
     ;;
   test-k3s-engine-propagation)
     exec bash "${TESTS_DIR}/test-k3s-engine-propagation.sh" "$@"

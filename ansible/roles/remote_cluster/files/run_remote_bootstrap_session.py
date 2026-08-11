@@ -2,6 +2,7 @@
 import argparse
 import os
 import re
+import select
 import shlex
 import subprocess
 import sys
@@ -25,6 +26,7 @@ TELEMETRY_ENV_KEYS = [
 ]
 
 ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+DETECTED_STATE_RE = re.compile(r"-\s+(k3s|helm|Longhorn|Rancher|Registry):\s+(present|missing)")
 
 
 def sanitize_prompt_buffer(value: str) -> str:
@@ -43,6 +45,97 @@ def telemetry_env_prefix():
             continue
         assignments.append(f"{key}={shlex.quote(value)}")
     return " ".join(assignments)
+
+
+def emit_info(message: str, log_handle=None) -> None:
+    line = f"[INFO] {message}\n"
+    sys.stdout.write(line)
+    sys.stdout.flush()
+    if log_handle:
+        log_handle.write(line)
+        log_handle.flush()
+
+
+def update_detected_state(detected_state: dict[str, str], normalized_buffer: str) -> None:
+    for component, state in DETECTED_STATE_RE.findall(normalized_buffer):
+        detected_state[component] = state
+
+
+def prompt_conflicts_with_detected_state(prompt_text: str, detected_state: dict[str, str]) -> bool:
+    checks = [
+        ("Existing k3s installation detected. Continue using it without changes? [required]", "k3s", "missing"),
+        ("k3s was not detected. Install it now? [required]", "k3s", "present"),
+        ("Helm is already installed. Continue using it without changes? [required]", "helm", "missing"),
+        ("Helm was not detected. Install it now? [required]", "helm", "present"),
+        ("Longhorn is already present. Leave it unchanged and continue? [optional]", "Longhorn", "missing"),
+        ("Longhorn is missing. Install it now? [optional]", "Longhorn", "present"),
+        ("Rancher is already present. Leave it unchanged and continue? [optional]", "Rancher", "missing"),
+        ("Rancher is missing. Install it now? [optional]", "Rancher", "present"),
+        ("The in-cluster registry is already present. Leave it unchanged and continue? [optional]", "Registry", "missing"),
+        ("The in-cluster registry is missing. Install it now? [optional]", "Registry", "present"),
+    ]
+    for prompt_prefix, component, conflict_state in checks:
+        if prompt_text == prompt_prefix and detected_state.get(component) == conflict_state:
+            return True
+    return False
+
+
+def prune_conflicting_prompts(pending: list[tuple[str, str]], detected_state: dict[str, str], log_handle=None) -> list[tuple[str, str]]:
+    kept: list[tuple[str, str]] = []
+    for prompt_text, answer in pending:
+        if prompt_conflicts_with_detected_state(prompt_text, detected_state):
+            emit_info(f"skipping conflicting prompt based on detected state: {prompt_text}", log_handle)
+            continue
+        kept.append((prompt_text, answer))
+    return kept
+
+
+def prompt_is_safe_for_proactive_answer(prompt_text: str) -> bool:
+    safe_prefixes = [
+        "Existing k3s installation detected. Continue using it without changes?",
+        "k3s was not detected. Install it now?",
+        "Helm is already installed. Continue using it without changes?",
+        "Helm was not detected. Install it now?",
+        "Existing k3s agent installation detected. Continue using it without changes?",
+        "k3s agent was not detected. Install it now?",
+        "Longhorn is already present. Leave it unchanged and continue?",
+        "Longhorn is missing. Install it now?",
+        "Rancher is already present. Leave it unchanged and continue?",
+        "Rancher is missing. Install it now?",
+        "The in-cluster registry is already present. Leave it unchanged and continue?",
+        "The in-cluster registry is missing. Install it now?",
+        "cert-manager is missing. Install it now?",
+        "Do you want to enable basic auth on the in-cluster registry?",
+        "ClusterIssuer 'selfsigned' is missing. Create it now?",
+        "Longhorn preflight found warnings. Continue anyway?",
+        "Install the missing packages for Longhorn?",
+        "Enable and start 'iscsid' now?",
+        "Make Longhorn the default StorageClass?",
+        "Proceed with this plan?",
+    ]
+    return any(prompt_text.startswith(prefix) for prefix in safe_prefixes)
+
+
+def prompt_uses_ordered_detail_fallback(prompt_text: str) -> bool:
+    ordered_detail_prefixes = [
+        "Base domain (used to build hostnames)",
+        "Choose TLS mode (1/2)",
+        "Longhorn data mount path",
+        "Longhorn default replica count (1 for single-node)",
+        "Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)",
+        "Make Longhorn the default StorageClass?",
+        "Rancher hostname (DNS name)",
+        "Rancher bootstrap password",
+        "Registry hostname (DNS name)",
+        "Registry PVC size",
+        "Registry StorageClass (blank uses cluster default)",
+        "Do you want to enable basic auth on the in-cluster registry?",
+        "Longhorn preflight found warnings. Continue anyway?",
+        "Install the missing packages for Longhorn?",
+        "Enable and start 'iscsid' now?",
+        "Proceed with this plan?",
+    ]
+    return any(prompt_text.startswith(prefix) for prefix in ordered_detail_prefixes)
 
 
 def build_prompt_map(args):
@@ -64,7 +157,7 @@ def build_prompt_map(args):
             ("Proceed with this plan?", "y"),
         ]
     if args.mode == "stack":
-        return common + [
+        return [
             ("Longhorn is already present. Leave it unchanged and continue? [optional]", "y"),
             ("Longhorn is missing. Install it now? [optional]", "y"),
             ("Rancher is already present. Leave it unchanged and continue? [optional]", "y"),
@@ -73,20 +166,21 @@ def build_prompt_map(args):
             ("The in-cluster registry is missing. Install it now? [optional]", "y"),
             ("cert-manager is missing. Install it now? [required for TLS-dependent installs]", "y"),
             ("Base domain (used to build hostnames)", args.base_domain),
+            ("Choose TLS mode (1/2)", "2"),
+            ("Longhorn data mount path", args.longhorn_data_path),
+            ("Longhorn default replica count (1 for single-node)", str(args.longhorn_replica_count)),
+            ("Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)", "10"),
+            ("Make Longhorn the default StorageClass?", "y"),
             ("Rancher hostname (DNS name)", args.rancher_host),
             ("Rancher bootstrap password", args.rancher_password),
             ("Registry hostname (DNS name)", args.registry_host),
             ("Registry PVC size", args.registry_size),
             ("Registry StorageClass (blank uses cluster default)", ""),
             ("Do you want to enable basic auth on the in-cluster registry?", "n"),
-            ("Choose TLS mode (1/2)", "2"),
-            ("Longhorn data mount path", args.longhorn_data_path),
-            ("Longhorn default replica count (1 for single-node)", str(args.longhorn_replica_count)),
-            ("ClusterIssuer 'selfsigned' is missing. Create it now?", "y"),
             ("Longhorn preflight found warnings. Continue anyway?", "y"),
             ("Install the missing packages for Longhorn?", "y"),
             ("Enable and start 'iscsid' now?", "y"),
-            ("Make Longhorn the default StorageClass?", "y"),
+            ("Proceed with this plan?", "y"),
         ]
     raise ValueError(f"unsupported mode: {args.mode}")
 
@@ -109,6 +203,7 @@ def main():
     parser.add_argument("--registry-size", default="20Gi")
     parser.add_argument("--longhorn-data-path", default="/data")
     parser.add_argument("--longhorn-replica-count", type=int, default=2)
+    parser.add_argument("--stack-tgz")
     parser.add_argument("--log-file")
     args = parser.parse_args()
 
@@ -120,7 +215,6 @@ def main():
 
     command = [
         "ssh",
-        "-tt",
         "-o",
         "BatchMode=yes",
         "-o",
@@ -138,7 +232,13 @@ def main():
     telemetry_prefix = telemetry_env_prefix()
     if telemetry_prefix:
         remote_script += f"{telemetry_prefix} "
-    remote_script += f"./scripts/apply.sh --mode {shlex.quote(args.mode)}"
+    if args.mode == "stack" and args.stack_tgz:
+        remote_script += (
+            "unset PRODUCTIVE_K3S_ADDONS_REPO_DIR && "
+            f"./productive-k3s-core.sh stack install --tgz {shlex.quote(args.stack_tgz)}"
+        )
+    else:
+        remote_script += f"./scripts/apply.sh --mode {shlex.quote(args.mode)}"
     command.extend(
         [
             f"{args.user}@{args.host}",
@@ -157,29 +257,105 @@ def main():
 
     log_path = Path(args.log_file) if args.log_file else None
     log_handle = log_path.open("w", encoding="utf-8") if log_path else None
-    buffer = ""
+    prompt_buffer = ""
+    state_buffer = ""
+    first_output_seen = False
+    idle_heartbeat_count = 0
+    detected_state: dict[str, str] = {}
 
     rc = 1
     try:
+        emit_info(
+            f"remote bootstrap session launched for mode={args.mode} host={args.host} pending_prompts={len(pending)} tty=disabled",
+            log_handle,
+        )
+        emit_info(f"ssh pid={proc.pid}", log_handle)
         while True:
+            ready, _, _ = select.select([proc.stdout], [], [], 15)
+            if not ready:
+                if proc.poll() is not None:
+                    break
+                idle_heartbeat_count += 1
+                if pending:
+                    pending = prune_conflicting_prompts(pending, detected_state, log_handle)
+                    if not pending:
+                        emit_info("remote bootstrap heartbeat: no pending prompts remain after pruning", log_handle)
+                        continue
+                    sample = ", ".join(prompt for prompt, _ in pending[:3])
+                    emit_info(
+                        f"remote bootstrap heartbeat: waiting for output; pending_prompts={len(pending)} next={sample}",
+                        log_handle,
+                    )
+                    if first_output_seen:
+                        matched_prompt, matched_answer = pending[0]
+                        if not prompt_is_safe_for_proactive_answer(matched_prompt):
+                            if args.mode == "stack" and prompt_uses_ordered_detail_fallback(matched_prompt):
+                                pending.pop(0)
+                                if proc.stdin is None:
+                                    raise RuntimeError("stdin unexpectedly unavailable")
+                                emit_info(
+                                    f"ordered detail fallback after idle heartbeat #{idle_heartbeat_count}: {matched_prompt}",
+                                    log_handle,
+                                )
+                                proc.stdin.write(f"{matched_answer}\n")
+                                proc.stdin.flush()
+                                if log_handle:
+                                    if "token" in matched_prompt.lower() or "password" in matched_prompt.lower():
+                                        log_handle.write("[ordered detail auto-response hidden]\n")
+                                    else:
+                                        log_handle.write(f"[ordered detail auto-response] {matched_answer}\n")
+                                    log_handle.flush()
+                                continue
+                            emit_info(
+                                "next pending prompt is not safe for proactive answer; waiting for explicit prompt output",
+                                log_handle,
+                            )
+                            continue
+                        pending.pop(0)
+                        if proc.stdin is None:
+                            raise RuntimeError("stdin unexpectedly unavailable")
+                        emit_info(
+                            f"proactively sending answer after idle heartbeat #{idle_heartbeat_count}: {matched_prompt}",
+                            log_handle,
+                        )
+                        proc.stdin.write(f"{matched_answer}\n")
+                        proc.stdin.flush()
+                        if log_handle:
+                            if "token" in matched_prompt.lower():
+                                log_handle.write("[proactive auto-response hidden]\n")
+                            else:
+                                log_handle.write(f"[proactive auto-response] {matched_answer}\n")
+                            log_handle.flush()
+                else:
+                    emit_info("remote bootstrap heartbeat: waiting for output; no pending prompts", log_handle)
+                continue
+
             ch = proc.stdout.read(1)
             if ch == "" and proc.poll() is not None:
                 break
             if ch == "":
                 continue
+            if not first_output_seen:
+                emit_info("remote bootstrap session produced first output byte", log_handle)
+                first_output_seen = True
+            idle_heartbeat_count = 0
             sys.stdout.write(ch)
             sys.stdout.flush()
             if log_handle:
                 log_handle.write(ch)
                 log_handle.flush()
-            buffer = (buffer + ch)[-6000:]
-            normalized_buffer = sanitize_prompt_buffer(buffer)
+            prompt_buffer = (prompt_buffer + ch)[-6000:]
+            state_buffer = (state_buffer + ch)[-50000:]
+            normalized_prompt_buffer = sanitize_prompt_buffer(prompt_buffer)
+            normalized_state_buffer = sanitize_prompt_buffer(state_buffer)
+            update_detected_state(detected_state, normalized_state_buffer)
             if pending:
+                pending = prune_conflicting_prompts(pending, detected_state, log_handle)
                 matched_index = None
                 matched_prompt = None
                 matched_answer = None
                 for idx, (prompt_text, answer) in enumerate(pending):
-                    if prompt_text in normalized_buffer:
+                    if prompt_text in normalized_prompt_buffer:
                         matched_index = idx
                         matched_prompt = prompt_text
                         matched_answer = answer
@@ -187,6 +363,7 @@ def main():
                 if matched_prompt is not None:
                     if proc.stdin is None:
                         raise RuntimeError("stdin unexpectedly unavailable")
+                    emit_info(f"auto-responding to prompt: {matched_prompt}", log_handle)
                     proc.stdin.write(f"{matched_answer}\n")
                     proc.stdin.flush()
                     if log_handle:
@@ -196,8 +373,9 @@ def main():
                             log_handle.write(f"[auto-response] {matched_answer}\n")
                         log_handle.flush()
                     pending.pop(matched_index)
-                    buffer = ""
+                    prompt_buffer = ""
         rc = proc.wait()
+        emit_info(f"remote bootstrap session exited with code {rc}", log_handle)
     finally:
         if log_handle:
             log_handle.close()

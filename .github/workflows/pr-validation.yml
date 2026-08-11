@@ -281,7 +281,7 @@ jobs:
           done
           "${RUNNER_TEMP}/ci-bin/multipass" version
 
-      - name: Run GitHub-host on-prem live test
+      - name: Run GitHub-host on-prem full-stack live test
         working-directory: productive-k3s-infra
         shell: bash
         run: |
@@ -293,7 +293,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pr-validation-live-onprem-github-host-artifacts
+          name: pr-validation-live-onprem-github-host-full-stack-artifacts
           path: |
             productive-k3s-infra/test-artifacts
             productive-k3s-profiles/scenarios/edge/onprem-basic/generated

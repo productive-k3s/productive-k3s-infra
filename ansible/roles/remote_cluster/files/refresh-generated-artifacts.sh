@@ -20,6 +20,8 @@ if [[ -f "${CLUSTER_JSON}" ]]; then
   fi
   PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE:-$(jq -r '.productive_k3s.source // empty' "${CLUSTER_JSON}")}"
   PRODUCTIVE_K3S_RELEASE_REPO="${PRODUCTIVE_K3S_RELEASE_REPO:-$(jq -r '.productive_k3s.release_repo // empty' "${CLUSTER_JSON}")}"
+  PRODUCTIVE_K3S_STACK_TGZ_URL="${PRODUCTIVE_K3S_STACK_TGZ_URL:-$(jq -r '.productive_k3s.stack_tgz_url // empty' "${CLUSTER_JSON}")}"
+  PRODUCTIVE_K3S_STACK_REMOTE_PATH="${PRODUCTIVE_K3S_STACK_REMOTE_PATH:-$(jq -r '.productive_k3s.stack_remote_path // empty' "${CLUSTER_JSON}")}"
   TELEMETRY_ENABLED="${TELEMETRY_ENABLED:-$(jq -r '.telemetry.enabled // false' "${CLUSTER_JSON}")}"
   TELEMETRY_ENDPOINT="${TELEMETRY_ENDPOINT:-$(jq -r '.telemetry.endpoint // empty' "${CLUSTER_JSON}")}"
   TELEMETRY_MAX_RETRIES="${TELEMETRY_MAX_RETRIES:-$(jq -r '.telemetry.max_retries // 3' "${CLUSTER_JSON}")}"
@@ -35,6 +37,8 @@ require_node_inputs
 
 resolved_source="${PRODUCTIVE_K3S_SOURCE}"
 resolved_version="${PRODUCTIVE_K3S_VERSION}"
+resolved_stack_tgz_url="${PRODUCTIVE_K3S_STACK_TGZ_URL}"
+resolved_stack_remote_path="${PRODUCTIVE_K3S_STACK_REMOTE_PATH}"
 resolved_telemetry_enabled="${TELEMETRY_ENABLED}"
 resolved_telemetry_endpoint="${TELEMETRY_ENDPOINT}"
 resolved_telemetry_max_retries="${TELEMETRY_MAX_RETRIES}"
@@ -72,7 +76,9 @@ tmp_json="$(mktemp)"
   printf '  "productive_k3s": {\n'
   printf '    "source": %s,\n' "$(jq -Rn --arg v "${resolved_source}" '$v')"
   printf '    "version": %s,\n' "$(jq -Rn --arg v "${resolved_version}" '$v')"
-  printf '    "release_repo": %s\n' "$(jq -Rn --arg v "${PRODUCTIVE_K3S_RELEASE_REPO}" '$v')"
+  printf '    "release_repo": %s,\n' "$(jq -Rn --arg v "${PRODUCTIVE_K3S_RELEASE_REPO}" '$v')"
+  printf '    "stack_tgz_url": %s,\n' "$(jq -Rn --arg v "${resolved_stack_tgz_url}" '$v')"
+  printf '    "stack_remote_path": %s\n' "$(jq -Rn --arg v "${resolved_stack_remote_path}" '$v')"
   printf '  },\n'
   printf '  "telemetry": {\n'
   printf '    "enabled": %s,\n' "$(jq -n --arg v "${resolved_telemetry_enabled}" '$v == "true"')"
@@ -159,6 +165,8 @@ mv "${tmp_json}" "${CLUSTER_JSON}"
   printf 'PRODUCTIVE_K3S_SOURCE=%q\n' "${resolved_source}"
   printf 'PRODUCTIVE_K3S_VERSION=%q\n' "${resolved_version}"
   printf 'PRODUCTIVE_K3S_RELEASE_REPO=%q\n' "${PRODUCTIVE_K3S_RELEASE_REPO}"
+  printf 'PRODUCTIVE_K3S_STACK_TGZ_URL=%q\n' "${resolved_stack_tgz_url}"
+  printf 'PRODUCTIVE_K3S_STACK_REMOTE_PATH=%q\n' "${resolved_stack_remote_path}"
   printf 'TELEMETRY_ENABLED=%q\n' "${resolved_telemetry_enabled}"
   printf 'TELEMETRY_ENDPOINT=%q\n' "${resolved_telemetry_endpoint}"
   printf 'TELEMETRY_MAX_RETRIES=%q\n' "${resolved_telemetry_max_retries}"
