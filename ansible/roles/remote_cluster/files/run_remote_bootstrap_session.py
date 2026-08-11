@@ -116,6 +116,28 @@ def prompt_is_safe_for_proactive_answer(prompt_text: str) -> bool:
     return any(prompt_text.startswith(prefix) for prefix in safe_prefixes)
 
 
+def prompt_uses_ordered_detail_fallback(prompt_text: str) -> bool:
+    ordered_detail_prefixes = [
+        "Base domain (used to build hostnames)",
+        "Choose TLS mode (1/2)",
+        "Longhorn data mount path",
+        "Longhorn default replica count (1 for single-node)",
+        "Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)",
+        "Make Longhorn the default StorageClass?",
+        "Rancher hostname (DNS name)",
+        "Rancher bootstrap password",
+        "Registry hostname (DNS name)",
+        "Registry PVC size",
+        "Registry StorageClass (blank uses cluster default)",
+        "Do you want to enable basic auth on the in-cluster registry?",
+        "Longhorn preflight found warnings. Continue anyway?",
+        "Install the missing packages for Longhorn?",
+        "Enable and start 'iscsid' now?",
+        "Proceed with this plan?",
+    ]
+    return any(prompt_text.startswith(prefix) for prefix in ordered_detail_prefixes)
+
+
 def build_prompt_map(args):
     common = [
         ("Existing k3s installation detected. Continue using it without changes? [required]", "y"),
@@ -267,6 +289,23 @@ def main():
                     if first_output_seen:
                         matched_prompt, matched_answer = pending[0]
                         if not prompt_is_safe_for_proactive_answer(matched_prompt):
+                            if args.mode == "stack" and prompt_uses_ordered_detail_fallback(matched_prompt):
+                                pending.pop(0)
+                                if proc.stdin is None:
+                                    raise RuntimeError("stdin unexpectedly unavailable")
+                                emit_info(
+                                    f"ordered detail fallback after idle heartbeat #{idle_heartbeat_count}: {matched_prompt}",
+                                    log_handle,
+                                )
+                                proc.stdin.write(f"{matched_answer}\n")
+                                proc.stdin.flush()
+                                if log_handle:
+                                    if "token" in matched_prompt.lower() or "password" in matched_prompt.lower():
+                                        log_handle.write("[ordered detail auto-response hidden]\n")
+                                    else:
+                                        log_handle.write(f"[ordered detail auto-response] {matched_answer}\n")
+                                    log_handle.flush()
+                                continue
                             emit_info(
                                 "next pending prompt is not safe for proactive answer; waiting for explicit prompt output",
                                 log_handle,
