@@ -8,7 +8,8 @@ Este repositorio tiene un modelo de validación apto para CI y ahora incluye un 
 - niveles estructurados `static`, `contract` y `live`
 - artefactos JSON anónimos bajo `test-artifacts/` como evidencia de ejecución, incluyendo manifests por escenario y summaries de matriz
 - una separación clara entre entrypoints orientados al operador y scripts internos
-- un target dedicado `test-live-gha-onprem` que trata al runner de GitHub como host remoto para `onprem-basic`
+- un target dedicado `test-live-gha-onprem` que trata al runner de GitHub como host remoto para `onprem-basic` y ejecuta el ciclo completo del profile
+- un target smoke más chico `test-live-gha-onprem-bootstrap` para preparación del host remoto y bootstrap básico del clúster
 - un workflow de release por tags para `productive-k3s-infra-cli.sh`
 
 ## Tags de release
@@ -72,9 +73,9 @@ Aun con workflow versionado, documentar el contrato de CI/CD importa porque:
 
 ## Workflow público actual
 
-El repositorio incluye `.github/workflows/post-merge-onprem-github-host.yml`.
+El repositorio incluye `.github/workflows/pr-validation.yml`.
 
-Ese workflow corre cuando un pull request apuntando a `main` se cierra en estado merged. Hace lo siguiente:
+Ese workflow corre para pull requests apuntando a `main` y también en modo manual `workflow_dispatch`. Hace lo siguiente:
 
 1. ejecuta `make test-static`
 2. ejecuta `make test-contract`
@@ -82,6 +83,16 @@ Ese workflow corre cuando un pull request apuntando a `main` se cierra en estado
 4. ejecuta `make test-live-gha-onprem`
 
 El job live prepara `openssh-server` sobre el runner hospedado por GitHub y luego ejercita `scenarios/edge/onprem-basic` contra `127.0.0.1` como host remoto single-node.
+
+Ese target hosted ahora es el camino full-stack de validación remota on-prem. Ejecuta:
+
+- `validate-profile`
+- `plan`
+- `apply`
+- `status`
+- `validate`
+
+Como resultado, cubre tanto el bootstrap base del clúster como el camino compartido de stack remoto (`cert-manager`, `longhorn`, `rancher` y `registry`) antes de que consumidores downstream como `productive-k3s-cli` ejerciten ese mismo contrato.
 
 Cuando la revisión checkout del repo hermano `productive-k3s-core` ya incluye `scripts/preflight-host.sh`, ese mismo camino hosted también ejercita el host preflight remoto de Productive K3S Core antes de que empiece el bootstrap.
 
