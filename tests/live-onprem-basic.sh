@@ -34,13 +34,17 @@ resolve_productive_k3s_source() {
 
 export PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS="${PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS:-true}"
 
+now_local() {
+  date +"%Y-%m-%d %H:%M:%S%z"
+}
+
 fail() {
-  printf '[FAIL] %s\n' "$1" >&2
+  printf '[%s] [FAIL] %s\n' "$(now_local)" "$1" >&2
   exit 1
 }
 
 warn() {
-  printf '[WARN] %s\n' "$1" >&2
+  printf '[%s] [WARN] %s\n' "$(now_local)" "$1" >&2
 }
 
 emit_launch_recovery_hints() {
@@ -211,4 +215,4 @@ EOF
 make -C "${SCENARIO_DIR}" ONPREM_ENV_FILE="${ENV_FILE}" TELEMETRY_ENABLED=false up
 make -C "${SCENARIO_DIR}" ONPREM_ENV_FILE="${ENV_FILE}" TELEMETRY_ENABLED=false validate
 
-printf '[PASS] onprem-basic live test completed\n'
+printf '[%s] [PASS] onprem-basic live test completed\n' "$(now_local)"

@@ -15,6 +15,18 @@ SSH_KEY_PATH="${WORK_DIR}/id_ed25519"
 CURRENT_USER="$(id -un)"
 LOCALHOST_IP="127.0.0.1"
 
+now_local() {
+  date +"%Y-%m-%d %H:%M:%S%z"
+}
+
+log() {
+  printf '[%s] [INFO] %s\n' "$(now_local)" "$*"
+}
+
+warn() {
+  printf '[%s] [WARN] %s\n' "$(now_local)" "$*" >&2
+}
+
 # This GitHub-hosted live scenario should exercise the full remote on-prem
 # profile lifecycle directly from productive-k3s-infra, including stack
 # bootstrap and cluster validation, so failures surface here before cli CI.
@@ -26,7 +38,7 @@ export PRODUCTIVE_K3S_PROFILES_REPO_REF
 export PRODUCTIVE_K3S_ADDONS_REPO_REF
 
 fail() {
-  printf '[FAIL] %s\n' "$*" >&2
+  printf '[%s] [FAIL] %s\n' "$(now_local)" "$*" >&2
   exit 1
 }
 
@@ -62,9 +74,7 @@ prepare_profiles_repo_dir() {
   cp -a "${ROOT_DIR}/ansible/." "${PROFILES_REPO_DIR_LOCAL}/ansible/"
   cp -a "${ROOT_DIR}/scripts/." "${PROFILES_REPO_DIR_LOCAL}/scripts/"
   cp -a "${ROOT_DIR}/tests/." "${PROFILES_REPO_DIR_LOCAL}/tests/"
-  printf '[INFO] profiles ref=%s head=%s\n' \
-    "${profiles_repo_ref}" \
-    "$(git -C "${PROFILES_REPO_DIR_LOCAL}" rev-parse --short HEAD 2>/dev/null || printf 'local-copy')"
+  log "profiles ref=${profiles_repo_ref} head=$(git -C "${PROFILES_REPO_DIR_LOCAL}" rev-parse --short HEAD 2>/dev/null || printf 'local-copy')"
 }
 
 prepare_core_repo_dir() {
@@ -86,9 +96,7 @@ prepare_core_repo_dir() {
     }
   fi
 
-  printf '[INFO] core ref=%s head=%s\n' \
-    "${core_repo_ref}" \
-    "$(git -C "${CORE_REPO_DIR_LOCAL}" rev-parse --short HEAD 2>/dev/null || printf 'local-copy')"
+  log "core ref=${core_repo_ref} head=$(git -C "${CORE_REPO_DIR_LOCAL}" rev-parse --short HEAD 2>/dev/null || printf 'local-copy')"
 }
 
 prepare_addons_repo_dir() {
@@ -110,9 +118,7 @@ prepare_addons_repo_dir() {
     }
   fi
 
-  printf '[INFO] addons ref=%s head=%s\n' \
-    "${addons_repo_ref}" \
-    "$(git -C "${ADDONS_REPO_DIR_LOCAL}" rev-parse --short HEAD 2>/dev/null || printf 'local-copy')"
+  log "addons ref=${addons_repo_ref} head=$(git -C "${ADDONS_REPO_DIR_LOCAL}" rev-parse --short HEAD 2>/dev/null || printf 'local-copy')"
 }
 
 cleanup() {
@@ -135,7 +141,7 @@ write_remote_capture() {
   local output_file="${ARTIFACT_DIR}/${name}.log"
 
   {
-    printf '[CMD] %s\n' "$*"
+    printf '[%s] [CMD] %s\n' "$(now_local)" "$*"
     ssh_remote "$@"
   } >"${output_file}" 2>&1 || true
 }
@@ -161,13 +167,13 @@ run_step() {
   local output_file="${ARTIFACT_DIR}/${step_name}.log"
 
   mkdir -p "${ARTIFACT_DIR}"
-  printf '[INFO] Running step: %s\n' "${step_name}"
+  log "Running step: ${step_name}"
 
   if "$@" > >(tee "${output_file}") 2> >(tee -a "${output_file}" >&2); then
     return 0
   fi
 
-  printf '[FAIL] Step failed: %s\n' "${step_name}" >&2
+  printf '[%s] [FAIL] Step failed: %s\n' "$(now_local)" "${step_name}" >&2
   dump_cluster_diagnostics
   return 1
 }
@@ -268,4 +274,4 @@ run_step "apply" run_infra apply --profile "${ENV_FILE}"
 run_step "status" run_infra status --profile "${ENV_FILE}"
 run_step "validate" run_infra validate --profile "${ENV_FILE}"
 
-printf '[PASS] onprem-basic remote GitHub-host infra validation completed\n'
+printf '[%s] [PASS] onprem-basic remote GitHub-host infra validation completed\n' "$(now_local)"

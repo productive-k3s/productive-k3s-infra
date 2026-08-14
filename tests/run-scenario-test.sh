@@ -21,6 +21,28 @@ RUNS_DIR="${ARTIFACTS_DIR}/infra-runs"
 RUN_TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 RUN_ID="${RUN_TIMESTAMP}-${LEVEL}-${SCENARIO}-$$"
 
+now_local() {
+  date +"%Y-%m-%d %H:%M:%S%z"
+}
+
+emit_line() {
+  local level="$1"
+  shift
+  printf '[%s] [%s] %s\n' "$(now_local)" "${level}" "$*"
+}
+
+prefix_stream() {
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    printf '[%s] %s\n' "$(now_local)" "${line}"
+  done
+}
+
+emit_file_with_timestamps() {
+  local file_path="$1"
+  [[ -f "${file_path}" ]] || return 0
+  prefix_stream < "${file_path}"
+}
+
 usage() {
   printf 'usage: %s <static|contract|live> <scenario> <scenario-dir> <target> [args...]\n' "$0" >&2
   exit 2
@@ -242,11 +264,15 @@ started_at="$(date -Iseconds)"
 started_epoch="$(date +%s)"
 rc=0
 
+emit_line "INFO" "scenario=${SCENARIO} level=${LEVEL} target=${TARGET}"
+
 if [[ "${LEVEL}" == "live" ]]; then
   set +e
+  set -o pipefail
   script -qefc "make -C \"${SCENARIO_DIR}\" \"${TARGET}\" $*" /dev/null \
     | tr -d '\000' \
-    | tee "${log_file}"
+    | tee "${log_file}" \
+    | prefix_stream
   rc=${PIPESTATUS[0]}
   set -e
 else
@@ -263,9 +289,9 @@ duration_seconds="$((finished_epoch - started_epoch))"
 
 if [[ "${rc}" == "0" ]]; then
   write_run_manifest "pass" "${started_at}" "${finished_at}" "${duration_seconds}" "${manifest_file}"
-  printf '[PASS] %s %s\n' "${SCENARIO}" "${TARGET}"
+  emit_line "PASS" "${SCENARIO} ${TARGET} duration=${duration_seconds}s"
   if [[ "${LEVEL}" != "live" ]]; then
-    cat "${log_file}"
+    emit_file_with_timestamps "${log_file}"
   fi
   rm -f "${log_file}"
   exit 0
@@ -274,18 +300,18 @@ fi
 if [[ "${rc}" == "3" ]] || grep -q '^\[SKIP\]' "${log_file}"; then
   skip_reason="$(extract_skip_reason "${log_file}")"
   write_run_manifest "skip" "${started_at}" "${finished_at}" "${duration_seconds}" "${manifest_file}" "${skip_reason}"
-  printf '[SKIP] %s %s\n' "${SCENARIO}" "${TARGET}"
+  emit_line "SKIP" "${SCENARIO} ${TARGET} duration=${duration_seconds}s reason=${skip_reason:-unspecified}"
   if [[ "${LEVEL}" != "live" ]]; then
-    cat "${log_file}"
+    emit_file_with_timestamps "${log_file}"
   fi
   rm -f "${log_file}"
   exit 0
 fi
 
 write_run_manifest "fail" "${started_at}" "${finished_at}" "${duration_seconds}" "${manifest_file}"
-printf '[FAIL] %s %s\n' "${SCENARIO}" "${TARGET}" >&2
+emit_line "FAIL" "${SCENARIO} ${TARGET} duration=${duration_seconds}s" >&2
 if [[ "${LEVEL}" != "live" ]]; then
-  cat "${log_file}" >&2
+  emit_file_with_timestamps "${log_file}" >&2
 fi
 rm -f "${log_file}"
 exit 1
