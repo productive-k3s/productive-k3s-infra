@@ -333,6 +333,7 @@ run_local_bash_suite() {
   bash "${TESTS_DIR}/test-multipass-telemetry-consent.sh"
   bash "${TESTS_DIR}/test-multipass-telemetry-propagation.sh"
   bash "${TESTS_DIR}/test-multipass-cluster-up-preserves-telemetry.sh"
+  bash "${TESTS_DIR}/test-multipass-bootstrap-stack-registry-convergence.sh"
   bash "${TESTS_DIR}/test-multipass-infra-command-telemetry.sh"
   bash "${TESTS_DIR}/test-cli-telemetry-scope.sh"
   bash "${TESTS_DIR}/test-remote-telemetry-consent.sh"
