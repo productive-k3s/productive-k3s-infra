@@ -337,6 +337,7 @@ run_local_bash_suite() {
   bash "${TESTS_DIR}/test-cli-telemetry-scope.sh"
   bash "${TESTS_DIR}/test-remote-telemetry-consent.sh"
   bash "${TESTS_DIR}/test-remote-cluster-up-preserves-telemetry.sh"
+  bash "${TESTS_DIR}/test-remote-bootstrap-agent-heartbeat.sh"
   bash "${TESTS_DIR}/test-remote-productive-k3s-core-preflight.sh"
   bash "${TESTS_DIR}/test-remote-longhorn-single-default.sh"
   bash "${TESTS_DIR}/test-remote-sync-hosts-resolves-server-hostname.sh"
