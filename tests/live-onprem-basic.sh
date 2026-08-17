@@ -17,7 +17,13 @@ SSH_KEY_PATH=""
 SSH_PUBKEY=""
 MULTIPASS_LAUNCH_RETRIES="${MULTIPASS_LAUNCH_RETRIES:-5}"
 MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS="${MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS:-5}"
+MULTIPASS_LAUNCH_TIMEOUT_SECONDS="${MULTIPASS_LAUNCH_TIMEOUT_SECONDS:-180}"
 MULTIPASS_DELETE_TIMEOUT_SECONDS="${MULTIPASS_DELETE_TIMEOUT_SECONDS:-120}"
+
+is_transient_multipass_remote_error() {
+  local stderr_file="$1"
+  grep -Eq 'Remote ".*" is unknown or unreachable\.' "${stderr_file}"
+}
 
 resolve_productive_k3s_source() {
   if [[ -n "${PRODUCTIVE_K3S_SOURCE:-}" ]]; then
@@ -104,6 +110,12 @@ run_multipass_cleanup() {
   multipass "${subcommand}" "$@" >/dev/null 2>&1 || true
 }
 
+cleanup_partial_launch_state() {
+  local name="$1"
+  run_multipass_cleanup delete "${name}"
+  run_multipass_cleanup purge
+}
+
 write_cloud_init() {
   local file="$1"
   cat >"${file}" <<EOF
@@ -147,27 +159,49 @@ launch_instance() {
   local attempts="${MULTIPASS_LAUNCH_RETRIES}"
   local attempt=1
   local stderr_file
+  local launch_exit_code=0
   stderr_file="$(mktemp "${WORK_DIR}/multipass-launch.${name}.XXXXXX.stderr")"
 
   while (( attempt <= attempts )); do
-    if multipass launch 24.04 --name "${name}" --cpus 4 --memory 14G --disk 70G --cloud-init "${cloud_init_file}" 2>"${stderr_file}"; then
+    launch_exit_code=0
+    if command -v timeout >/dev/null 2>&1; then
+      set +e
+      timeout --kill-after=5s "${MULTIPASS_LAUNCH_TIMEOUT_SECONDS}s" \
+        multipass launch 24.04 --name "${name}" --cpus 4 --memory 14G --disk 70G --cloud-init "${cloud_init_file}" \
+        2>"${stderr_file}"
+      launch_exit_code=$?
+      set -e
+    else
+      set +e
+      multipass launch 24.04 --name "${name}" --cpus 4 --memory 14G --disk 70G --cloud-init "${cloud_init_file}" 2>"${stderr_file}"
+      launch_exit_code=$?
+      set -e
+    fi
+
+    if [[ "${launch_exit_code}" == "0" ]]; then
       rm -f "${stderr_file}"
       return 0
     fi
 
     if (( attempt < attempts )); then
-      if grep -Fq 'Remote "" is unknown or unreachable.' "${stderr_file}"; then
+      if [[ "${launch_exit_code}" == "124" ]]; then
+        warn "multipass launch timed out for ${name} after ${MULTIPASS_LAUNCH_TIMEOUT_SECONDS}s; retrying (${attempt}/${attempts})"
+      elif is_transient_multipass_remote_error "${stderr_file}"; then
         warn "multipass launch hit a transient remote resolution error for ${name}; retrying (${attempt}/${attempts})"
       else
         warn "multipass launch failed for ${name}; retrying (${attempt}/${attempts})"
         cat "${stderr_file}" >&2
       fi
+      cleanup_partial_launch_state "${name}"
       multipass list >/dev/null 2>&1 || true
       sleep "${MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS}"
       ((attempt++))
       continue
     fi
 
+    if [[ "${launch_exit_code}" == "124" ]]; then
+      warn "multipass launch timed out for ${name} after ${MULTIPASS_LAUNCH_TIMEOUT_SECONDS}s"
+    fi
     cat "${stderr_file}" >&2
     rm -f "${stderr_file}"
     emit_launch_recovery_hints "${name}"

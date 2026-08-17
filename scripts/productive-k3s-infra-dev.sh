@@ -348,6 +348,7 @@ run_local_bash_suite() {
   bash "${TESTS_DIR}/test-live-multipass-cleanup.sh"
   bash "${TESTS_DIR}/test-live-multipass-cleanup-timeout.sh"
   bash "${TESTS_DIR}/test-live-onprem-basic-noninteractive.sh"
+  bash "${TESTS_DIR}/test-live-onprem-basic-launch-timeout.sh"
   bash "${TESTS_DIR}/test-live-onprem-basic-cleanup-timeout.sh"
   bash "${TESTS_DIR}/test-live-onprem-basic-launch-recovery-hints.sh"
   bash -n "${TESTS_DIR}/live-onprem-basic-github-host.sh"
