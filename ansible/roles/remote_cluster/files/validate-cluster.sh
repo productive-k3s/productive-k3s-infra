@@ -20,6 +20,28 @@ fail() {
   exit 1
 }
 
+wait_for_https_status() {
+  local host="$1"
+  local path="$2"
+  local description="$3"
+  local accepted_codes="$4"
+  local status=""
+  local attempt
+
+  for attempt in $(seq 1 24); do
+    status="$(remote_exec "${SERVER_IP}" "curl -k -sS -o /dev/null -w '%{http_code}' --max-time 20 https://${host}${path}" 2>/dev/null || true)"
+    status="$(printf '%s' "${status}" | tr -d '[:space:]')"
+    if [[ " ${accepted_codes} " == *" ${status} "* ]]; then
+      log "${description} responded with acceptable HTTP status ${status}"
+      return 0
+    fi
+    warn "${description} returned HTTP status '${status:-none}' (attempt ${attempt}/24); retrying"
+    sleep 5
+  done
+
+  fail "${description} did not return an acceptable HTTP status after retries; last status was '${status:-none}'"
+}
+
 expected_nodes="${#ALL_NODE_IPS[@]}"
 KUBECTL_CMD="$(productive_k3s_remote_kubectl_cmd)"
 
@@ -44,8 +66,8 @@ remote_exec "${SERVER_IP}" "${KUBECTL_CMD} rollout status deploy/registry -n reg
 
 remote_exec "${SERVER_IP}" "getent hosts ${RANCHER_HOST}"
 remote_exec "${SERVER_IP}" "getent hosts ${REGISTRY_HOST}"
-remote_exec "${SERVER_IP}" "curl -k -fsS --max-time 20 https://${RANCHER_HOST} >/dev/null"
-remote_exec "${SERVER_IP}" "curl -k -fsS --max-time 20 https://${REGISTRY_HOST}/v2/ >/dev/null"
+wait_for_https_status "${RANCHER_HOST}" "" "Rancher ingress" "200 301 302 303 307 308 401 403 404"
+wait_for_https_status "${REGISTRY_HOST}" "/v2/" "Registry API" "200 401"
 
 default_scs="$(remote_exec "${SERVER_IP}" "${KUBECTL_CMD} get sc -o jsonpath='{range .items[*]}{.metadata.name}{\"|\"}{.metadata.annotations.storageclass\\.kubernetes\\.io/is-default-class}{\"\\n\"}{end}' | awk -F'|' '\$2 == \"true\" {print \$1}'")"
 default_sc_count="$(printf '%s\n' "${default_scs}" | sed '/^$/d' | wc -l | tr -d ' ')"

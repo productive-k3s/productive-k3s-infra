@@ -123,9 +123,11 @@ remote_exec() {
     *"getent hosts registry.k3s.lab.internal"*)
       printf '10.0.0.10 registry.k3s.lab.internal\n'
       ;;
-    *"curl -k -fsS --max-time 20 https://rancher.k3s.lab.internal >/dev/null"*)
+    *"curl -k -sS -o /dev/null -w '%{http_code}' --max-time 20 https://rancher.k3s.lab.internal"*)
+      printf '404\n'
       ;;
-    *"curl -k -fsS --max-time 20 https://registry.k3s.lab.internal/v2/ >/dev/null"*)
+    *"curl -k -sS -o /dev/null -w '%{http_code}' --max-time 20 https://registry.k3s.lab.internal/v2/"*)
+      printf '200\n'
       ;;
     *"kubectl get sc longhorn-single >/dev/null 2>&1"*)
       ;;
@@ -163,5 +165,11 @@ if grep -q "kubectl patch storageclass longhorn -p '{\"metadata\":{\"annotations
 fi
 
 bash "${TEST_SCENARIO_DIR}/scripts/validate-cluster.sh"
+
+grep -q "curl -k -sS -o /dev/null -w '%{http_code}' --max-time 20 https://rancher.k3s.lab.internal" "${TEST_SCENARIO_DIR}/command.log" || {
+  echo "[FAIL] validate should probe Rancher over HTTPS using HTTP status inspection" >&2
+  cat "${TEST_SCENARIO_DIR}/command.log" >&2
+  exit 1
+}
 
 echo "[PASS] remote cluster scripts respect longhorn-single as the single-node default StorageClass"

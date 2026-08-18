@@ -20,6 +20,7 @@ MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS="${MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS:-5}
 MULTIPASS_LAUNCH_TIMEOUT_SECONDS="${MULTIPASS_LAUNCH_TIMEOUT_SECONDS:-180}"
 MULTIPASS_DELETE_TIMEOUT_SECONDS="${MULTIPASS_DELETE_TIMEOUT_SECONDS:-120}"
 ASYNC_MULTIPASS_CLEANUP_LOG_DIR="${ASYNC_MULTIPASS_CLEANUP_LOG_DIR:-/tmp}"
+MULTIPASS_LIST_TIMEOUT_SECONDS="${MULTIPASS_LIST_TIMEOUT_SECONDS:-15}"
 
 is_transient_multipass_remote_error() {
   local stderr_file="$1"
@@ -87,7 +88,9 @@ pick_ssh_key() {
 
 cleanup() {
   local rc=$?
-  schedule_multipass_cleanup "${SERVER_NAME}" "${AGENT_NAME}"
+  if ! cleanup_instances "${SERVER_NAME}" "${AGENT_NAME}"; then
+    schedule_multipass_cleanup "${SERVER_NAME}" "${AGENT_NAME}"
+  fi
   if [[ "${rc}" == "0" || "${LIVE_ONPREM_PRESERVE_WORKDIR_ON_FAILURE}" != "true" ]]; then
     rm -rf "${WORK_DIR}"
   else
@@ -131,17 +134,37 @@ run_multipass_cleanup() {
     if timeout --kill-after=5s "${MULTIPASS_DELETE_TIMEOUT_SECONDS}s" multipass "${subcommand}" "$@" >/dev/null 2>&1; then
       return 0
     fi
-    warn "multipass ${subcommand} timed out after ${MULTIPASS_DELETE_TIMEOUT_SECONDS}s; continuing"
-    return 0
+    local cleanup_rc=$?
+    if [[ "${cleanup_rc}" == "124" ]]; then
+      warn "multipass ${subcommand} timed out after ${MULTIPASS_DELETE_TIMEOUT_SECONDS}s"
+    fi
+    return "${cleanup_rc}"
   fi
 
   multipass "${subcommand}" "$@" >/dev/null 2>&1 || true
+}
+
+cleanup_instances() {
+  local server_name="$1"
+  local agent_name="$2"
+
+  run_multipass_cleanup stop "${server_name}" "${agent_name}" || return 1
+  run_multipass_cleanup delete "${server_name}" "${agent_name}" || return 1
+  run_multipass_cleanup purge || return 1
 }
 
 cleanup_partial_launch_state() {
   local name="$1"
   run_multipass_cleanup delete "${name}"
   run_multipass_cleanup purge
+}
+
+probe_multipass_backend() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --kill-after=5s "${MULTIPASS_LIST_TIMEOUT_SECONDS}s" multipass list >/dev/null 2>&1 || true
+    return 0
+  fi
+  multipass list >/dev/null 2>&1 || true
 }
 
 write_cloud_init() {
@@ -221,7 +244,7 @@ launch_instance() {
         cat "${stderr_file}" >&2
       fi
       cleanup_partial_launch_state "${name}"
-      multipass list >/dev/null 2>&1 || true
+      probe_multipass_backend
       sleep "${MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS}"
       ((attempt++))
       continue
