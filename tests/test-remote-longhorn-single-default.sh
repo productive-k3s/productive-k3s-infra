@@ -87,6 +87,10 @@ load_cluster_metadata() {
   ALL_NODE_IPS=("10.0.0.10")
 }
 
+storageclass_probe_state_file() {
+  printf '%s\n' "${SCENARIO_DIR}/storageclass-probe-state"
+}
+
 productive_k3s_remote_kubectl_cmd() {
   printf 'sudo k3s kubectl'
 }
@@ -132,6 +136,17 @@ remote_exec() {
     *"kubectl get sc longhorn-single >/dev/null 2>&1"*)
       ;;
     *"kubectl get sc -o jsonpath="*"awk -F'|' '\$2 == \"true\" {print \$1}'"*)
+      state_file="$(storageclass_probe_state_file)"
+      count=0
+      if [[ -f "${state_file}" ]]; then
+        count="$(cat "${state_file}")"
+      fi
+      count="$((count + 1))"
+      printf '%s\n' "${count}" > "${state_file}"
+      if [[ "${count}" == "1" ]]; then
+        printf 'local-path\n'
+        return 0
+      fi
       printf 'longhorn-single\n'
       ;;
     *"kubectl get sc -o jsonpath="*)
@@ -171,5 +186,18 @@ grep -q "curl -k -sS -o /dev/null -w '%{http_code}' --max-time 20 https://ranche
   cat "${TEST_SCENARIO_DIR}/command.log" >&2
   exit 1
 }
+
+grep -q "kubectl get sc -o jsonpath=" "${TEST_SCENARIO_DIR}/command.log" || {
+  echo "[FAIL] validate should probe default StorageClass state" >&2
+  cat "${TEST_SCENARIO_DIR}/command.log" >&2
+  exit 1
+}
+
+probe_count="$(cat "${TEST_SCENARIO_DIR}/storageclass-probe-state")"
+if [[ "${probe_count}" -lt 2 ]]; then
+  echo "[FAIL] validate should retry until the default StorageClass converges" >&2
+  cat "${TEST_SCENARIO_DIR}/command.log" >&2
+  exit 1
+fi
 
 echo "[PASS] remote cluster scripts respect longhorn-single as the single-node default StorageClass"
