@@ -139,6 +139,9 @@ set -euo pipefail
 command="${*: -1}"
 printf 'ssh %s\n' "${command}" >> "${TEST_CONVERGENCE_LOG}"
 case "${command}" in
+  *"get\\ deploy/rancher-webhook\\ -n\\ cattle-system"*)
+    exit 1
+    ;;
   *"get\\ deploy/registry\\ -n\\ registry"*)
     count=0
     if [[ -f "${TEST_BOOTSTRAP_COUNT_FILE}" ]]; then
@@ -206,11 +209,17 @@ grep -F 'ssh bash -lc sudo\ k3s\ kubectl\ rollout\ status\ deploy/rancher\ -n\ c
   exit 1
 }
 
-grep -F 'ssh bash -lc sudo\ k3s\ kubectl\ rollout\ status\ deploy/rancher-webhook\ -n\ cattle-system\ --timeout=10m' "${TEST_CONVERGENCE_LOG}" >/dev/null || {
-  printf '[FAIL] expected Rancher webhook rollout wait before registry convergence\n' >&2
+grep -F 'ssh bash -lc sudo\ k3s\ kubectl\ get\ deploy/rancher-webhook\ -n\ cattle-system\ \>/dev/null\ 2\>\&1' "${TEST_CONVERGENCE_LOG}" >/dev/null || {
+  printf '[FAIL] expected Rancher webhook existence probe before registry convergence\n' >&2
   cat "${TEST_CONVERGENCE_LOG}" >&2
   exit 1
 }
+
+if grep -F 'ssh bash -lc sudo\ k3s\ kubectl\ rollout\ status\ deploy/rancher-webhook\ -n\ cattle-system\ --timeout=10m' "${TEST_CONVERGENCE_LOG}" >/dev/null; then
+  printf '[FAIL] did not expect Rancher webhook rollout wait when the deployment is absent\n' >&2
+  cat "${TEST_CONVERGENCE_LOG}" >&2
+  exit 1
+fi
 
 grep -F 'ssh bash -lc sudo\ k3s\ kubectl\ rollout\ status\ deploy/registry\ -n\ registry\ --timeout=10m' "${TEST_CONVERGENCE_LOG}" >/dev/null || {
   printf '[FAIL] expected registry rollout verification after retry\n' >&2
@@ -224,4 +233,4 @@ grep -F 'reconcile' "${TEST_CONVERGENCE_LOG}" >/dev/null || {
   exit 1
 }
 
-printf '[PASS] multipass bootstrap-stack converges registry after Rancher webhook becomes ready\n'
+printf '[PASS] multipass bootstrap-stack converges registry when Rancher webhook is absent\n'
