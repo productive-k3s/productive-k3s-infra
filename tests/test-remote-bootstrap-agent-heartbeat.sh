@@ -49,34 +49,79 @@ assert module.prompt_uses_ordered_detail_fallback(
     "Agent cluster token",
 ), "agent cluster token should use ordered detail fallback after idle heartbeats"
 
-stack_args = types.SimpleNamespace(
-    base_domain="k3s.lab.internal",
-    longhorn_data_path="/data",
-    longhorn_replica_count=2,
-    rancher_host="rancher.k3s.lab.internal",
-    rancher_password="admin",
-    registry_host="registry.k3s.lab.internal",
-    registry_size="20Gi",
+assert module.prompt_uses_ordered_detail_fallback(
+    "stack",
+    "Base domain (used to build hostnames)",
+), "stack mode should wait for the explicit base-domain prompt before answering"
+
+assert module.prompt_uses_ordered_detail_fallback(
+    "stack",
+    "Rancher hostname (DNS name)",
+), "stack mode should wait for explicit hostname prompts before answering"
+
+assert module.ordered_detail_fallback_idle_threshold(
+    "stack",
+    "Rancher hostname (DNS name)",
+) == 3, "stack hostname fallback should still exist for prompts that never render cleanly"
+
+assert module.mode_allows_proactive_prompt_answer(
+    "stack",
+    "cert-manager is missing. Install it now? [required for TLS-dependent installs]",
+), "stack mode may proactively answer safe yes/no install prompts"
+
+class DummyStdin:
+    def __init__(self):
+        self.writes = []
+
+    def write(self, value):
+        self.writes.append(value)
+
+    def flush(self):
+        return None
+
+
+proc = types.SimpleNamespace(stdin=DummyStdin())
+pending = [
+    ("Rancher hostname (DNS name)", "rancher.k3s.lab.internal"),
+    ("Registry hostname (DNS name)", "registry.k3s.lab.internal"),
+    ("Registry PVC size", "20Gi"),
+    ("Registry StorageClass (blank uses cluster default)", ""),
+]
+
+assert module.write_prompt_answer(
+    proc,
+    pending[0][0],
+    pending[0][1],
+    response_kind="ordered detail auto-response",
+), "dummy prompt write should succeed"
+pending.pop(0)
+module.maybe_chain_ordered_prompt_answer("stack", "Rancher hostname (DNS name)", pending, proc)
+assert proc.stdin.writes == [
+    "rancher.k3s.lab.internal\n",
+], "rancher hostname should only chain the password prompt when it is next"
+
+proc = types.SimpleNamespace(stdin=DummyStdin())
+pending = [
+    ("Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)", "10"),
+    ("Make Longhorn the default StorageClass?", "y"),
+]
+module.maybe_chain_ordered_prompt_answer(
+    "stack",
+    "Longhorn default replica count (1 for single-node)",
+    pending,
+    proc,
 )
-stack_answers = module.build_stack_answers_payload(stack_args).splitlines()
-assert stack_answers == [
-    "y",
-    "y",
-    "y",
-    "y",
-    "k3s.lab.internal",
-    "2",
-    "",
-    "2",
-    "y",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "n",
-    "y",
-], "stack non-interactive payload should align with the core stack artifact answers flow"
+assert proc.stdin.writes == ["10\n", "y\n"], "longhorn ordered detail chaining should cover the hidden follow-up prompts"
+assert pending == [], "longhorn ordered detail chaining should consume both follow-up prompts"
+
+proc = types.SimpleNamespace(stdin=DummyStdin())
+pending = [
+    ("Registry PVC size", "20Gi"),
+    ("Registry StorageClass (blank uses cluster default)", ""),
+]
+module.maybe_chain_ordered_prompt_answer("stack", "Registry hostname (DNS name)", pending, proc)
+assert proc.stdin.writes == ["20Gi\n", "\n"], "registry ordered detail chaining should cover size and storage-class prompts"
+assert pending == [], "registry ordered detail chaining should consume both follow-up prompts"
 PY
 
 printf '[PASS] remote bootstrap agent heartbeat prunes conflicting prompts and preserves explicit detail prompts\n'

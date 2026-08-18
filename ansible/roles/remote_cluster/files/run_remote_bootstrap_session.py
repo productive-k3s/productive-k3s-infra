@@ -23,6 +23,7 @@ TELEMETRY_ENV_KEYS = [
     "TELEMETRY_PARENT_RUN_ID",
     "TELEMETRY_COMPONENT",
     "PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS",
+    "PRODUCTIVE_K3S_AUTO_APPROVE_APPLY_PLAN",
 ]
 
 ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
@@ -80,60 +81,54 @@ def maybe_chain_ordered_prompt_answer(mode: str, answered_prompt: str, pending: 
     if mode != "stack" or not pending:
         return
 
-    if answered_prompt.startswith("Longhorn default replica count (1 for single-node)"):
-        next_prompt, next_answer = pending[0]
-        if not next_prompt.startswith("Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)"):
-            return
-
-        emit_info(f"chaining ordered detail answer immediately after: {answered_prompt}", log_handle)
-        pending.pop(0)
-        if not write_prompt_answer(
-            proc,
-            next_prompt,
-            next_answer,
-            log_handle,
-            response_kind="chained ordered detail auto-response",
-        ):
-            pending.clear()
-            return
-
-        if not pending:
-            return
-
-        followup_prompt, followup_answer = pending[0]
-        if not followup_prompt.startswith("Make Longhorn the default StorageClass?"):
-            return
-
-        emit_info(f"chaining immediate follow-up answer after: {next_prompt}", log_handle)
-        pending.pop(0)
-        if not write_prompt_answer(
-            proc,
-            followup_prompt,
-            followup_answer,
-            log_handle,
-            response_kind="chained follow-up auto-response",
-        ):
-            pending.clear()
-        return
-
-    if answered_prompt.startswith("Do you want to enable basic auth on the in-cluster registry?"):
-        chained_yes_prompts = [
-            "Longhorn preflight found warnings. Continue anyway?",
-            "Install the missing packages for Longhorn?",
-            "Enable and start 'iscsid' now?",
-        ]
-        while pending and any(pending[0][0].startswith(prefix) for prefix in chained_yes_prompts):
-            next_prompt, next_answer = pending.pop(0)
-            emit_info(f"chaining trailing confirmation after: {answered_prompt}: {next_prompt}", log_handle)
+    def chain_next(expected_prefixes: list[str], response_kind: str) -> None:
+        nonlocal pending
+        while pending and expected_prefixes:
+            next_prompt, next_answer = pending[0]
+            expected_prefix = expected_prefixes[0]
+            if not next_prompt.startswith(expected_prefix):
+                return
+            emit_info(f"chaining ordered detail answer after: {answered_prompt}: {next_prompt}", log_handle)
+            pending.pop(0)
             if not write_prompt_answer(
                 proc,
                 next_prompt,
                 next_answer,
                 log_handle,
-                response_kind="chained trailing auto-response",
+                response_kind=response_kind,
             ):
                 pending.clear()
                 return
+            expected_prefixes.pop(0)
+
+    if answered_prompt.startswith("Longhorn default replica count (1 for single-node)"):
+        chain_next(
+            [
+                "Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)",
+                "Make Longhorn the default StorageClass?",
+            ],
+            "chained ordered detail auto-response",
+        )
+        return
+
+    if answered_prompt.startswith("Rancher hostname (DNS name)"):
+        chain_next(
+            [
+                "Rancher bootstrap password",
+            ],
+            "chained ordered detail auto-response",
+        )
+        return
+
+    if answered_prompt.startswith("Registry hostname (DNS name)"):
+        chain_next(
+            [
+                "Registry PVC size",
+                "Registry StorageClass (blank uses cluster default)",
+            ],
+            "chained ordered detail auto-response",
+        )
+        return
 
 
 def update_detected_state(detected_state: dict[str, str], normalized_buffer: str) -> None:
@@ -201,10 +196,18 @@ def prompt_is_safe_for_proactive_answer(prompt_text: str) -> bool:
 def mode_allows_proactive_prompt_answer(mode: str, prompt_text: str) -> bool:
     if mode == "stack":
         stack_safe_prefixes = [
+            "Helm is already installed. Continue using it without changes?",
+            "Helm was not detected. Install it now?",
             "Longhorn is missing. Install it now?",
             "Rancher is missing. Install it now?",
             "The in-cluster registry is missing. Install it now?",
             "cert-manager is missing. Install it now?",
+            "Make Longhorn the default StorageClass?",
+            "Do you want to enable basic auth on the in-cluster registry?",
+            "Longhorn preflight found warnings. Continue anyway?",
+            "Install the missing packages for Longhorn?",
+            "Enable and start 'iscsid' now?",
+            "Proceed with this plan?",
         ]
         return any(prompt_text.startswith(prefix) for prefix in stack_safe_prefixes)
     return prompt_is_safe_for_proactive_answer(prompt_text)
@@ -280,7 +283,21 @@ def build_prompt_map(args):
             ("Proceed with this plan?", "y"),
         ]
     if args.mode == "stack":
+        rancher_host_answer = args.rancher_host
+        if args.rancher_host == f"rancher.{args.base_domain}":
+            rancher_host_answer = ""
+        registry_host_answer = args.registry_host
+        if args.registry_host == f"registry.{args.base_domain}":
+            registry_host_answer = ""
+        rancher_password_answer = args.rancher_password
+        if args.rancher_password == "admin":
+            rancher_password_answer = ""
+        registry_size_answer = args.registry_size
+        if args.registry_size == "20Gi":
+            registry_size_answer = ""
         return [
+            ("Helm is already installed. Continue using it without changes? [required]", "y"),
+            ("Helm was not detected. Install it now? [required]", "y"),
             ("Longhorn is already present. Leave it unchanged and continue? [optional]", "y"),
             ("Longhorn is missing. Install it now? [optional]", "y"),
             ("Rancher is already present. Leave it unchanged and continue? [optional]", "y"),
@@ -289,15 +306,15 @@ def build_prompt_map(args):
             ("The in-cluster registry is missing. Install it now? [optional]", "y"),
             ("cert-manager is missing. Install it now? [required for TLS-dependent installs]", "y"),
             ("Base domain (used to build hostnames)", args.base_domain),
-            ("Choose TLS mode (1/2)", "2"),
-            ("Longhorn data mount path", args.longhorn_data_path),
+            ("Choose TLS mode (1/2)", ""),
+            ("Longhorn data mount path", "" if args.longhorn_data_path == "/data" else args.longhorn_data_path),
             ("Longhorn default replica count (1 for single-node)", str(args.longhorn_replica_count)),
-            ("Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)", "10"),
-            ("Make Longhorn the default StorageClass?", "y"),
-            ("Rancher hostname (DNS name)", args.rancher_host),
-            ("Rancher bootstrap password", args.rancher_password),
-            ("Registry hostname (DNS name)", args.registry_host),
-            ("Registry PVC size", args.registry_size),
+            ("Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)", ""),
+            ("Make Longhorn the default StorageClass?", ""),
+            ("Rancher hostname (DNS name)", rancher_host_answer),
+            ("Rancher bootstrap password", rancher_password_answer),
+            ("Registry hostname (DNS name)", registry_host_answer),
+            ("Registry PVC size", registry_size_answer),
             ("Registry StorageClass (blank uses cluster default)", ""),
             ("Do you want to enable basic auth on the in-cluster registry?", "n"),
             ("Longhorn preflight found warnings. Continue anyway?", "y"),
@@ -306,31 +323,6 @@ def build_prompt_map(args):
             ("Proceed with this plan?", "y"),
         ]
     raise ValueError(f"unsupported mode: {args.mode}")
-
-
-def build_stack_answers_payload(args) -> str:
-    # Match the core stack artifact tests approach: use stdin answers without a
-    # tty and rely on defaults whenever the desired value already matches the
-    # bootstrap default for this scenario.
-    answers = [
-        "y",  # Longhorn missing -> install
-        "y",  # Rancher missing -> install
-        "y",  # Registry missing -> install
-        "y",  # cert-manager missing -> install
-        args.base_domain,
-        "2",  # self-signed TLS
-        args.longhorn_data_path if args.longhorn_data_path != "/data" else "",
-        str(args.longhorn_replica_count),
-        "y",  # Make Longhorn the default StorageClass?
-        "" if args.rancher_host == f"rancher.{args.base_domain}" else args.rancher_host,
-        "" if args.rancher_password == "admin" else args.rancher_password,
-        "" if args.registry_host == f"registry.{args.base_domain}" else args.registry_host,
-        "" if args.registry_size == "20Gi" else args.registry_size,
-        "",  # Registry StorageClass (blank uses cluster default)
-        "n",  # Do you want to enable basic auth on the in-cluster registry?
-        "y",  # Proceed with this plan?
-    ]
-    return "\n".join(answers) + "\n"
 
 
 def main():
@@ -363,6 +355,7 @@ def main():
 
     command = [
         "ssh",
+        "-tt",
         "-o",
         "BatchMode=yes",
         "-o",
@@ -372,8 +365,6 @@ def main():
         "-p",
         args.port,
     ]
-    if args.mode != "stack":
-        command.insert(1, "-tt")
     if args.key_path:
         command.extend(["-i", args.key_path])
     if args.extra_opts:
@@ -416,18 +407,6 @@ def main():
 
     rc = 1
     try:
-        if args.mode == "stack":
-            answers_payload = build_stack_answers_payload(args)
-            emit_info(
-                f"preloading non-interactive stack answers via stdin lines={len(answers_payload.splitlines())}",
-                log_handle,
-            )
-            if proc.stdin is None:
-                raise RuntimeError("stdin unexpectedly unavailable")
-            proc.stdin.write(answers_payload)
-            proc.stdin.close()
-            proc.stdin = None
-            pending = []
         emit_info(
             f"remote bootstrap session launched for mode={args.mode} host={args.host} pending_prompts={len(pending)} tty=disabled",
             log_handle,
@@ -475,8 +454,6 @@ def main():
                                     response_kind="ordered detail auto-response",
                                 ):
                                     pending.clear()
-                                else:
-                                    maybe_chain_ordered_prompt_answer(args.mode, matched_prompt, pending, proc, log_handle)
                                 continue
                             emit_info("waiting for explicit prompt output before answering", log_handle)
                             continue
@@ -532,9 +509,22 @@ def main():
                 if matched_prompt is not None:
                     if prompt_uses_ordered_detail_fallback(args.mode, matched_prompt):
                         emit_info(
-                            f"detected ordered prompt in output; waiting for idle fallback: {matched_prompt}",
+                            f"detected ordered prompt in output; responding immediately: {matched_prompt}",
                             log_handle,
                         )
+                        if not write_prompt_answer(
+                            proc,
+                            matched_prompt,
+                            matched_answer,
+                            log_handle,
+                            response_kind="ordered detail auto-response",
+                        ):
+                            pending.clear()
+                            prompt_buffer = ""
+                            continue
+                        pending.pop(matched_index)
+                        maybe_chain_ordered_prompt_answer(args.mode, matched_prompt, pending, proc, log_handle)
+                        prompt_buffer = ""
                         continue
                     emit_info(f"auto-responding to prompt: {matched_prompt}", log_handle)
                     if not write_prompt_answer(proc, matched_prompt, matched_answer, log_handle):

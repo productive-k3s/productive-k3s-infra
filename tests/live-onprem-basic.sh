@@ -19,6 +19,7 @@ MULTIPASS_LAUNCH_RETRIES="${MULTIPASS_LAUNCH_RETRIES:-5}"
 MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS="${MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS:-5}"
 MULTIPASS_LAUNCH_TIMEOUT_SECONDS="${MULTIPASS_LAUNCH_TIMEOUT_SECONDS:-180}"
 MULTIPASS_DELETE_TIMEOUT_SECONDS="${MULTIPASS_DELETE_TIMEOUT_SECONDS:-120}"
+ASYNC_MULTIPASS_CLEANUP_LOG_DIR="${ASYNC_MULTIPASS_CLEANUP_LOG_DIR:-/tmp}"
 
 is_transient_multipass_remote_error() {
   local stderr_file="$1"
@@ -39,6 +40,7 @@ resolve_productive_k3s_source() {
 }
 
 export PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS="${PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS:-true}"
+export PRODUCTIVE_K3S_AUTO_APPROVE_APPLY_PLAN="${PRODUCTIVE_K3S_AUTO_APPROVE_APPLY_PLAN:-true}"
 
 now_local() {
   date +"%Y-%m-%d %H:%M:%S%z"
@@ -85,14 +87,40 @@ pick_ssh_key() {
 
 cleanup() {
   local rc=$?
-  run_multipass_cleanup delete "${SERVER_NAME}" "${AGENT_NAME}"
-  run_multipass_cleanup purge
+  schedule_multipass_cleanup "${SERVER_NAME}" "${AGENT_NAME}"
   if [[ "${rc}" == "0" || "${LIVE_ONPREM_PRESERVE_WORKDIR_ON_FAILURE}" != "true" ]]; then
     rm -rf "${WORK_DIR}"
   else
     warn "Preserving failed live-onprem workdir for inspection: ${WORK_DIR}"
   fi
   make -C "${SCENARIO_DIR}" clean >/dev/null 2>&1 || true
+}
+
+schedule_multipass_cleanup() {
+  local server_name="$1"
+  local agent_name="$2"
+  local cleanup_log="${ASYNC_MULTIPASS_CLEANUP_LOG_DIR%/}/pk3s-live-onprem-cleanup-${STAMP}.log"
+  local server_name_q=""
+  local agent_name_q=""
+  local cleanup_cmd=""
+
+  printf '[%s] [INFO] Scheduling background Multipass cleanup: %s\n' "$(now_local)" "${cleanup_log}"
+  printf -v server_name_q '%q' "${server_name}"
+  printf -v agent_name_q '%q' "${agent_name}"
+  cleanup_cmd="$(cat <<EOF
+set +e
+if command -v timeout >/dev/null 2>&1; then
+  timeout --kill-after=5s ${MULTIPASS_DELETE_TIMEOUT_SECONDS}s multipass stop ${server_name_q} ${agent_name_q} >/dev/null 2>&1 || true
+  timeout --kill-after=5s ${MULTIPASS_DELETE_TIMEOUT_SECONDS}s multipass delete ${server_name_q} ${agent_name_q} >/dev/null 2>&1 || true
+  timeout --kill-after=5s ${MULTIPASS_DELETE_TIMEOUT_SECONDS}s multipass purge >/dev/null 2>&1 || true
+else
+  multipass stop ${server_name_q} ${agent_name_q} >/dev/null 2>&1 || true
+  multipass delete ${server_name_q} ${agent_name_q} >/dev/null 2>&1 || true
+  multipass purge >/dev/null 2>&1 || true
+fi
+EOF
+)"
+  nohup bash -lc "${cleanup_cmd}" >"${cleanup_log}" 2>&1 </dev/null &
 }
 
 run_multipass_cleanup() {
