@@ -310,7 +310,7 @@ def build_prompt_map(args):
             ("Longhorn data mount path", "" if args.longhorn_data_path == "/data" else args.longhorn_data_path),
             ("Longhorn default replica count (1 for single-node)", str(args.longhorn_replica_count)),
             ("Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)", ""),
-            ("Make Longhorn the default StorageClass?", ""),
+            ("Make Longhorn the default StorageClass?", "y"),
             ("Rancher hostname (DNS name)", rancher_host_answer),
             ("Rancher bootstrap password", rancher_password_answer),
             ("Registry hostname (DNS name)", registry_host_answer),
