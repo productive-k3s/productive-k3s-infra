@@ -669,14 +669,43 @@ validate_profile() {
 
 run_opentofu_plan() {
   local scenario_dir="$1"
+  local profile_env_path="${2:-}"
   local opentofu_dir="${scenario_dir}/opentofu"
   local resolved_tofu
+  local tf_env_file=""
+  local make_bin="${PK3S_PROFILE_MAKE_BIN:-${MAKE_BIN}}"
 
   [[ -d "${opentofu_dir}" ]] || die 1 "opentofu directory not found: ${opentofu_dir}"
   resolved_tofu="$(resolve_tofu_bin)" || die 5 "missing dependency: tofu or terraform"
   log "INFO" "Running OpenTofu plan in ${opentofu_dir}"
-  "${resolved_tofu}" -chdir="${opentofu_dir}" init -backend=false
-  "${resolved_tofu}" -chdir="${opentofu_dir}" plan
+  (
+    if [[ -n "${profile_env_path}" ]]; then
+      set -a
+      # shellcheck disable=SC1090
+      source "${profile_env_path}"
+      set +a
+
+      if [[ -f "${scenario_dir}/Makefile" ]]; then
+        tf_env_file="$(mktemp)"
+        (
+          cd "${scenario_dir}"
+          "${make_bin}" -pn \
+            | awk -F' := ' '/^TF_VAR_/ {print $1"="$2}'
+        ) > "${tf_env_file}"
+        if [[ -s "${tf_env_file}" ]]; then
+          set -a
+          # shellcheck disable=SC1090
+          source "${tf_env_file}"
+          set +a
+        fi
+      fi
+    fi
+    "${resolved_tofu}" -chdir="${opentofu_dir}" init -backend=false
+    "${resolved_tofu}" -chdir="${opentofu_dir}" plan
+    if [[ -n "${tf_env_file}" ]]; then
+      rm -f "${tf_env_file}"
+    fi
+  )
 }
 
 run_profile_doctor() {
@@ -946,6 +975,12 @@ create_source_profile_tgz() {
   mkdir -p "${package_root}/scripts" "${package_root}/${scenario_dir_rel}"
   cp "${profile}" "${package_root}/profile.env"
   cp -R "${scenario_dir}/." "${package_root}/${scenario_dir_rel}/"
+  case "${scenario_type}" in
+    aws-single-node|onprem-basic|onprem-basic-arm)
+      mkdir -p "${package_root}/ansible/roles/remote_cluster"
+      cp -R "${REPO_DIR}/ansible/roles/remote_cluster/files" "${package_root}/ansible/roles/remote_cluster/"
+      ;;
+  esac
   write_source_profile_manifest "${package_root}/profile.yaml" "${profile_name}" "${scenario_type}" "${engine_type}" "${package_metadata}"
   write_source_profile_install_wrapper "${package_root}/scripts/install.sh" "${scenario_type}" "${scenario_dir_rel}"
   tar -czf "${output_tgz}" -C "${package_root}" .
@@ -1470,7 +1505,7 @@ run_install_profile_package() {
           validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
           warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${scenario_type}" "${OVERRIDE_ENV_PATH}" "${manifest}"
           log "INFO" "Executing packaged profile plan through embedded OpenTofu scenario"
-          run_opentofu_plan "${scenario_dir}"
+          run_opentofu_plan "${scenario_dir}" "${profile_env}"
           persist_profile_runtime_state "${profile_name}" "${scenario_dir}"
           ;;
         ansible|shell)
