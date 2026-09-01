@@ -913,9 +913,46 @@ write_source_profile_install_wrapper() {
     printf 'PACKAGE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"\n'
     printf 'SCENARIO_DIR="${PACKAGE_ROOT}/%s"\n' "${scenario_dir}"
     printf 'PROFILE_ENV="${PACKAGE_ROOT}/profile.env"\n'
+    printf 'RUNTIME_ENV="$(mktemp)"\n'
+    printf 'cleanup() {\n'
+    printf '  rm -f "${RUNTIME_ENV}"\n'
+    printf '}\n'
+    printf 'trap cleanup EXIT\n'
+    printf 'for key in \\\n'
+    printf '  PRODUCTIVE_K3S_SOURCE \\\n'
+    printf '  PRODUCTIVE_K3S_VERSION \\\n'
+    printf '  PRODUCTIVE_K3S_RELEASE_REPO \\\n'
+    printf '  PRODUCTIVE_K3S_REPO \\\n'
+    printf '  PRODUCTIVE_K3S_CORE_REPO_DIR \\\n'
+    printf '  PRODUCTIVE_K3S_ADDONS_REPO_DIR \\\n'
+    printf '  PRODUCTIVE_K3S_STACK_TGZ_URL \\\n'
+    printf '  PRODUCTIVE_K3S_STACK_REMOTE_PATH \\\n'
+    printf '  PRODUCTIVE_K3S_ENGINE \\\n'
+    printf '  PRODUCTIVE_K3S_DISTRO \\\n'
+    printf '  PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS \\\n'
+    printf '  PRODUCTIVE_K3S_AUTO_APPROVE_APPLY_PLAN \\\n'
+    printf '  TELEMETRY_ENABLED \\\n'
+    printf '  TELEMETRY_ENDPOINT \\\n'
+    printf '  TELEMETRY_MARKER \\\n'
+    printf '  TELEMETRY_BEARER_TOKEN \\\n'
+    printf '  TELEMETRY_MAX_RETRIES \\\n'
+    printf '  TELEMETRY_CONNECT_TIMEOUT_SECONDS \\\n'
+    printf '  TELEMETRY_REQUEST_TIMEOUT_SECONDS \\\n'
+    printf '  TELEMETRY_OUTBOX_DIR \\\n'
+    printf '  TELEMETRY_USER_AGENT \\\n'
+    printf '  TELEMETRY_SESSION_ID \\\n'
+    printf '  TELEMETRY_PARENT_RUN_ID \\\n'
+    printf '  TELEMETRY_COMPONENT; do\n'
+    printf '  if [[ ${!key+x} ]]; then\n'
+    printf '    printf '\''export %%s=%%q\\n'\'' "${key}" "${!key}" >>"${RUNTIME_ENV}"\n'
+    printf '  else\n'
+    printf '    printf '\''unset %%s\\n'\'' "${key}" >>"${RUNTIME_ENV}"\n'
+    printf '  fi\n'
+    printf 'done\n'
     printf 'set -a\n'
     printf 'source "${PROFILE_ENV}"\n'
     printf 'set +a\n'
+    printf 'source "${RUNTIME_ENV}"\n'
     printf 'cd "${PACKAGE_ROOT}"\n'
     printf 'export REPO_ROOT="${PACKAGE_ROOT}"\n'
     printf 'export PRODUCTIVE_K3S_REPO="${PK3S_PROFILE_PACKAGE_PRODUCTIVE_K3S_REPO:-${PACKAGE_ROOT}}"\n'
@@ -1311,6 +1348,102 @@ copy_if_exists() {
   cp -a "${source_path}" "${dest_path}"
 }
 
+packaged_profile_runtime_override_keys() {
+  cat <<'EOF'
+PRODUCTIVE_K3S_SOURCE
+PRODUCTIVE_K3S_VERSION
+PRODUCTIVE_K3S_RELEASE_REPO
+PRODUCTIVE_K3S_REPO
+PRODUCTIVE_K3S_CORE_REPO_DIR
+PRODUCTIVE_K3S_ADDONS_REPO_DIR
+PRODUCTIVE_K3S_STACK_TGZ_URL
+PRODUCTIVE_K3S_STACK_REMOTE_PATH
+PRODUCTIVE_K3S_ENGINE
+PRODUCTIVE_K3S_DISTRO
+PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS
+PRODUCTIVE_K3S_AUTO_APPROVE_APPLY_PLAN
+TELEMETRY_ENABLED
+TELEMETRY_ENDPOINT
+TELEMETRY_MARKER
+TELEMETRY_BEARER_TOKEN
+TELEMETRY_MAX_RETRIES
+TELEMETRY_CONNECT_TIMEOUT_SECONDS
+TELEMETRY_REQUEST_TIMEOUT_SECONDS
+TELEMETRY_OUTBOX_DIR
+TELEMETRY_USER_AGENT
+TELEMETRY_SESSION_ID
+TELEMETRY_PARENT_RUN_ID
+TELEMETRY_COMPONENT
+EOF
+}
+
+capture_packaged_profile_runtime_overrides() {
+  local target_path="$1"
+  local key
+  : > "${target_path}"
+  while IFS= read -r key; do
+    [[ -n "${key}" ]] || continue
+    if [[ ${!key+x} ]]; then
+      printf 'export %s=%q\n' "${key}" "${!key}" >> "${target_path}"
+    else
+      printf 'unset %s\n' "${key}" >> "${target_path}"
+    fi
+  done < <(packaged_profile_runtime_override_keys)
+}
+
+source_packaged_profile_env_with_runtime_overrides() {
+  local profile_env="$1"
+  local runtime_env="$2"
+  set -a
+  # shellcheck disable=SC1090
+  source "${profile_env}"
+  set +a
+  # shellcheck disable=SC1090
+  source "${runtime_env}"
+}
+
+rewrite_packaged_source_profile_install_wrapper_if_needed() {
+  local package_root="$1"
+  local install_path="$2"
+  local scenario_type="$3"
+  local rel_dir
+
+  [[ -f "${install_path}" ]] || return 0
+  grep -Fq 'PROFILE_ENV="${PACKAGE_ROOT}/profile.env"' "${install_path}" || return 0
+  grep -Fq 'exec make -C "${SCENARIO_DIR}" up "$@"' "${install_path}" || return 0
+
+  rel_dir="$(scenario_rel_dir "${scenario_type}")" || return 0
+  [[ -d "${package_root}/${rel_dir}" ]] || return 0
+  write_source_profile_install_wrapper "${install_path}" "${scenario_type}" "${rel_dir}"
+}
+
+rewrite_packaged_multipass_bootstrap_helper_if_needed() {
+  local package_root="$1"
+  local scenario_type="$2"
+  local helper_path
+
+  [[ "${scenario_type}" == "multipass" ]] || return 0
+  helper_path="${package_root}/scenarios/local/multipass/scripts/run_bootstrap_session.py"
+  [[ -f "${helper_path}" ]] || return 0
+
+  python3 - "${helper_path}" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+helper_path = Path(sys.argv[1])
+content = helper_path.read_text(encoding="utf-8")
+patched = re.sub(
+    r"(?m)^(\s*)rc = 0$",
+    r"\1rc = proc.returncode if proc.returncode is not None else 124",
+    content,
+    count=1,
+)
+if patched != content:
+    helper_path.write_text(patched, encoding="utf-8")
+PY
+}
+
 persist_profile_state() {
   local profile_name="$1"
   local scenario_dir="$2"
@@ -1400,12 +1533,13 @@ run_packaged_profile_make() {
   local target="$4"
   local make_mode="${5:-normal}"
   local make_bin="${PK3S_PROFILE_MAKE_BIN:-${MAKE_BIN}}"
+  local runtime_env
+  runtime_env="$(mktemp)"
 
-  (
-    set -a
-    # shellcheck disable=SC1090
-    source "${profile_env}"
-    set +a
+  local rc=0
+  if (
+    capture_packaged_profile_runtime_overrides "${runtime_env}"
+    source_packaged_profile_env_with_runtime_overrides "${profile_env}" "${runtime_env}"
     cd "${package_root}"
     export REPO_ROOT="${package_root}"
     export PRODUCTIVE_K3S_REPO="${PK3S_PROFILE_PACKAGE_PRODUCTIVE_K3S_REPO:-${package_root}}"
@@ -1415,7 +1549,13 @@ run_packaged_profile_make() {
     else
       "${make_bin}" -C "${scenario_dir}" "${target}"
     fi
-  )
+  ); then
+    rc=0
+  else
+    rc=$?
+  fi
+  rm -f "${runtime_env}"
+  return "${rc}"
 }
 
 run_install_profile_package() {
@@ -1457,6 +1597,8 @@ run_install_profile_package() {
     return "${rc}"
   }
   install_path="${manifest_dir}/${install_script}"
+  rewrite_packaged_source_profile_install_wrapper_if_needed "${package_root}" "${install_path}" "${scenario_type}"
+  rewrite_packaged_multipass_bootstrap_helper_if_needed "${package_root}" "${scenario_type}"
   restore_profile_runtime_state "${profile_name}" "${scenario_dir}"
 
   case "${action}" in
@@ -1469,14 +1611,25 @@ run_install_profile_package() {
       validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
       warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${scenario_type}" "${OVERRIDE_ENV_PATH}" "${manifest}"
       log "INFO" "Executing packaged profile installer: ${install_script}"
-      (
-        set -a
-        # shellcheck disable=SC1090
-        source "${profile_env}"
-        set +a
+      local runtime_env
+      runtime_env="$(mktemp)"
+      local install_rc=0
+      if (
+        capture_packaged_profile_runtime_overrides "${runtime_env}"
+        source_packaged_profile_env_with_runtime_overrides "${profile_env}" "${runtime_env}"
         cd "${manifest_dir}"
         bash "${install_path}"
-      )
+      ); then
+        install_rc=0
+      else
+        install_rc=$?
+      fi
+      rm -f "${runtime_env}"
+      (( install_rc == 0 )) || {
+        if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
+        rm -rf "${tmp_dir}"
+        return "${install_rc}"
+      }
       persist_profile_state "${profile_name}" "${scenario_dir}"
       persist_profile_runtime_state "${profile_name}" "${scenario_dir}"
       ;;
