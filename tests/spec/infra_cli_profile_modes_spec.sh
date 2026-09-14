@@ -1199,7 +1199,9 @@ EOF
     When run bash -lc '"$1" profile export --tgz "$2" --output "$3"; printf "\n__FILES__\n"; find "$3" -maxdepth 2 -type f | sort; printf "\n__CONFIG__\n"; cat "$3/install-config.env"; printf "\n__MANIFEST__\n"; cat "$3/manifest.json"' bash "$SCRIPT" "$archive" "$output_dir"
     The status should equal 0
     The output should include '__FILES__'
+    The output should include 'AGENTS.md'
     The output should include 'install.sh'
+    The output should include 'preflight.sh'
     The output should include 'profile.tgz'
     The output should include 'install-config.env'
     The output should include 'manifest.json'
@@ -1300,6 +1302,8 @@ EOF
     cat >"${infra_repo}/ansible/roles/remote_cluster/files/common.sh" <<'EOF'
 #!/usr/bin/env bash
 EOF
+    mkdir -p "${infra_repo}/scripts/export-templates"
+    cp -R "${SHELLSPEC_PROJECT_ROOT}/scripts/export-templates/profile" "${infra_repo}/scripts/export-templates/"
     : >"${infra_repo}/LICENSE"
     : >"${infra_repo}/README.md"
     : >"${infra_repo}/productive-k3s-infra.sh"

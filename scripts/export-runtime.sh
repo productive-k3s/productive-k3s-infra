@@ -24,6 +24,41 @@ export_runtime_json_escape() {
     -e 's/\t/\\t/g'
 }
 
+export_runtime_template_path() {
+  local relative_path="$1"
+  local export_runtime_dir
+  export_runtime_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  printf '%s/export-templates/%s\n' "${export_runtime_dir}" "${relative_path}"
+}
+
+export_runtime_render_template() {
+  local template_path="$1"
+  local target_path="$2"
+  local subject_ref="$3"
+  local artifact_name="$4"
+
+  [[ -f "${template_path}" ]] || {
+    printf 'Export template not found: %s\n' "${template_path}" >&2
+    return 1
+  }
+
+  awk -v subject_ref="${subject_ref}" -v artifact_name="${artifact_name}" '
+    function replace_all(value, token, replacement, before, after, pos) {
+      while ((pos = index(value, token)) > 0) {
+        before = substr(value, 1, pos - 1)
+        after = substr(value, pos + length(token))
+        value = before replacement after
+      }
+      return value
+    }
+    {
+      line = replace_all($0, "{{subject_ref}}", subject_ref)
+      line = replace_all(line, "{{artifact_name}}", artifact_name)
+      print line
+    }
+  ' "${template_path}" > "${target_path}"
+}
+
 export_runtime_add_env() {
   local key="$1"
   local value="$2"
@@ -98,6 +133,8 @@ scripts/productive-k3s-infra.sh
 scripts/release-config.sh
 scripts/send-telemetry-event.sh
 scripts/export-runtime.sh
+scripts/export-templates/profile/README.md
+scripts/export-templates/profile/AGENTS.md
 EOF
 }
 
@@ -124,42 +161,129 @@ export_runtime_write_profile_install_script() {
     printf '#!/usr/bin/env bash\n'
     printf 'set -euo pipefail\n\n'
     printf 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'
+    printf '# Runtime flags for this exported bundle. Unknown flags are forwarded to Infra.\n'
+    printf 'RUN_PREFLIGHT=1\n'
+    printf 'FORWARDED_ARGS=()\n'
+    printf 'for arg in "$@"; do\n'
+    printf '  case "${arg}" in\n'
+    printf '    --skip-preflight)\n'
+    printf '      RUN_PREFLIGHT=0\n'
+    printf '      ;;\n'
+    printf '    --preflight-only)\n'
+    printf '      exec "${SCRIPT_DIR}/preflight.sh"\n'
+    printf '      ;;\n'
+    printf '    *)\n'
+    printf '      FORWARDED_ARGS+=("${arg}")\n'
+    printf '      ;;\n'
+    printf '  esac\n'
+    printf 'done\n\n'
     printf 'if [[ -f "${SCRIPT_DIR}/install-config.env" ]]; then\n'
+    printf '  # Generated defaults captured at export time; edit this file for local overrides.\n'
     printf '  # shellcheck disable=SC1091\n'
     printf '  source "${SCRIPT_DIR}/install-config.env"\n'
     printf 'fi\n\n'
+    printf 'if [[ "${RUN_PREFLIGHT}" == "1" ]]; then\n'
+    printf '  # Keep this enabled for first runs so provider and bundle problems fail early.\n'
+    printf '  "${SCRIPT_DIR}/preflight.sh"\n'
+    printf 'fi\n\n'
+    printf '# Replay the exported profile install through the vendored Infra runtime.\n'
     printf 'ARGS=(profile install --tgz "${SCRIPT_DIR}/%s")\n' "${artifact_name}"
     if [[ "${has_override_env}" == "true" ]]; then
       printf 'ARGS+=(--env-file "${SCRIPT_DIR}/override.env")\n'
     fi
-    printf 'exec "${SCRIPT_DIR}/productive-k3s-infra.sh" "${ARGS[@]}" "$@"\n'
+    printf 'exec "${SCRIPT_DIR}/productive-k3s-infra.sh" "${ARGS[@]}" "${FORWARDED_ARGS[@]}"\n'
   } > "${target_path}"
 
   chmod +x "${target_path}"
+}
+
+export_runtime_write_profile_preflight_script() {
+  local target_path="$1"
+  local artifact_name="$2"
+
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'set -euo pipefail\n\n'
+    printf 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n\n'
+    printf 'fail() {\n'
+    printf '  printf '"'"'[FAIL] %%s\\n'"'"' "$1" >&2\n'
+    printf '  exit 1\n'
+    printf '}\n\n'
+    printf 'ok() {\n'
+    printf '  printf '"'"'[OK] %%s\\n'"'"' "$1"\n'
+    printf '}\n\n'
+    printf 'need_file() {\n'
+    printf '  [[ -f "$1" ]] || fail "missing required file: ${1#${SCRIPT_DIR}/}"\n'
+    printf '}\n\n'
+    printf 'need_exec() {\n'
+    printf '  [[ -x "$1" ]] || fail "missing executable file: ${1#${SCRIPT_DIR}/}"\n'
+    printf '}\n\n'
+    printf 'need_cmd() {\n'
+    printf '  command -v "$1" >/dev/null 2>&1 || fail "missing dependency: $1"\n'
+    printf '}\n\n'
+    printf '# Read the profile engine from the packaged profile without unpacking the bundle.\n'
+    printf 'profile_engine() {\n'
+    printf '  local member\n'
+    printf '  member="$(tar -tzf "${SCRIPT_DIR}/%s" | awk '"'"'$0 == "./profile.yaml" || $0 == "profile.yaml" {print; exit}'"'"')"\n' "${artifact_name}"
+    printf '  [[ -n "${member}" ]] || return 1\n'
+    printf '  tar -xOf "${SCRIPT_DIR}/%s" "${member}" \\\n' "${artifact_name}"
+    printf '    | awk '"'"'\n'
+    printf '      /^[[:space:]]*engine:[[:space:]]*$/ {in_engine=1; next}\n'
+    printf '      in_engine && /^[^[:space:]]/ {in_engine=0}\n'
+    printf '      in_engine && /^[[:space:]]*type:[[:space:]]*/ {\n'
+    printf '        line=$0\n'
+    printf '        sub(/^[[:space:]]*type:[[:space:]]*/, "", line)\n'
+    printf '        gsub(/"/, "", line)\n'
+    printf '        gsub(sprintf("%%c", 39), "", line)\n'
+    printf '        print line\n'
+    printf '        exit\n'
+    printf '      }\n'
+    printf '    '"'"'\n'
+    printf '}\n\n'
+    printf '# Verify the bootstrap contains the vendored runtime and packaged profile.\n'
+    printf 'need_cmd bash\n'
+    printf 'need_cmd tar\n'
+    printf 'need_cmd make\n'
+    printf 'need_exec "${SCRIPT_DIR}/productive-k3s-infra.sh"\n'
+    printf 'need_exec "${SCRIPT_DIR}/scripts/productive-k3s-infra.sh"\n'
+    printf 'need_file "${SCRIPT_DIR}/%s"\n' "${artifact_name}"
+    printf 'need_file "${SCRIPT_DIR}/manifest.json"\n'
+    printf 'need_file "${SCRIPT_DIR}/install-config.env"\n\n'
+    printf '# Validate profile package metadata before checking engine-specific tools.\n'
+    printf '"${SCRIPT_DIR}/productive-k3s-infra.sh" profile validate --tgz "${SCRIPT_DIR}/%s"\n\n' "${artifact_name}"
+    printf 'engine="$(profile_engine)"\n'
+    printf '# Check only the local tooling implied by the packaged profile engine.\n'
+    printf 'case "${engine}" in\n'
+    printf '  opentofu)\n'
+    printf '    if [[ -n "${PRODUCTIVE_K3S_INFRA_TOFU_BIN:-}" ]]; then\n'
+    printf '      [[ -x "${PRODUCTIVE_K3S_INFRA_TOFU_BIN}" ]] || fail "configured PRODUCTIVE_K3S_INFRA_TOFU_BIN is not executable: ${PRODUCTIVE_K3S_INFRA_TOFU_BIN}"\n'
+    printf '    elif ! command -v tofu >/dev/null 2>&1 && ! command -v terraform >/dev/null 2>&1; then\n'
+    printf '      fail "missing dependency: tofu or terraform"\n'
+    printf '    fi\n'
+    printf '    ;;\n'
+    printf '  ansible|shell)\n'
+    printf '    need_cmd ssh\n'
+    printf '    ;;\n'
+    printf '  "")\n'
+    printf '    fail "could not detect profile engine from profile.yaml"\n'
+    printf '    ;;\n'
+    printf 'esac\n\n'
+    printf 'ok "exported profile bundle preflight passed"\n'
+  } > "${target_path}"
+
+  chmod +x "${target_path}"
+}
+
+export_runtime_write_profile_agents_md() {
+  local target_path="$1"
+  local subject_ref="$2"
+  local artifact_name="$3"
+  export_runtime_render_template "$(export_runtime_template_path "profile/AGENTS.md")" "${target_path}" "${subject_ref}" "${artifact_name}"
 }
 
 export_runtime_write_readme() {
   local target_path="$1"
   local subject_ref="$2"
   local artifact_name="$3"
-  cat > "${target_path}" <<EOF
-# Productive K3S Exported Profile Bundle
-
-This bundle replays the exported profile installation for \`${subject_ref}\`.
-
-## Contents
-
-- \`install.sh\` replays the exported installation using the bundled Infra runtime.
-- \`${artifact_name}\` is the packaged profile artifact consumed by the installer.
-- \`install-config.env\` freezes exported environment defaults for this bundle.
-- \`manifest.json\` records the exported command metadata.
-
-## Usage
-
-\`\`\`bash
-./install.sh
-\`\`\`
-
-This bundle is self-contained with respect to Productive K3S tooling, but it may still require host prerequisites and network access at install time.
-EOF
+  export_runtime_render_template "$(export_runtime_template_path "profile/README.md")" "${target_path}" "${subject_ref}" "${artifact_name}"
 }

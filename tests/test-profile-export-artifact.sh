@@ -106,6 +106,8 @@ main() {
   tar -xzf "${INSTALLER_TGZ}" -C "${INSTALLER_DIR}"
 
   [[ -f "${INSTALLER_DIR}/bundle/install.sh" ]] || fail "exported installer is missing install.sh"
+  [[ -x "${INSTALLER_DIR}/bundle/preflight.sh" ]] || fail "exported installer is missing executable preflight.sh"
+  [[ -f "${INSTALLER_DIR}/bundle/AGENTS.md" ]] || fail "exported installer is missing AGENTS.md"
   [[ -f "${INSTALLER_DIR}/bundle/profile.tgz" ]] || fail "exported installer is missing profile.tgz"
 
   log "Running exported installer bundle"

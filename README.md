@@ -45,6 +45,14 @@ Instead of executing immediately, Infra can emit an executable bundle that:
   Typical examples are downloading `k3s` or `rke2`, resolving Helm charts, pulling container images, and running scenario-side dependencies such as `OpenTofu`, `Multipass`, SSH, or cloud-provider APIs.
 - reproduces an auditable installation, not a fully offline installation
 
+Each exported profile bundle includes human and agent-oriented bootstrap context:
+
+- `README.md` describes the bundle contents and operator workflow
+- `AGENTS.md` describes the origin, vendored runtime boundary, provider credential assumptions, and editing guidance for automation agents
+- `preflight.sh` validates bundle structure, packaged profile metadata, and the declared engine's local prerequisites
+- `install.sh` runs `preflight.sh` by default before replaying `profile install`
+- `install.sh --preflight-only` validates without creating infrastructure, and `install.sh --skip-preflight` replays after an already-passed preflight
+
 For source-oriented workflows, Infra first normalizes the selected profile into an effective packaged `profile.tgz`, then exports from that package contract. The runtime behavior stays package-first even when the export originated from `--profile` or `dev profile`.
 
 Telemetry consent is only relevant for mutating public CLI flows such as `profile install`, `apply`, and `destroy`. Read-only commands like `help`, `version`, `bundle info --json`, `bom --json`, and source-surface listing/validation commands do not prompt for telemetry and do not emit command-level telemetry events.

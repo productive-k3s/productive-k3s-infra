@@ -54,6 +54,8 @@ assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/scripts/productiv
 assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/scripts/release-config.sh"
 assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/scripts/release.env"
 assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/scripts/send-telemetry-event.sh"
+assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/scripts/export-templates/profile/README.md"
+assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/scripts/export-templates/profile/AGENTS.md"
 assert_not_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/.github/"
 assert_not_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/Makefile"
 assert_not_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/profiles/"

@@ -1208,8 +1208,10 @@ run_profile_export_from_tgz() {
   export_runtime_copy_infra_runtime "${REPO_DIR}" "${bundle_root}"
   export_runtime_write_install_config "${bundle_root}/install-config.env"
   export_runtime_write_manifest "${bundle_root}/manifest.json"
+  export_runtime_write_profile_preflight_script "${bundle_root}/preflight.sh" "${artifact_name}"
   export_runtime_write_profile_install_script "${bundle_root}/install.sh" "${artifact_name}" "${has_override_env}"
   export_runtime_write_readme "${bundle_root}/README.md" "${subject_ref}" "${artifact_name}"
+  export_runtime_write_profile_agents_md "${bundle_root}/AGENTS.md" "${subject_ref}" "${artifact_name}"
 
   if [[ "${output_path}" == *.tgz || "${output_path}" == *.tar.gz ]]; then
     mkdir -p "$(dirname "${output_path}")"
