@@ -308,7 +308,7 @@ def build_prompt_map(args):
         registry_size_answer = args.registry_size
         if args.registry_size == "20Gi":
             registry_size_answer = ""
-        return [
+        prompts = [
             ("Helm is already installed. Continue using it without changes? [required]", "y"),
             ("Helm was not detected. Install it now? [required]", "y"),
             ("Longhorn is already present. Leave it unchanged and continue? [optional]", "y"),
@@ -335,6 +335,13 @@ def build_prompt_map(args):
             ("Enable and start 'iscsid' now?", "y"),
             ("Proceed with this plan?", "y"),
         ]
+        if getattr(args, "stack_tgz", None):
+            prompts = [
+                (prompt, answer)
+                for prompt, answer in prompts
+                if not prompt.startswith("Longhorn preflight found warnings. Continue anyway?")
+            ]
+        return prompts
     raise ValueError(f"unsupported mode: {args.mode}")
 
 

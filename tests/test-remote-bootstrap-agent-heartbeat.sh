@@ -79,6 +79,27 @@ for prompt in [
         prompt,
     ), f"stack mode must wait for explicit runtime prompt output before answering: {prompt}"
 
+class StackArgs:
+    mode = "stack"
+    base_domain = "k3s.lab.internal"
+    rancher_host = "rancher.k3s.lab.internal"
+    registry_host = "registry.k3s.lab.internal"
+    rancher_password = "admin"
+    registry_size = "20Gi"
+    longhorn_data_path = "/data"
+    longhorn_replica_count = 1
+    stack_tgz = ""
+
+
+stack_prompts = [prompt for prompt, _ in module.build_prompt_map(StackArgs())]
+assert "Longhorn preflight found warnings. Continue anyway?" in stack_prompts, "regular stack mode should keep the Longhorn preflight prompt"
+
+StackArgs.stack_tgz = "/tmp/productive-k3s-base-stack.tgz"
+stack_tgz_prompts = [prompt for prompt, _ in module.build_prompt_map(StackArgs())]
+assert "Longhorn preflight found warnings. Continue anyway?" not in stack_tgz_prompts, "stack artifact mode should omit the auto-approved Longhorn preflight prompt"
+assert "Install the missing packages for Longhorn?" in stack_tgz_prompts, "stack artifact mode should still answer Longhorn package prompts when they appear"
+assert "Enable and start 'iscsid' now?" in stack_tgz_prompts, "stack artifact mode should still answer iscsid prompts when they appear"
+
 class DummyStdin:
     def __init__(self):
         self.writes = []
