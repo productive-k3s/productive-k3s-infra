@@ -123,7 +123,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo snap install multipass
+          sudo snap install multipass --channel=latest/stable
           mkdir -p "${RUNNER_TEMP}/ci-bin"
           cat > "${RUNNER_TEMP}/ci-bin/multipass" <<'EOF'
           #!/usr/bin/env bash
@@ -137,6 +137,7 @@ jobs:
             fi
             sleep 2
           done
+          snap info multipass
           "${RUNNER_TEMP}/ci-bin/multipass" version
 
       - name: Run static checks
@@ -269,7 +270,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo snap install multipass
+          sudo snap install multipass --channel=latest/stable
           mkdir -p "${RUNNER_TEMP}/ci-bin"
           cat > "${RUNNER_TEMP}/ci-bin/multipass" <<'EOF'
           #!/usr/bin/env bash
@@ -283,6 +284,7 @@ jobs:
             fi
             sleep 2
           done
+          snap info multipass
           "${RUNNER_TEMP}/ci-bin/multipass" version
 
       - name: Run GitHub-host on-prem full-stack live test
