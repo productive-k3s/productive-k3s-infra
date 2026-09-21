@@ -131,6 +131,22 @@ def maybe_chain_ordered_prompt_answer(mode: str, answered_prompt: str, pending: 
         return
 
 
+def write_prompt_answer_and_chain(
+    mode: str,
+    prompt_text: str,
+    answer: str,
+    pending: list[tuple[str, str]],
+    proc,
+    log_handle=None,
+    response_kind: str = "auto-response",
+) -> bool:
+    if not write_prompt_answer(proc, prompt_text, answer, log_handle, response_kind=response_kind):
+        pending.clear()
+        return False
+    maybe_chain_ordered_prompt_answer(mode, prompt_text, pending, proc, log_handle)
+    return True
+
+
 def update_detected_state(detected_state: dict[str, str], normalized_buffer: str) -> None:
     for component, state in DETECTED_STATE_RE.findall(normalized_buffer):
         detected_state[component] = state
@@ -446,14 +462,15 @@ def main():
                                     f"ordered detail fallback after idle heartbeat #{idle_heartbeat_count}: {matched_prompt}",
                                     log_handle,
                                 )
-                                if not write_prompt_answer(
-                                    proc,
+                                write_prompt_answer_and_chain(
+                                    args.mode,
                                     matched_prompt,
                                     matched_answer,
+                                    pending,
+                                    proc,
                                     log_handle,
                                     response_kind="ordered detail auto-response",
-                                ):
-                                    pending.clear()
+                                )
                                 continue
                             emit_info("waiting for explicit prompt output before answering", log_handle)
                             continue
@@ -462,16 +479,15 @@ def main():
                             f"proactively sending answer after idle heartbeat #{idle_heartbeat_count}: {matched_prompt}",
                             log_handle,
                         )
-                        if not write_prompt_answer(
-                            proc,
+                        write_prompt_answer_and_chain(
+                            args.mode,
                             matched_prompt,
                             matched_answer,
+                            pending,
+                            proc,
                             log_handle,
                             response_kind="proactive auto-response",
-                        ):
-                            pending.clear()
-                        else:
-                            maybe_chain_ordered_prompt_answer(args.mode, matched_prompt, pending, proc, log_handle)
+                        )
                 else:
                     emit_info("remote bootstrap heartbeat: waiting for output; no pending prompts", log_handle)
                 continue
@@ -512,27 +528,28 @@ def main():
                             f"detected ordered prompt in output; responding immediately: {matched_prompt}",
                             log_handle,
                         )
-                        if not write_prompt_answer(
-                            proc,
+                        pending.pop(matched_index)
+                        write_prompt_answer_and_chain(
+                            args.mode,
                             matched_prompt,
                             matched_answer,
+                            pending,
+                            proc,
                             log_handle,
                             response_kind="ordered detail auto-response",
-                        ):
-                            pending.clear()
-                            prompt_buffer = ""
-                            continue
-                        pending.pop(matched_index)
-                        maybe_chain_ordered_prompt_answer(args.mode, matched_prompt, pending, proc, log_handle)
+                        )
                         prompt_buffer = ""
                         continue
                     emit_info(f"auto-responding to prompt: {matched_prompt}", log_handle)
-                    if not write_prompt_answer(proc, matched_prompt, matched_answer, log_handle):
-                        pending.clear()
-                        prompt_buffer = ""
-                        continue
                     pending.pop(matched_index)
-                    maybe_chain_ordered_prompt_answer(args.mode, matched_prompt, pending, proc, log_handle)
+                    write_prompt_answer_and_chain(
+                        args.mode,
+                        matched_prompt,
+                        matched_answer,
+                        pending,
+                        proc,
+                        log_handle,
+                    )
                     prompt_buffer = ""
         rc = proc.wait()
         emit_info(f"remote bootstrap session exited with code {rc}", log_handle)

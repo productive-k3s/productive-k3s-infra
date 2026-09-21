@@ -105,6 +105,22 @@ pending = [
     ("Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)", "10"),
     ("Make Longhorn the default StorageClass?", "y"),
 ]
+assert module.write_prompt_answer_and_chain(
+    "stack",
+    "Longhorn default replica count (1 for single-node)",
+    "1",
+    pending,
+    proc,
+    response_kind="ordered detail auto-response",
+), "ordered detail helper should write the current answer"
+assert proc.stdin.writes == ["1\n", "10\n", "y\n"], "fallback helper should chain hidden Longhorn follow-up prompts"
+assert pending == [], "fallback helper should consume chained Longhorn follow-up prompts"
+
+proc = types.SimpleNamespace(stdin=DummyStdin())
+pending = [
+    ("Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)", "10"),
+    ("Make Longhorn the default StorageClass?", "y"),
+]
 module.maybe_chain_ordered_prompt_answer(
     "stack",
     "Longhorn default replica count (1 for single-node)",
