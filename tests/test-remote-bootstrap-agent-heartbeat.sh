@@ -74,10 +74,10 @@ for prompt in [
     "Install the missing packages for Longhorn?",
     "Enable and start 'iscsid' now?",
 ]:
-    assert not module.mode_allows_proactive_prompt_answer(
+    assert module.mode_allows_proactive_prompt_answer(
         "stack",
         prompt,
-    ), f"stack mode must wait for explicit runtime prompt output before answering: {prompt}"
+    ), f"stack mode may proactively answer safe Longhorn host-prep prompts: {prompt}"
 
 class StackArgs:
     host = "127.0.0.1"
