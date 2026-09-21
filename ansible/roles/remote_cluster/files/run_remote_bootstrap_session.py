@@ -325,7 +325,7 @@ def build_prompt_map(args):
             ("Choose TLS mode (1/2)", ""),
             ("Longhorn data mount path", "" if args.longhorn_data_path == "/data" else args.longhorn_data_path),
             ("Longhorn default replica count (1 for single-node)", str(args.longhorn_replica_count)),
-            ("Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)", ""),
+            ("Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)", "10"),
             ("Make Longhorn the default StorageClass?", "y"),
             ("Rancher hostname (DNS name)", rancher_host_answer),
             ("Rancher bootstrap password", rancher_password_answer),
