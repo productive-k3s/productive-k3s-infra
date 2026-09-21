@@ -220,9 +220,6 @@ def mode_allows_proactive_prompt_answer(mode: str, prompt_text: str) -> bool:
             "cert-manager is missing. Install it now?",
             "Make Longhorn the default StorageClass?",
             "Do you want to enable basic auth on the in-cluster registry?",
-            "Longhorn preflight found warnings. Continue anyway?",
-            "Install the missing packages for Longhorn?",
-            "Enable and start 'iscsid' now?",
             "Proceed with this plan?",
         ]
         return any(prompt_text.startswith(prefix) for prefix in stack_safe_prefixes)

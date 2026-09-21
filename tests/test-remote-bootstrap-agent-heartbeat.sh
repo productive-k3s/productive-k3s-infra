@@ -69,6 +69,16 @@ assert module.mode_allows_proactive_prompt_answer(
     "cert-manager is missing. Install it now? [required for TLS-dependent installs]",
 ), "stack mode may proactively answer safe yes/no install prompts"
 
+for prompt in [
+    "Longhorn preflight found warnings. Continue anyway?",
+    "Install the missing packages for Longhorn?",
+    "Enable and start 'iscsid' now?",
+]:
+    assert not module.mode_allows_proactive_prompt_answer(
+        "stack",
+        prompt,
+    ), f"stack mode must wait for explicit runtime prompt output before answering: {prompt}"
+
 class DummyStdin:
     def __init__(self):
         self.writes = []
