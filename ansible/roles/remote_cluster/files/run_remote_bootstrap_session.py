@@ -345,6 +345,90 @@ def build_prompt_map(args):
     raise ValueError(f"unsupported mode: {args.mode}")
 
 
+def uses_stack_artifact_stdin(args) -> bool:
+    return args.mode == "stack" and bool(getattr(args, "stack_tgz", None))
+
+
+def select_prompt_map(args):
+    if uses_stack_artifact_stdin(args):
+        return []
+    return build_prompt_map(args)
+
+
+def build_stack_artifact_answers(args) -> str:
+    # Keep this sequence aligned with core's stack artifact VM tests. Blank
+    # lines intentionally accept Core defaults for artifact-safe settings.
+    return "\n".join(
+        [
+            "y",
+            "y",
+            "y",
+            "y",
+            args.base_domain,
+            "2",
+            "",
+            "",
+            "",
+            "y",
+            "",
+            args.rancher_password,
+            "",
+            "",
+            "",
+            "",
+            "y",
+        ]
+    ) + "\n"
+
+
+def build_remote_script(args) -> str:
+    remote_script = f"cd {shlex.quote(args.remote_dir)} && "
+    telemetry_prefix = telemetry_env_prefix()
+    if telemetry_prefix:
+        remote_script += f"{telemetry_prefix} "
+    if uses_stack_artifact_stdin(args):
+        answers = shlex.quote(build_stack_artifact_answers(args))
+        remote_script += (
+            "bootstrap_answers_file=\"$(mktemp)\" && "
+            f"printf '%s' {answers} > \"${{bootstrap_answers_file}}\" && "
+            "unset PRODUCTIVE_K3S_ADDONS_REPO_DIR && "
+            "export PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS=true && "
+            f"./productive-k3s-core.sh stack install --tgz {shlex.quote(args.stack_tgz)} < \"${{bootstrap_answers_file}}\"; "
+            "stack_rc=$?; rm -f \"${bootstrap_answers_file}\"; exit \"${stack_rc}\""
+        )
+    else:
+        remote_script += f"./scripts/apply.sh --mode {shlex.quote(args.mode)}"
+    return remote_script
+
+
+def build_ssh_command(args):
+    command = [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "ConnectTimeout=10",
+        "-p",
+        args.port,
+    ]
+    if not uses_stack_artifact_stdin(args):
+        command.insert(1, "-tt")
+    if args.key_path:
+        command.extend(["-i", args.key_path])
+    if args.extra_opts:
+        command.extend(shlex.split(args.extra_opts))
+    remote_script = build_remote_script(args)
+    command.extend(
+        [
+            f"{args.user}@{args.host}",
+            f"bash -lc {shlex.quote(remote_script)}",
+        ]
+    )
+    return command
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", required=True)
@@ -370,43 +454,10 @@ def main():
     if args.mode == "agent" and (not args.server_url or not args.cluster_token):
         parser.error("--server-url and --cluster-token are required for agent mode")
 
-    prompt_map = build_prompt_map(args)
+    prompt_map = select_prompt_map(args)
     pending = list(prompt_map)
 
-    command = [
-        "ssh",
-        "-tt",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "StrictHostKeyChecking=accept-new",
-        "-o",
-        "ConnectTimeout=10",
-        "-p",
-        args.port,
-    ]
-    if args.key_path:
-        command.extend(["-i", args.key_path])
-    if args.extra_opts:
-        command.extend(shlex.split(args.extra_opts))
-    remote_script = f"cd {shlex.quote(args.remote_dir)} && "
-    telemetry_prefix = telemetry_env_prefix()
-    if telemetry_prefix:
-        remote_script += f"{telemetry_prefix} "
-    if args.mode == "stack" and args.stack_tgz:
-        remote_script += (
-            "unset PRODUCTIVE_K3S_ADDONS_REPO_DIR && "
-            "export PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS=true && "
-            f"./productive-k3s-core.sh stack install --tgz {shlex.quote(args.stack_tgz)}"
-        )
-    else:
-        remote_script += f"./scripts/apply.sh --mode {shlex.quote(args.mode)}"
-    command.extend(
-        [
-            f"{args.user}@{args.host}",
-            f"bash -lc {shlex.quote(remote_script)}",
-        ]
-    )
+    command = build_ssh_command(args)
 
     proc = subprocess.Popen(
         command,

@@ -80,7 +80,13 @@ for prompt in [
     ), f"stack mode must wait for explicit runtime prompt output before answering: {prompt}"
 
 class StackArgs:
+    host = "127.0.0.1"
+    user = "ubuntu"
+    port = "22"
+    key_path = ""
+    extra_opts = ""
     mode = "stack"
+    remote_dir = "/home/ubuntu/productive-k3s"
     base_domain = "k3s.lab.internal"
     rancher_host = "rancher.k3s.lab.internal"
     registry_host = "registry.k3s.lab.internal"
@@ -99,6 +105,17 @@ stack_tgz_prompts = [prompt for prompt, _ in module.build_prompt_map(StackArgs()
 assert "Longhorn preflight found warnings. Continue anyway?" not in stack_tgz_prompts, "stack artifact mode should omit the auto-approved Longhorn preflight prompt"
 assert "Install the missing packages for Longhorn?" in stack_tgz_prompts, "stack artifact mode should still answer Longhorn package prompts when they appear"
 assert "Enable and start 'iscsid' now?" in stack_tgz_prompts, "stack artifact mode should still answer iscsid prompts when they appear"
+assert module.select_prompt_map(StackArgs()) == [], "stack artifact mode should not use prompt-detection pending prompts"
+
+ssh_command = module.build_ssh_command(StackArgs())
+remote_script = module.build_remote_script(StackArgs())
+assert "-tt" not in ssh_command, "stack artifact mode should not allocate a pseudo-TTY"
+assert "bootstrap_answers_file=\"$(mktemp)\"" in remote_script, "stack artifact mode should create a deterministic answers file"
+assert "PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS=true" in remote_script, "stack artifact mode should preserve Core preflight auto-approval"
+assert "./productive-k3s-core.sh stack install --tgz /tmp/productive-k3s-base-stack.tgz < \"${bootstrap_answers_file}\"" in remote_script, "stack artifact mode should feed Core from the answers file"
+
+StackArgs.stack_tgz = ""
+assert "-tt" in module.build_ssh_command(StackArgs()), "regular interactive stack mode should still allocate a pseudo-TTY"
 
 class DummyStdin:
     def __init__(self):
