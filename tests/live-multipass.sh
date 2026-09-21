@@ -25,8 +25,12 @@ fi
 
 export PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS="${PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS:-true}"
 
+now_local() {
+  date +"%Y-%m-%d %H:%M:%S%z"
+}
+
 warn() {
-  printf '[WARN] %s\n' "$1" >&2
+  printf '[%s] [WARN] %s\n' "$(now_local)" "$1" >&2
 }
 
 cleanup() {
@@ -45,7 +49,7 @@ run_cleanup_make() {
     if timeout --kill-after=5s "${SCENARIO_CLEANUP_TIMEOUT_SECONDS}s" make -C "${SCENARIO_DIR}" "${target}" "$@" >/dev/null 2>&1; then
       return 0
     fi
-    printf '[WARN] scenario cleanup target %s timed out after %ss; continuing\n' "${target}" "${SCENARIO_CLEANUP_TIMEOUT_SECONDS}" >&2
+    printf '[%s] [WARN] scenario cleanup target %s timed out after %ss; continuing\n' "$(now_local)" "${target}" "${SCENARIO_CLEANUP_TIMEOUT_SECONDS}" >&2
     return 1
   fi
 
@@ -106,7 +110,7 @@ main() {
   if ! wait_for_instance_removal "${MULTIPASS_SCENARIO_PREFIX}"; then
     force_delete_instances_by_prefix "${MULTIPASS_SCENARIO_PREFIX}"
     wait_for_instance_removal "${MULTIPASS_SCENARIO_PREFIX}" || {
-      printf '[FAIL] could not clear existing multipass instances with prefix %s before live test\n' "${MULTIPASS_SCENARIO_PREFIX}" >&2
+      printf '[%s] [FAIL] could not clear existing multipass instances with prefix %s before live test\n' "$(now_local)" "${MULTIPASS_SCENARIO_PREFIX}" >&2
       exit 1
     }
   fi
@@ -116,7 +120,7 @@ main() {
     MULTIPASS_LAUNCH_MAX_ATTEMPTS="${MULTIPASS_LAUNCH_MAX_ATTEMPTS}"
   make -C "${SCENARIO_DIR}" validate
 
-  printf '[PASS] multipass live test completed\n'
+  printf '[%s] [PASS] multipass live test completed\n' "$(now_local)"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

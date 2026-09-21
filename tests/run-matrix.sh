@@ -20,6 +20,28 @@ RUNS_DIR="${ARTIFACTS_DIR}/infra-runs"
 RUN_TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 MATRIX_RUN_ID="${RUN_TIMESTAMP}-${LEVEL}-$$"
 
+now_local() {
+  date +"%Y-%m-%d %H:%M:%S%z"
+}
+
+emit_line() {
+  local level="$1"
+  shift
+  printf '[%s] [%s] %s\n' "$(now_local)" "${level}" "$*"
+}
+
+prefix_stream() {
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    printf '[%s] %s\n' "$(now_local)" "${line}"
+  done
+}
+
+emit_file_with_timestamps() {
+  local file_path="$1"
+  [[ -f "${file_path}" ]] || return 0
+  prefix_stream < "${file_path}"
+}
+
 if [[ -z "${LEVEL}" || "$#" -eq 0 ]]; then
   printf 'usage: %s <static|contract|live> <scenario> [scenario...]\n' "$0" >&2
   exit 2
@@ -322,13 +344,15 @@ for scenario in "$@"; do
   started_at="$(date -Iseconds)"
   started_epoch="$(date +%s)"
 
-  printf '\n==> [%s] %s\n' "${LEVEL}" "${scenario}"
+  emit_line "INFO" "matrix level=${LEVEL} scenario=${scenario} target=${target}"
   rc=0
   if [[ "${LEVEL}" == "live" ]]; then
     set +e
+    set -o pipefail
     script -qefc "make -C \"${scenario_dir}\" \"${target}\"" /dev/null \
       | tr -d '\000' \
-      | tee "${log_file}"
+      | tee "${log_file}" \
+      | prefix_stream
     rc=${PIPESTATUS[0]}
     set -e
   else
@@ -345,35 +369,35 @@ for scenario in "$@"; do
   if [[ "${rc}" == "0" ]]; then
     passes+=("${scenario}")
     write_run_manifest "${scenario}" "pass" "${started_at}" "${finished_at}" "${duration_seconds}" "${manifest_file}"
-    printf '[PASS] %s %s\n' "${scenario}" "${target}"
+    emit_line "PASS" "${scenario} ${target} duration=${duration_seconds}s"
     if [[ "${LEVEL}" != "live" ]]; then
-      cat "${log_file}"
+      emit_file_with_timestamps "${log_file}"
     fi
   else
     if [[ "${rc}" == "3" ]] || grep -q '^\[SKIP\]' "${log_file}"; then
       skips+=("${scenario}")
       skip_reason="$(extract_skip_reason "${log_file}" "${scenario}" "${target}")"
       write_run_manifest "${scenario}" "skip" "${started_at}" "${finished_at}" "${duration_seconds}" "${manifest_file}" "${skip_reason}"
-      printf '[SKIP] %s %s\n' "${scenario}" "${target}"
+      emit_line "SKIP" "${scenario} ${target} duration=${duration_seconds}s reason=${skip_reason:-unspecified}"
       if [[ "${LEVEL}" != "live" ]]; then
-        cat "${log_file}"
+        emit_file_with_timestamps "${log_file}"
       fi
     else
       fails+=("${scenario}")
       write_run_manifest "${scenario}" "fail" "${started_at}" "${finished_at}" "${duration_seconds}" "${manifest_file}"
-      printf '[FAIL] %s %s\n' "${scenario}" "${target}" >&2
+      emit_line "FAIL" "${scenario} ${target} duration=${duration_seconds}s" >&2
       if [[ "${LEVEL}" != "live" ]]; then
-        cat "${log_file}" >&2
+        emit_file_with_timestamps "${log_file}" >&2
       fi
     fi
   fi
   rm -f "${log_file}"
 done
 
-printf '\nMatrix summary (%s)\n' "${LEVEL}"
-printf '  pass: %s\n' "${passes[*]:-none}"
-printf '  skip: %s\n' "${skips[*]:-none}"
-printf '  fail: %s\n' "${fails[*]:-none}"
+emit_line "INFO" "matrix summary level=${LEVEL}"
+emit_line "INFO" "pass=${passes[*]:-none}"
+emit_line "INFO" "skip=${skips[*]:-none}"
+emit_line "INFO" "fail=${fails[*]:-none}"
 
 mkdir -p "${ARTIFACTS_DIR}"
 summary_started_at="$(find "${RUNS_DIR}" -maxdepth 1 -type f -name "${MATRIX_RUN_ID}-*.json" -print0 | xargs -0 jq -r '.started_at // empty' 2>/dev/null | sed '/^$/d' | sort | head -n 1)"

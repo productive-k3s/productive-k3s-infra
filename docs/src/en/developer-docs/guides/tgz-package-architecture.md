@@ -203,6 +203,7 @@ metadata:
 spec:
   scenario:
     type: aws-single-node
+    path: scenarios/cloud/aws-single-node
   engine:
     type: opentofu
   runtime:
@@ -228,9 +229,23 @@ spec:
       description: Absolute local path to the matching private key
   execution:
     installScript: scenario/install.sh
+    targets:
+      apply: up
+      status: status
+      destroy: down
 ```
 
 `profile.env` remains part of the package, but it is treated as the base/default contract of the package, not as the final installation-specific configuration. `spec.inputs` defines which values may come from package defaults and which values must be supplied from the invoking machine through `--env-file`.
+
+`spec.scenario.path` is the package-local scenario directory. Infra must prefer
+that declared path for packaged execution so the runtime does not need to know
+the names of profile repository scenarios. `spec.execution.targets` declares the
+scenario Make targets used by package-level operations; missing target metadata
+falls back to the legacy built-in mappings only for older packages.
+
+Every required input marked `source: package-default` must have a non-empty
+default value in the packaged `profile.env`. Values marked `source:
+local-override` must be provided by the invoking machine with `--env-file`.
 
 ## Infra install flow
 

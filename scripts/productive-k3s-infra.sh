@@ -39,6 +39,7 @@ GLOBAL_DEBUG=0
 GLOBAL_YES=0
 GLOBAL_DRY_RUN=0
 GLOBAL_JSON=0
+GLOBAL_EVENTS_FORMAT=""
 
 # shellcheck disable=SC1090
 source "${EXPORT_RUNTIME}"
@@ -203,6 +204,7 @@ Supported global flags:
   --yes
   --dry-run
   --json
+  --events ndjson
 EOF
     return 0
   fi
@@ -252,6 +254,7 @@ Supported global flags:
   --yes
   --dry-run
   --json
+  --events ndjson
 EOF
 }
 
@@ -300,6 +303,76 @@ log() {
   local level="$1"
   shift
   printf '[pk3s-infra] %-5s %s\n' "${level}" "$*"
+}
+
+operation_events_enabled() {
+  [[ "${GLOBAL_EVENTS_FORMAT:-}" == "ndjson" ]]
+}
+
+setup_operation_event_output() {
+  [[ -z "${GLOBAL_EVENTS_FORMAT:-}" ]] && return 0
+  [[ "${GLOBAL_EVENTS_FORMAT}" == "ndjson" ]] || die 2 "unsupported --events format: ${GLOBAL_EVENTS_FORMAT}; supported format: ndjson"
+  exec 3>&1
+  export PK3S_OPERATION_EVENTS_FD=3
+  exec 1>&2
+}
+
+emit_operation_event() {
+  operation_events_enabled || return 0
+  local operation="$1"
+  local step="$2"
+  local status="$3"
+  local message="${4:-}"
+  local subject="${5:-}"
+  local fd="${PK3S_OPERATION_EVENTS_FD:-1}"
+  printf '{"schema_version":"productive-k3s-operation-event/v1","component":"infra","operation":"%s","step":"%s","status":"%s","message":"%s","subject":"%s","emitted_at":"%s"}\n' \
+    "$(json_escape "${operation}")" \
+    "$(json_escape "${step}")" \
+    "$(json_escape "${status}")" \
+    "$(json_escape "${message}")" \
+    "$(json_escape "${subject}")" \
+    "$(json_escape "$(date -Iseconds)")" >&"${fd}"
+}
+
+emit_operation_completed_event() {
+  local operation="$1"
+  local rc="$2"
+  local subject="${3:-}"
+  if (( rc == 0 )); then
+    emit_operation_event "${operation}" "operation.completed" "success" "Operation completed" "${subject}"
+  else
+    emit_operation_event "${operation}" "operation.completed" "failed" "Operation failed with exit code ${rc}" "${subject}"
+  fi
+}
+
+operation_name_for_args() {
+  local command="${1:-help}"
+  local subcommand="${2:-}"
+  case "${command}" in
+    profile)
+      printf 'profile.%s\n' "${subcommand:-unknown}"
+      ;;
+    dev)
+      if [[ "${subcommand:-}" == "profile" ]]; then
+        printf 'profile.%s\n' "${3:-unknown}"
+      else
+        printf 'dev.%s\n' "${subcommand:-unknown}"
+      fi
+      ;;
+    multipass|onprem|onprem-basic|on-prem|onprem-arm|onprem-basic-arm|on-prem-arm|aws-single-node)
+      printf 'scenario.%s\n' "${2:-up}"
+      ;;
+    *)
+      printf 'infra.%s\n' "${command}"
+      ;;
+  esac
+}
+
+events_exit_trap() {
+  local rc=$?
+  if operation_events_enabled && [[ "${OPERATION_COMPLETED_EMITTED:-0}" -ne 1 && -n "${OPERATION_NAME:-}" ]]; then
+    emit_operation_completed_event "${OPERATION_NAME}" "${rc}" "${OPERATION_SUBJECT:-}"
+  fi
 }
 
 die() {
@@ -504,7 +577,8 @@ resolve_scenario() {
       printf 'aws-single-node\n'
       ;;
     *)
-      return 1
+      scenario_rel_dir "$1" >/dev/null 2>&1 || return 1
+      printf '%s\n' "$1"
       ;;
   esac
 }
@@ -524,6 +598,16 @@ scenario_rel_dir() {
       printf 'scenarios/cloud/aws-single-node\n'
       ;;
     *)
+      local source_repo="${PROFILES_SOURCE_REPO_DIR:-}" rel_dir
+      if [[ -n "${source_repo}" && -d "${source_repo}/scenarios" ]]; then
+        rel_dir="$(
+          cd "${source_repo}" && \
+          find scenarios -mindepth 2 -maxdepth 2 -type d -name "$1" | sort | head -n1
+        )"
+        [[ -n "${rel_dir}" ]] || return 1
+        printf '%s\n' "${rel_dir}"
+        return 0
+      fi
       return 1
       ;;
   esac
@@ -555,7 +639,12 @@ profile_category() {
       printf 'cloud\n'
       ;;
     *)
-      return 1
+      local rel_dir category
+      rel_dir="$(scenario_rel_dir "$1")" || return 1
+      category="${rel_dir#scenarios/}"
+      category="${category%%/*}"
+      [[ -n "${category}" ]] || return 1
+      printf '%s\n' "${category}"
       ;;
   esac
 }
@@ -580,6 +669,18 @@ command_to_target() {
           ;;
         onprem-basic|onprem-basic-arm)
           return 1
+          ;;
+        *)
+          local rel_dir
+          rel_dir="$(scenario_rel_dir "${scenario}")" || return 1
+          case "${rel_dir}" in
+            scenarios/local/*|scenarios/cloud/*)
+              printf 'down\n'
+              ;;
+            *)
+              return 1
+              ;;
+          esac
           ;;
       esac
       ;;
@@ -669,14 +770,43 @@ validate_profile() {
 
 run_opentofu_plan() {
   local scenario_dir="$1"
+  local profile_env_path="${2:-}"
   local opentofu_dir="${scenario_dir}/opentofu"
   local resolved_tofu
+  local tf_env_file=""
+  local make_bin="${PK3S_PROFILE_MAKE_BIN:-${MAKE_BIN}}"
 
   [[ -d "${opentofu_dir}" ]] || die 1 "opentofu directory not found: ${opentofu_dir}"
   resolved_tofu="$(resolve_tofu_bin)" || die 5 "missing dependency: tofu or terraform"
   log "INFO" "Running OpenTofu plan in ${opentofu_dir}"
-  "${resolved_tofu}" -chdir="${opentofu_dir}" init -backend=false
-  "${resolved_tofu}" -chdir="${opentofu_dir}" plan
+  (
+    if [[ -n "${profile_env_path}" ]]; then
+      set -a
+      # shellcheck disable=SC1090
+      source "${profile_env_path}"
+      set +a
+
+      if [[ -f "${scenario_dir}/Makefile" ]]; then
+        tf_env_file="$(mktemp)"
+        (
+          cd "${scenario_dir}"
+          "${make_bin}" -pn \
+            | awk -F' := ' '/^TF_VAR_/ {print $1"="$2}'
+        ) > "${tf_env_file}"
+        if [[ -s "${tf_env_file}" ]]; then
+          set -a
+          # shellcheck disable=SC1090
+          source "${tf_env_file}"
+          set +a
+        fi
+      fi
+    fi
+    "${resolved_tofu}" -chdir="${opentofu_dir}" init -backend=false
+    "${resolved_tofu}" -chdir="${opentofu_dir}" plan
+    if [[ -n "${tf_env_file}" ]]; then
+      rm -f "${tf_env_file}"
+    fi
+  )
 }
 
 run_profile_doctor() {
@@ -716,14 +846,22 @@ profile_command_dispatch() {
   local command="$1"
   local profile="$2"
   local target env_file_var scenario_dir
+  local operation="profile.${command}"
 
+  emit_operation_event "${operation}" "profile.source.load" "running" "Loading source profile" "${profile}"
   enforce_release_bound_productive_k3s_version
   source_profile "${profile}"
+  OPERATION_SUBJECT="${PK3S_INFRA_PROFILE_NAME:-${profile}}"
   enforce_release_bound_productive_k3s_version
+  emit_operation_event "${operation}" "profile.source.load" "success" "Source profile loaded" "${PK3S_INFRA_PROFILE_NAME:-${profile}}"
+  emit_operation_event "${operation}" "profile.source.validate" "running" "Validating source profile" "${PK3S_INFRA_PROFILE_NAME:-${profile}}"
   validate_profile
+  emit_operation_event "${operation}" "profile.source.validate" "success" "Source profile validation passed" "${PK3S_INFRA_PROFILE_NAME}"
 
+  emit_operation_event "${operation}" "profile.scenario.resolve" "running" "Resolving source scenario" "${PK3S_INFRA_PROFILE_NAME}"
   target="$(command_to_target "${command}" "${PK3S_INFRA_SCENARIO}")" || die 2 "unsupported command '${command}' for scenario '${PK3S_INFRA_SCENARIO}'"
   scenario_dir="$(resolve_source_scenario_dir "${PK3S_INFRA_SCENARIO}")"
+  emit_operation_event "${operation}" "profile.scenario.resolve" "success" "Source scenario resolved" "${PK3S_INFRA_SCENARIO}"
 
   log "INFO" "Loading profile: ${profile}"
   log "INFO" "Scenario: ${PK3S_INFRA_SCENARIO}"
@@ -738,18 +876,35 @@ profile_command_dispatch() {
   if [[ "${command}" == "plan" ]]; then
     case "${PK3S_INFRA_ENGINE}" in
       opentofu)
-        run_opentofu_plan "${scenario_dir}"
-        return $?
+        emit_operation_event "${operation}" "profile.plan.run" "running" "Running OpenTofu plan" "${PK3S_INFRA_PROFILE_NAME}"
+        run_opentofu_plan "${scenario_dir}" || {
+          local rc=$?
+          emit_operation_event "${operation}" "profile.plan.run" "failed" "OpenTofu plan failed" "${PK3S_INFRA_PROFILE_NAME}"
+          return "${rc}"
+        }
+        emit_operation_event "${operation}" "profile.plan.run" "success" "OpenTofu plan completed" "${PK3S_INFRA_PROFILE_NAME}"
+        return 0
         ;;
       ansible|shell)
         log "INFO" "Plan mode delegates to 'make -n' for the current remote backend contract"
         env_file_var="$(profile_env_var_name "${PK3S_INFRA_SCENARIO}")"
+        emit_operation_event "${operation}" "profile.plan.run" "running" "Running scenario make dry-run" "${PK3S_INFRA_PROFILE_NAME}"
         if [[ -n "${env_file_var}" ]]; then
-          env "${env_file_var}=${profile}" "${MAKE_BIN}" -n -C "${scenario_dir}" "${target}"
-          return $?
+          env "${env_file_var}=${profile}" "${MAKE_BIN}" -n -C "${scenario_dir}" "${target}" || {
+            local rc=$?
+            emit_operation_event "${operation}" "profile.plan.run" "failed" "Scenario make dry-run failed" "${PK3S_INFRA_PROFILE_NAME}"
+            return "${rc}"
+          }
+          emit_operation_event "${operation}" "profile.plan.run" "success" "Scenario make dry-run completed" "${PK3S_INFRA_PROFILE_NAME}"
+          return 0
         fi
-        "${MAKE_BIN}" -n -C "${scenario_dir}" "${target}"
-        return $?
+        "${MAKE_BIN}" -n -C "${scenario_dir}" "${target}" || {
+          local rc=$?
+          emit_operation_event "${operation}" "profile.plan.run" "failed" "Scenario make dry-run failed" "${PK3S_INFRA_PROFILE_NAME}"
+          return "${rc}"
+        }
+        emit_operation_event "${operation}" "profile.plan.run" "success" "Scenario make dry-run completed" "${PK3S_INFRA_PROFILE_NAME}"
+        return 0
         ;;
     esac
   fi
@@ -762,11 +917,22 @@ profile_command_dispatch() {
   export TELEMETRY_PARENT_RUN_ID="${TELEMETRY_RUN_ID:-}"
   export TELEMETRY_RUN_ID=""
   export TELEMETRY_COMPONENT="infra"
+  emit_operation_event "${operation}" "profile.${command}.run" "running" "Running scenario make target ${target}" "${PK3S_INFRA_PROFILE_NAME}"
   if [[ -n "${env_file_var}" ]]; then
-    env "${env_file_var}=${profile}" "${MAKE_BIN}" -C "${scenario_dir}" "${target}"
-    return $?
+    env "${env_file_var}=${profile}" "${MAKE_BIN}" -C "${scenario_dir}" "${target}" || {
+      local rc=$?
+      emit_operation_event "${operation}" "profile.${command}.run" "failed" "Scenario make target failed" "${PK3S_INFRA_PROFILE_NAME}"
+      return "${rc}"
+    }
+    emit_operation_event "${operation}" "profile.${command}.run" "success" "Scenario make target completed" "${PK3S_INFRA_PROFILE_NAME}"
+    return 0
   fi
-  "${MAKE_BIN}" -C "${scenario_dir}" "${target}"
+  "${MAKE_BIN}" -C "${scenario_dir}" "${target}" || {
+    local rc=$?
+    emit_operation_event "${operation}" "profile.${command}.run" "failed" "Scenario make target failed" "${PK3S_INFRA_PROFILE_NAME}"
+    return "${rc}"
+  }
+  emit_operation_event "${operation}" "profile.${command}.run" "success" "Scenario make target completed" "${PK3S_INFRA_PROFILE_NAME}"
 }
 
 legacy_dispatch() {
@@ -837,16 +1003,22 @@ profile_yaml_get() {
   local file="$1"
   local key="$2"
   awk -v key="${key}" '
-    /^metadata:/ { section="metadata"; subsection=""; next }
-    /^spec:/ { section="spec"; subsection=""; next }
-    section == "spec" && /^  scenario:/ { subsection="scenario"; next }
-    section == "spec" && /^  engine:/ { subsection="engine"; next }
-    section == "spec" && /^  execution:/ { subsection="execution"; next }
+    /^metadata:/ { section="metadata"; subsection=""; nested=""; next }
+    /^spec:/ { section="spec"; subsection=""; nested=""; next }
+    section == "spec" && /^  scenario:/ { subsection="scenario"; nested=""; next }
+    section == "spec" && /^  engine:/ { subsection="engine"; nested=""; next }
+    section == "spec" && /^  execution:/ { subsection="execution"; nested=""; next }
+    section == "spec" && subsection == "execution" && /^    targets:/ { nested="targets"; next }
+    section == "spec" && /^  [a-zA-Z]/ { subsection=""; nested="" }
     section == "metadata" && key == "metadata.name" && /^  name:/ { print; exit }
     section == "metadata" && key == "metadata.version" && /^  version:/ { print; exit }
     section == "spec" && subsection == "scenario" && key == "spec.scenario.type" && /^    type:/ { print; exit }
+    section == "spec" && subsection == "scenario" && key == "spec.scenario.path" && /^    path:/ { print; exit }
     section == "spec" && subsection == "engine" && key == "spec.engine.type" && /^    type:/ { print; exit }
     section == "spec" && subsection == "execution" && key == "spec.execution.installScript" && /^    installScript:/ { print; exit }
+    section == "spec" && subsection == "execution" && nested == "targets" && key == "spec.execution.targets.apply" && /^      apply:/ { print; exit }
+    section == "spec" && subsection == "execution" && nested == "targets" && key == "spec.execution.targets.status" && /^      status:/ { print; exit }
+    section == "spec" && subsection == "execution" && nested == "targets" && key == "spec.execution.targets.destroy" && /^      destroy:/ { print; exit }
   ' "${file}"
 }
 
@@ -884,9 +1056,46 @@ write_source_profile_install_wrapper() {
     printf 'PACKAGE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"\n'
     printf 'SCENARIO_DIR="${PACKAGE_ROOT}/%s"\n' "${scenario_dir}"
     printf 'PROFILE_ENV="${PACKAGE_ROOT}/profile.env"\n'
+    printf 'RUNTIME_ENV="$(mktemp)"\n'
+    printf 'cleanup() {\n'
+    printf '  rm -f "${RUNTIME_ENV}"\n'
+    printf '}\n'
+    printf 'trap cleanup EXIT\n'
+    printf 'for key in \\\n'
+    printf '  PRODUCTIVE_K3S_SOURCE \\\n'
+    printf '  PRODUCTIVE_K3S_VERSION \\\n'
+    printf '  PRODUCTIVE_K3S_RELEASE_REPO \\\n'
+    printf '  PRODUCTIVE_K3S_REPO \\\n'
+    printf '  PRODUCTIVE_K3S_CORE_REPO_DIR \\\n'
+    printf '  PRODUCTIVE_K3S_ADDONS_REPO_DIR \\\n'
+    printf '  PRODUCTIVE_K3S_STACK_TGZ_URL \\\n'
+    printf '  PRODUCTIVE_K3S_STACK_REMOTE_PATH \\\n'
+    printf '  PRODUCTIVE_K3S_ENGINE \\\n'
+    printf '  PRODUCTIVE_K3S_DISTRO \\\n'
+    printf '  PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS \\\n'
+    printf '  PRODUCTIVE_K3S_AUTO_APPROVE_APPLY_PLAN \\\n'
+    printf '  TELEMETRY_ENABLED \\\n'
+    printf '  TELEMETRY_ENDPOINT \\\n'
+    printf '  TELEMETRY_MARKER \\\n'
+    printf '  TELEMETRY_BEARER_TOKEN \\\n'
+    printf '  TELEMETRY_MAX_RETRIES \\\n'
+    printf '  TELEMETRY_CONNECT_TIMEOUT_SECONDS \\\n'
+    printf '  TELEMETRY_REQUEST_TIMEOUT_SECONDS \\\n'
+    printf '  TELEMETRY_OUTBOX_DIR \\\n'
+    printf '  TELEMETRY_USER_AGENT \\\n'
+    printf '  TELEMETRY_SESSION_ID \\\n'
+    printf '  TELEMETRY_PARENT_RUN_ID \\\n'
+    printf '  TELEMETRY_COMPONENT; do\n'
+    printf '  if [[ ${!key+x} ]]; then\n'
+    printf '    printf '\''export %%s=%%q\\n'\'' "${key}" "${!key}" >>"${RUNTIME_ENV}"\n'
+    printf '  else\n'
+    printf '    printf '\''unset %%s\\n'\'' "${key}" >>"${RUNTIME_ENV}"\n'
+    printf '  fi\n'
+    printf 'done\n'
     printf 'set -a\n'
     printf 'source "${PROFILE_ENV}"\n'
     printf 'set +a\n'
+    printf 'source "${RUNTIME_ENV}"\n'
     printf 'cd "${PACKAGE_ROOT}"\n'
     printf 'export REPO_ROOT="${PACKAGE_ROOT}"\n'
     printf 'export PRODUCTIVE_K3S_REPO="${PK3S_PROFILE_PACKAGE_PRODUCTIVE_K3S_REPO:-${PACKAGE_ROOT}}"\n'
@@ -903,8 +1112,9 @@ write_source_profile_manifest() {
   local target_path="$1"
   local profile_name="$2"
   local scenario_type="$3"
-  local engine_type="$4"
-  local package_metadata="$5"
+  local scenario_path="$4"
+  local engine_type="$5"
+  local package_metadata="$6"
 
   {
     printf 'apiVersion: infra.productive-k3s.io/v1\n'
@@ -916,10 +1126,17 @@ write_source_profile_manifest() {
     printf 'spec:\n'
     printf '  scenario:\n'
     printf '    type: %s\n' "${scenario_type}"
+    printf '    path: %s\n' "${scenario_path}"
     printf '  engine:\n'
     printf '    type: %s\n' "${engine_type}"
     printf '  execution:\n'
     printf '    installScript: scripts/install.sh\n'
+    printf '    targets:\n'
+    printf '      apply: up\n'
+    printf '      status: status\n'
+    if [[ "${engine_type}" == "opentofu" ]]; then
+      printf '      destroy: down\n'
+    fi
     copy_profile_package_inputs_block "${package_metadata}" /dev/stdout
   } > "${target_path}"
 }
@@ -946,7 +1163,13 @@ create_source_profile_tgz() {
   mkdir -p "${package_root}/scripts" "${package_root}/${scenario_dir_rel}"
   cp "${profile}" "${package_root}/profile.env"
   cp -R "${scenario_dir}/." "${package_root}/${scenario_dir_rel}/"
-  write_source_profile_manifest "${package_root}/profile.yaml" "${profile_name}" "${scenario_type}" "${engine_type}" "${package_metadata}"
+  case "${scenario_type}" in
+    aws-single-node|onprem-basic|onprem-basic-arm)
+      mkdir -p "${package_root}/ansible/roles/remote_cluster"
+      cp -R "${REPO_DIR}/ansible/roles/remote_cluster/files" "${package_root}/ansible/roles/remote_cluster/"
+      ;;
+  esac
+  write_source_profile_manifest "${package_root}/profile.yaml" "${profile_name}" "${scenario_type}" "${scenario_dir_rel}" "${engine_type}" "${package_metadata}"
   write_source_profile_install_wrapper "${package_root}/scripts/install.sh" "${scenario_type}" "${scenario_dir_rel}"
   tar -czf "${output_tgz}" -C "${package_root}" .
   rm -rf "${package_root}"
@@ -985,8 +1208,10 @@ run_profile_export_from_tgz() {
   export_runtime_copy_infra_runtime "${REPO_DIR}" "${bundle_root}"
   export_runtime_write_install_config "${bundle_root}/install-config.env"
   export_runtime_write_manifest "${bundle_root}/manifest.json"
+  export_runtime_write_profile_preflight_script "${bundle_root}/preflight.sh" "${artifact_name}"
   export_runtime_write_profile_install_script "${bundle_root}/install.sh" "${artifact_name}" "${has_override_env}"
   export_runtime_write_readme "${bundle_root}/README.md" "${subject_ref}" "${artifact_name}"
+  export_runtime_write_profile_agents_md "${bundle_root}/AGENTS.md" "${subject_ref}" "${artifact_name}"
 
   if [[ "${output_path}" == *.tgz || "${output_path}" == *.tar.gz ]]; then
     mkdir -p "$(dirname "${output_path}")"
@@ -1067,6 +1292,29 @@ validate_profile_input_metadata() {
   done < <(profile_input_records "${manifest}")
 }
 
+validate_profile_package_relative_path() {
+  local field="$1"
+  local value="$2"
+  [[ -n "${value}" ]] || return 0
+  [[ "${value}" != /* ]] || die 4 "profile package ${field} must be a relative path: ${value}"
+  case "${value}" in
+    *..*|.*)
+      die 4 "profile package ${field} must not contain relative traversal: ${value}"
+      ;;
+  esac
+}
+
+validate_profile_package_target() {
+  local field="$1"
+  local value="$2"
+  [[ -n "${value}" ]] || return 0
+  case "${value}" in
+    *[!A-Za-z0-9_.:-]*)
+      die 4 "profile package ${field} has invalid make target: ${value}"
+      ;;
+  esac
+}
+
 env_file_var_has_value() {
   local env_file="$1"
   local var_name="$2"
@@ -1129,16 +1377,25 @@ resolve_profile_manifest() {
 
 validate_profile_package() {
   local manifest="$1"
-  local profile_name scenario_type engine_type install_script
+  local profile_name scenario_type scenario_path engine_type install_script apply_target status_target destroy_target
   profile_name="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "metadata.name")")"
   scenario_type="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "spec.scenario.type")")"
+  scenario_path="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "spec.scenario.path")")"
   engine_type="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "spec.engine.type")")"
   install_script="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "spec.execution.installScript")")"
+  apply_target="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "spec.execution.targets.apply")")"
+  status_target="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "spec.execution.targets.status")")"
+  destroy_target="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "spec.execution.targets.destroy")")"
 
   [[ -n "${profile_name}" ]] || die 4 "profile package metadata.name is required"
   [[ -n "${scenario_type}" ]] || die 4 "profile package spec.scenario.type is required"
   [[ -n "${engine_type}" ]] || die 4 "profile package spec.engine.type is required"
   [[ -n "${install_script}" ]] || die 4 "profile package spec.execution.installScript is required"
+  validate_profile_package_relative_path "spec.scenario.path" "${scenario_path}"
+  validate_profile_package_relative_path "spec.execution.installScript" "${install_script}"
+  validate_profile_package_target "spec.execution.targets.apply" "${apply_target}"
+  validate_profile_package_target "spec.execution.targets.status" "${status_target}"
+  validate_profile_package_target "spec.execution.targets.destroy" "${destroy_target}"
 
   case "${engine_type}" in
     opentofu|ansible|shell) ;;
@@ -1147,20 +1404,31 @@ validate_profile_package() {
 
   validate_profile_input_metadata "${manifest}"
 
-  printf '%s\n%s\n%s\n%s\n' "${profile_name}" "${scenario_type}" "${engine_type}" "${install_script}"
+  printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "${profile_name}" "${scenario_type}" "${engine_type}" "${install_script}" "${scenario_path}" "${apply_target}" "${status_target}" "${destroy_target}"
 }
 
 run_validate_profile_package() {
   local tgz_path="$1"
-  local tmp_dir manifest metadata profile_name scenario_type engine_type install_script
-  tmp_dir="$(extract_tgz_to_temp "${tgz_path}")"
+  local tmp_dir manifest metadata profile_name scenario_type engine_type install_script scenario_path
+  emit_operation_event "profile.validate" "profile.package.extract" "running" "Extracting profile package" "${tgz_path}"
+  tmp_dir="$(extract_tgz_to_temp "${tgz_path}")" || {
+    local rc=$?
+    emit_operation_event "profile.validate" "profile.package.extract" "failed" "Could not extract profile package" "${tgz_path}"
+    return "${rc}"
+  }
+  emit_operation_event "profile.validate" "profile.package.extract" "success" "Profile package extracted" "${tgz_path}"
+  emit_operation_event "profile.validate" "profile.manifest.resolve" "running" "Resolving profile manifest" "${tgz_path}"
   manifest="$(resolve_profile_manifest "${tmp_dir}")" || {
     local rc=$?
+    emit_operation_event "profile.validate" "profile.manifest.resolve" "failed" "Profile manifest could not be resolved" "${tgz_path}"
     rm -rf "${tmp_dir}"
     return "${rc}"
   }
+  emit_operation_event "profile.validate" "profile.manifest.resolve" "success" "Profile manifest resolved" "${tgz_path}"
+  emit_operation_event "profile.validate" "profile.package.validate" "running" "Validating profile package metadata" "${tgz_path}"
   metadata="$(validate_profile_package "${manifest}")" || {
     local rc=$?
+    emit_operation_event "profile.validate" "profile.package.validate" "failed" "Profile package validation failed" "${tgz_path}"
     rm -rf "${tmp_dir}"
     return "${rc}"
   }
@@ -1168,12 +1436,18 @@ run_validate_profile_package() {
   scenario_type="$(printf '%s\n' "${metadata}" | sed -n '2p')"
   engine_type="$(printf '%s\n' "${metadata}" | sed -n '3p')"
   install_script="$(printf '%s\n' "${metadata}" | sed -n '4p')"
+  scenario_path="$(printf '%s\n' "${metadata}" | sed -n '5p')"
+  OPERATION_SUBJECT="${profile_name}"
 
   log "INFO" "Profile package: ${profile_name}"
   log "INFO" "Scenario: ${scenario_type}"
+  if [[ -n "${scenario_path}" ]]; then
+    log "INFO" "Scenario path: ${scenario_path}"
+  fi
   log "INFO" "Engine: ${engine_type}"
   log "INFO" "Install script: ${install_script}"
   log "OK" "Profile package validation passed"
+  emit_operation_event "profile.validate" "profile.package.validate" "success" "Profile package validation passed" "${profile_name}"
   rm -rf "${tmp_dir}"
 }
 
@@ -1235,10 +1509,50 @@ warn_if_packaged_profile_uses_embedded_env_only() {
 packaged_profile_scenario_dir() {
   local package_root="$1"
   local scenario_type="$2"
+  local scenario_path="${3:-}"
   local rel_dir
-  rel_dir="$(scenario_rel_dir "${scenario_type}")" || die 4 "unsupported packaged profile scenario: ${scenario_type}"
+  if [[ -n "${scenario_path}" ]]; then
+    rel_dir="${scenario_path}"
+  else
+    rel_dir="$(scenario_rel_dir "${scenario_type}")" || die 4 "unsupported packaged profile scenario: ${scenario_type}"
+  fi
   [[ -d "${package_root}/${rel_dir}" ]] || die 4 "profile package scenario directory not found: ${rel_dir}"
   printf '%s\n' "${package_root}/${rel_dir}"
+}
+
+packaged_profile_target() {
+  local action="$1"
+  local scenario_type="$2"
+  local apply_target="${3:-}"
+  local status_target="${4:-}"
+  local destroy_target="${5:-}"
+
+  case "${action}" in
+    install|apply)
+      if [[ -n "${apply_target}" ]]; then
+        printf '%s\n' "${apply_target}"
+      else
+        command_to_target "apply" "${scenario_type}"
+      fi
+      ;;
+    status)
+      if [[ -n "${status_target}" ]]; then
+        printf '%s\n' "${status_target}"
+      else
+        command_to_target "status" "${scenario_type}"
+      fi
+      ;;
+    destroy)
+      if [[ -n "${destroy_target}" ]]; then
+        printf '%s\n' "${destroy_target}"
+      else
+        command_to_target "destroy" "${scenario_type}"
+      fi
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 profile_state_dir() {
@@ -1274,6 +1588,102 @@ copy_if_exists() {
   mkdir -p "$(dirname "${dest_path}")"
   rm -rf "${dest_path}"
   cp -a "${source_path}" "${dest_path}"
+}
+
+packaged_profile_runtime_override_keys() {
+  cat <<'EOF'
+PRODUCTIVE_K3S_SOURCE
+PRODUCTIVE_K3S_VERSION
+PRODUCTIVE_K3S_RELEASE_REPO
+PRODUCTIVE_K3S_REPO
+PRODUCTIVE_K3S_CORE_REPO_DIR
+PRODUCTIVE_K3S_ADDONS_REPO_DIR
+PRODUCTIVE_K3S_STACK_TGZ_URL
+PRODUCTIVE_K3S_STACK_REMOTE_PATH
+PRODUCTIVE_K3S_ENGINE
+PRODUCTIVE_K3S_DISTRO
+PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS
+PRODUCTIVE_K3S_AUTO_APPROVE_APPLY_PLAN
+TELEMETRY_ENABLED
+TELEMETRY_ENDPOINT
+TELEMETRY_MARKER
+TELEMETRY_BEARER_TOKEN
+TELEMETRY_MAX_RETRIES
+TELEMETRY_CONNECT_TIMEOUT_SECONDS
+TELEMETRY_REQUEST_TIMEOUT_SECONDS
+TELEMETRY_OUTBOX_DIR
+TELEMETRY_USER_AGENT
+TELEMETRY_SESSION_ID
+TELEMETRY_PARENT_RUN_ID
+TELEMETRY_COMPONENT
+EOF
+}
+
+capture_packaged_profile_runtime_overrides() {
+  local target_path="$1"
+  local key
+  : > "${target_path}"
+  while IFS= read -r key; do
+    [[ -n "${key}" ]] || continue
+    if [[ ${!key+x} ]]; then
+      printf 'export %s=%q\n' "${key}" "${!key}" >> "${target_path}"
+    else
+      printf 'unset %s\n' "${key}" >> "${target_path}"
+    fi
+  done < <(packaged_profile_runtime_override_keys)
+}
+
+source_packaged_profile_env_with_runtime_overrides() {
+  local profile_env="$1"
+  local runtime_env="$2"
+  set -a
+  # shellcheck disable=SC1090
+  source "${profile_env}"
+  set +a
+  # shellcheck disable=SC1090
+  source "${runtime_env}"
+}
+
+rewrite_packaged_source_profile_install_wrapper_if_needed() {
+  local package_root="$1"
+  local install_path="$2"
+  local scenario_type="$3"
+  local rel_dir
+
+  [[ -f "${install_path}" ]] || return 0
+  grep -Fq 'PROFILE_ENV="${PACKAGE_ROOT}/profile.env"' "${install_path}" || return 0
+  grep -Fq 'exec make -C "${SCENARIO_DIR}" up "$@"' "${install_path}" || return 0
+
+  rel_dir="$(scenario_rel_dir "${scenario_type}")" || return 0
+  [[ -d "${package_root}/${rel_dir}" ]] || return 0
+  write_source_profile_install_wrapper "${install_path}" "${scenario_type}" "${rel_dir}"
+}
+
+rewrite_packaged_multipass_bootstrap_helper_if_needed() {
+  local package_root="$1"
+  local scenario_type="$2"
+  local helper_path
+
+  [[ "${scenario_type}" == "multipass" ]] || return 0
+  helper_path="${package_root}/scenarios/local/multipass/scripts/run_bootstrap_session.py"
+  [[ -f "${helper_path}" ]] || return 0
+
+  python3 - "${helper_path}" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+helper_path = Path(sys.argv[1])
+content = helper_path.read_text(encoding="utf-8")
+patched = re.sub(
+    r"(?m)^(\s*)rc = 0$",
+    r"\1rc = proc.returncode if proc.returncode is not None else 124",
+    content,
+    count=1,
+)
+if patched != content:
+    helper_path.write_text(patched, encoding="utf-8")
+PY
 }
 
 persist_profile_state() {
@@ -1365,12 +1775,13 @@ run_packaged_profile_make() {
   local target="$4"
   local make_mode="${5:-normal}"
   local make_bin="${PK3S_PROFILE_MAKE_BIN:-${MAKE_BIN}}"
+  local runtime_env
+  runtime_env="$(mktemp)"
 
-  (
-    set -a
-    # shellcheck disable=SC1090
-    source "${profile_env}"
-    set +a
+  local rc=0
+  if (
+    capture_packaged_profile_runtime_overrides "${runtime_env}"
+    source_packaged_profile_env_with_runtime_overrides "${profile_env}" "${runtime_env}"
     cd "${package_root}"
     export REPO_ROOT="${package_root}"
     export PRODUCTIVE_K3S_REPO="${PK3S_PROFILE_PACKAGE_PRODUCTIVE_K3S_REPO:-${package_root}}"
@@ -1380,23 +1791,42 @@ run_packaged_profile_make() {
     else
       "${make_bin}" -C "${scenario_dir}" "${target}"
     fi
-  )
+  ); then
+    rc=0
+  else
+    rc=$?
+  fi
+  rm -f "${runtime_env}"
+  return "${rc}"
 }
 
 run_install_profile_package() {
   local tgz_path="$1"
   local action="${2:-install}"
   local tmp_dir manifest metadata install_script install_path manifest_dir package_root
-  local profile_name scenario_type engine_type scenario_dir profile_env target cleanup_env=0
-  tmp_dir="$(extract_tgz_to_temp "${tgz_path}")"
+  local profile_name scenario_type scenario_path engine_type scenario_dir profile_env target cleanup_env=0
+  local apply_target status_target destroy_target
+  local operation="profile.${action}"
+  emit_operation_event "${operation}" "profile.package.extract" "running" "Extracting profile package" "${tgz_path}"
+  tmp_dir="$(extract_tgz_to_temp "${tgz_path}")" || {
+    local rc=$?
+    emit_operation_event "${operation}" "profile.package.extract" "failed" "Could not extract profile package" "${tgz_path}"
+    return "${rc}"
+  }
+  emit_operation_event "${operation}" "profile.package.extract" "success" "Profile package extracted" "${tgz_path}"
   package_root="${tmp_dir}"
+  emit_operation_event "${operation}" "profile.manifest.resolve" "running" "Resolving profile manifest" "${tgz_path}"
   manifest="$(resolve_profile_manifest "${tmp_dir}")" || {
     local rc=$?
+    emit_operation_event "${operation}" "profile.manifest.resolve" "failed" "Profile manifest could not be resolved" "${tgz_path}"
     rm -rf "${tmp_dir}"
     return "${rc}"
   }
+  emit_operation_event "${operation}" "profile.manifest.resolve" "success" "Profile manifest resolved" "${tgz_path}"
+  emit_operation_event "${operation}" "profile.package.validate" "running" "Validating profile package metadata" "${tgz_path}"
   metadata="$(validate_profile_package "${manifest}")" || {
     local rc=$?
+    emit_operation_event "${operation}" "profile.package.validate" "failed" "Profile package validation failed" "${tgz_path}"
     rm -rf "${tmp_dir}"
     return "${rc}"
   }
@@ -1404,9 +1834,17 @@ run_install_profile_package() {
   scenario_type="$(printf '%s\n' "${metadata}" | sed -n '2p')"
   engine_type="$(printf '%s\n' "${metadata}" | sed -n '3p')"
   install_script="$(printf '%s\n' "${metadata}" | sed -n '4p')"
+  scenario_path="$(printf '%s\n' "${metadata}" | sed -n '5p')"
+  apply_target="$(printf '%s\n' "${metadata}" | sed -n '6p')"
+  status_target="$(printf '%s\n' "${metadata}" | sed -n '7p')"
+  destroy_target="$(printf '%s\n' "${metadata}" | sed -n '8p')"
+  OPERATION_SUBJECT="${profile_name}"
+  emit_operation_event "${operation}" "profile.package.validate" "success" "Profile package validation passed" "${profile_name}"
   manifest_dir="$(dirname "${manifest}")"
+  emit_operation_event "${operation}" "profile.env.prepare" "running" "Preparing profile environment" "${profile_name}"
   profile_env="$(merged_packaged_profile_env_file "${package_root}" "${OVERRIDE_ENV_PATH}")" || {
     local rc=$?
+    emit_operation_event "${operation}" "profile.env.prepare" "failed" "Profile environment could not be prepared" "${profile_name}"
     rm -rf "${tmp_dir}"
     return "${rc}"
   }
@@ -1415,73 +1853,148 @@ run_install_profile_package() {
     cp "${profile_env}" "${package_root}/profile.env"
     profile_env="${package_root}/profile.env"
   fi
-  scenario_dir="$(packaged_profile_scenario_dir "${package_root}" "${scenario_type}")" || {
+  scenario_dir="$(packaged_profile_scenario_dir "${package_root}" "${scenario_type}" "${scenario_path}")" || {
     local rc=$?
+    emit_operation_event "${operation}" "profile.env.prepare" "failed" "Profile scenario directory could not be resolved" "${profile_name}"
     if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
     rm -rf "${tmp_dir}"
     return "${rc}"
   }
+  emit_operation_event "${operation}" "profile.env.prepare" "success" "Profile environment prepared" "${profile_name}"
   install_path="${manifest_dir}/${install_script}"
+  rewrite_packaged_source_profile_install_wrapper_if_needed "${package_root}" "${install_path}" "${scenario_type}"
+  rewrite_packaged_multipass_bootstrap_helper_if_needed "${package_root}" "${scenario_type}"
+  emit_operation_event "${operation}" "profile.runtime.restore" "running" "Restoring profile runtime state" "${profile_name}"
   restore_profile_runtime_state "${profile_name}" "${scenario_dir}"
+  emit_operation_event "${operation}" "profile.runtime.restore" "success" "Profile runtime state restored" "${profile_name}"
 
   case "${action}" in
     install|apply)
       [[ -f "${install_path}" ]] || {
+        emit_operation_event "${operation}" "profile.install.script" "failed" "Profile install script not found" "${profile_name}"
         if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
         rm -rf "${tmp_dir}"
         die 4 "profile package install script not found: ${install_script}"
       }
+      emit_operation_event "${operation}" "profile.inputs.validate" "running" "Validating profile runtime inputs" "${profile_name}"
       validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
+      emit_operation_event "${operation}" "profile.inputs.validate" "success" "Profile runtime inputs validated" "${profile_name}"
       warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${scenario_type}" "${OVERRIDE_ENV_PATH}" "${manifest}"
       log "INFO" "Executing packaged profile installer: ${install_script}"
-      (
-        set -a
-        # shellcheck disable=SC1090
-        source "${profile_env}"
-        set +a
+      local runtime_env
+      runtime_env="$(mktemp)"
+      local install_rc=0
+      emit_operation_event "${operation}" "profile.install.run" "running" "Executing packaged profile installer" "${profile_name}"
+      if (
+        capture_packaged_profile_runtime_overrides "${runtime_env}"
+        source_packaged_profile_env_with_runtime_overrides "${profile_env}" "${runtime_env}"
         cd "${manifest_dir}"
         bash "${install_path}"
-      )
+      ); then
+        install_rc=0
+      else
+        install_rc=$?
+      fi
+      rm -f "${runtime_env}"
+      (( install_rc == 0 )) || {
+        emit_operation_event "${operation}" "profile.install.run" "failed" "Packaged profile installer failed" "${profile_name}"
+        if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
+        rm -rf "${tmp_dir}"
+        return "${install_rc}"
+      }
+      emit_operation_event "${operation}" "profile.install.run" "success" "Packaged profile installer completed" "${profile_name}"
+      emit_operation_event "${operation}" "profile.state.persist" "running" "Persisting profile state" "${profile_name}"
       persist_profile_state "${profile_name}" "${scenario_dir}"
       persist_profile_runtime_state "${profile_name}" "${scenario_dir}"
+      emit_operation_event "${operation}" "profile.state.persist" "success" "Profile state persisted" "${profile_name}"
       ;;
     status)
+      emit_operation_event "${operation}" "profile.inputs.validate" "running" "Validating profile runtime inputs" "${profile_name}"
       validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
+      emit_operation_event "${operation}" "profile.inputs.validate" "success" "Profile runtime inputs validated" "${profile_name}"
       warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${scenario_type}" "${OVERRIDE_ENV_PATH}" "${manifest}"
-      log "INFO" "Executing packaged profile status via scenario make target"
-      run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "status"
-      persist_profile_state "${profile_name}" "${scenario_dir}"
-      persist_profile_runtime_state "${profile_name}" "${scenario_dir}"
-      ;;
-    destroy)
-      target="$(command_to_target "destroy" "${scenario_type}")" || {
+      target="$(packaged_profile_target "status" "${scenario_type}" "${apply_target}" "${status_target}" "${destroy_target}")" || {
         rm -rf "${tmp_dir}"
         die 2 "unsupported packaged profile command '${action}' for scenario '${scenario_type}'"
       }
+      log "INFO" "Executing packaged profile status via scenario make target"
+      emit_operation_event "${operation}" "profile.status.run" "running" "Executing packaged profile status" "${profile_name}"
+      run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "${target}" || {
+        local rc=$?
+        emit_operation_event "${operation}" "profile.status.run" "failed" "Packaged profile status failed" "${profile_name}"
+        if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
+        rm -rf "${tmp_dir}"
+        return "${rc}"
+      }
+      emit_operation_event "${operation}" "profile.status.run" "success" "Packaged profile status completed" "${profile_name}"
+      emit_operation_event "${operation}" "profile.state.persist" "running" "Persisting profile state" "${profile_name}"
+      persist_profile_state "${profile_name}" "${scenario_dir}"
+      persist_profile_runtime_state "${profile_name}" "${scenario_dir}"
+      emit_operation_event "${operation}" "profile.state.persist" "success" "Profile state persisted" "${profile_name}"
+      ;;
+    destroy)
+      target="$(packaged_profile_target "destroy" "${scenario_type}" "${apply_target}" "${status_target}" "${destroy_target}")" || {
+        rm -rf "${tmp_dir}"
+        die 2 "unsupported packaged profile command '${action}' for scenario '${scenario_type}'"
+      }
+      emit_operation_event "${operation}" "profile.inputs.validate" "running" "Validating profile runtime inputs" "${profile_name}"
       validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
+      emit_operation_event "${operation}" "profile.inputs.validate" "success" "Profile runtime inputs validated" "${profile_name}"
       warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${scenario_type}" "${OVERRIDE_ENV_PATH}" "${manifest}"
       log "INFO" "Executing packaged profile destroy via scenario target: ${target}"
-      run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "${target}"
+      emit_operation_event "${operation}" "profile.destroy.run" "running" "Executing packaged profile destroy" "${profile_name}"
+      run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "${target}" || {
+        local rc=$?
+        emit_operation_event "${operation}" "profile.destroy.run" "failed" "Packaged profile destroy failed" "${profile_name}"
+        if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
+        rm -rf "${tmp_dir}"
+        return "${rc}"
+      }
+      emit_operation_event "${operation}" "profile.destroy.run" "success" "Packaged profile destroy completed" "${profile_name}"
+      emit_operation_event "${operation}" "profile.state.remove" "running" "Removing profile state" "${profile_name}"
       remove_profile_state "${profile_name}"
+      emit_operation_event "${operation}" "profile.state.remove" "success" "Profile state removed" "${profile_name}"
       ;;
     plan)
       case "${engine_type}" in
         opentofu)
+          emit_operation_event "${operation}" "profile.inputs.validate" "running" "Validating profile runtime inputs" "${profile_name}"
           validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
+          emit_operation_event "${operation}" "profile.inputs.validate" "success" "Profile runtime inputs validated" "${profile_name}"
           warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${scenario_type}" "${OVERRIDE_ENV_PATH}" "${manifest}"
           log "INFO" "Executing packaged profile plan through embedded OpenTofu scenario"
-          run_opentofu_plan "${scenario_dir}"
+          emit_operation_event "${operation}" "profile.plan.run" "running" "Executing packaged profile plan" "${profile_name}"
+          run_opentofu_plan "${scenario_dir}" "${profile_env}" || {
+            local rc=$?
+            emit_operation_event "${operation}" "profile.plan.run" "failed" "Packaged profile plan failed" "${profile_name}"
+            if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
+            rm -rf "${tmp_dir}"
+            return "${rc}"
+          }
+          emit_operation_event "${operation}" "profile.plan.run" "success" "Packaged profile plan completed" "${profile_name}"
+          emit_operation_event "${operation}" "profile.runtime.persist" "running" "Persisting profile runtime state" "${profile_name}"
           persist_profile_runtime_state "${profile_name}" "${scenario_dir}"
+          emit_operation_event "${operation}" "profile.runtime.persist" "success" "Profile runtime state persisted" "${profile_name}"
           ;;
         ansible|shell)
-          target="$(command_to_target "apply" "${scenario_type}")" || {
+          target="$(packaged_profile_target "apply" "${scenario_type}" "${apply_target}" "${status_target}" "${destroy_target}")" || {
             rm -rf "${tmp_dir}"
             die 2 "unsupported packaged profile command '${action}' for scenario '${scenario_type}'"
           }
+          emit_operation_event "${operation}" "profile.inputs.validate" "running" "Validating profile runtime inputs" "${profile_name}"
           validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
+          emit_operation_event "${operation}" "profile.inputs.validate" "success" "Profile runtime inputs validated" "${profile_name}"
           warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${scenario_type}" "${OVERRIDE_ENV_PATH}" "${manifest}"
           log "INFO" "Executing packaged profile plan via scenario make dry-run"
-          run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "${target}" "dry-run"
+          emit_operation_event "${operation}" "profile.plan.run" "running" "Executing packaged profile plan" "${profile_name}"
+          run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "${target}" "dry-run" || {
+            local rc=$?
+            emit_operation_event "${operation}" "profile.plan.run" "failed" "Packaged profile plan failed" "${profile_name}"
+            if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
+            rm -rf "${tmp_dir}"
+            return "${rc}"
+          }
+          emit_operation_event "${operation}" "profile.plan.run" "success" "Packaged profile plan completed" "${profile_name}"
           ;;
       esac
       ;;
@@ -1566,6 +2079,11 @@ while (($# > 0)); do
       GLOBAL_JSON=1
       shift
       ;;
+    --events)
+      [[ $# -ge 2 ]] || die 2 "--events requires a value"
+      GLOBAL_EVENTS_FORMAT="$2"
+      shift 2
+      ;;
     *)
       PARSED_ARGS+=("$1")
       shift
@@ -1578,9 +2096,16 @@ if [[ "${GLOBAL_DEBUG}" -eq 1 ]]; then
   set -x
 fi
 
+setup_operation_event_output
+
 COMMAND="${1:-help}"
 RC=0
 TELEMETRY_SCENARIO="${PK3S_INFRA_SCENARIO:-}"
+OPERATION_NAME="$(operation_name_for_args "$@")"
+OPERATION_SUBJECT="${TELEMETRY_SCENARIO}"
+OPERATION_COMPLETED_EMITTED=0
+trap events_exit_trap EXIT
+emit_operation_event "${OPERATION_NAME}" "operation.started" "running" "Operation started" "${OPERATION_SUBJECT}"
 if infra_command_emits_telemetry "${1:-help}" "${2:-}"; then
   prepare_telemetry_context
   if [[ -n "${PROFILE_PATH}" && -f "${PROFILE_PATH}" ]]; then
@@ -1676,4 +2201,6 @@ if infra_command_emits_telemetry "${1:-help}" "${2:-}" && is_truthy "${TELEMETRY
   fi
 fi
 
+emit_operation_completed_event "${OPERATION_NAME}" "${RC}" "${OPERATION_SUBJECT}"
+OPERATION_COMPLETED_EMITTED=1
 exit "${RC}"

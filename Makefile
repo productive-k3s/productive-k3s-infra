@@ -12,6 +12,9 @@ SCENARIO ?=
 .PHONY: \
 	docs-build \
 	docs-serve \
+	docs-up \
+	docs-down \
+	docs-clean \
 	test \
 	test-unit \
 	test-lint \
@@ -50,6 +53,15 @@ docs-build:
 
 docs-serve:
 	$(MAKE) -C $(DOCS_DIR) docs-serve
+
+docs-up:
+	$(MAKE) -C $(DOCS_DIR) docs-up
+
+docs-down:
+	$(MAKE) -C $(DOCS_DIR) docs-down
+
+docs-clean:
+	$(MAKE) -C $(DOCS_DIR) docs-clean
 
 test:
 	$(MAKE) -C $(TESTS_DIR) test

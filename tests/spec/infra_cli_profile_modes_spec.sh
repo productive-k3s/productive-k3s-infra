@@ -223,6 +223,71 @@ EOF
     The output should include '"server_url": "https://10.0.0.10:6443"'
   End
 
+  It 'emits profile install operation events without mixing human logs into stdout'
+    work_dir="$(mktemp -d)"
+    pkg_dir="${work_dir}/pkg"
+    archive="${work_dir}/demo-profile.tgz"
+    marker="${work_dir}/installed.txt"
+    state_dir="${work_dir}/state"
+    mkdir -p "${pkg_dir}/scenarios/edge/onprem-basic" "${pkg_dir}/scripts"
+    cat >"${pkg_dir}/profile.env" <<'EOF'
+PK3S_INFRA_PROFILE_NAME=demo
+PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_ENGINE=ansible
+ONPREM_SERVER_IP=10.0.0.10
+ONPREM_SSH_USER=ubuntu
+ONPREM_SSH_KEY_PATH=/tmp/id_ed25519
+EOF
+    mkdir -p "${pkg_dir}/scenarios/edge/onprem-basic/generated"
+    cat >"${pkg_dir}/scenarios/edge/onprem-basic/generated/cluster.json" <<'EOF'
+{
+  "server_url": "https://10.0.0.10:6443"
+}
+EOF
+    cat >"${pkg_dir}/profile.yaml" <<'EOF'
+apiVersion: infra.productive-k3s.io/v1
+kind: Profile
+metadata:
+  name: demo
+  version: 0.1.0
+spec:
+  scenario:
+    type: onprem-basic
+  engine:
+    type: ansible
+  execution:
+    installScript: scripts/install.sh
+EOF
+    cat >"${pkg_dir}/scripts/install.sh" <<EOF
+#!/usr/bin/env bash
+printf 'installer human stdout\n'
+printf 'installed\n' >"${marker}"
+EOF
+    chmod +x "${pkg_dir}/scripts/install.sh"
+    tar -czf "${archive}" -C "${pkg_dir}" .
+
+    When run bash -lc 'PK3S_PROFILE_STATE_DIR="$3" "$1" --events ndjson profile install --tgz "$2"' bash "$SCRIPT" "$archive" "$state_dir"
+    The status should equal 0
+    The output should include '"schema_version":"productive-k3s-operation-event/v1"'
+    The output should include '"component":"infra"'
+    The output should include '"operation":"profile.install"'
+    The output should include '"step":"operation.started"'
+    The output should include '"step":"profile.package.extract"'
+    The output should include '"step":"profile.install.run"'
+    The output should include '"step":"profile.state.persist"'
+    The output should include '"step":"operation.completed"'
+    The output should include '"subject":"demo"'
+    The output should not include 'installer human stdout'
+    The stderr should include 'installer human stdout'
+    The stderr should include "Executing packaged profile installer"
+  End
+
+  It 'rejects unsupported operation event formats'
+    When run bash -lc '"$1" --events json version' bash "$SCRIPT"
+    The status should equal 2
+    The stderr should include 'unsupported --events format: json; supported format: ndjson'
+  End
+
   It 'lets a local env file override packaged profile env values'
     work_dir="$(mktemp -d)"
     pkg_dir="${work_dir}/pkg"
@@ -660,6 +725,55 @@ EOF
     The output should include 'status'
   End
 
+  It 'executes declarative packaged scenario paths without built-in scenario mapping'
+    work_dir="$(mktemp -d)"
+    pkg_dir="${work_dir}/pkg"
+    archive="${work_dir}/demo-profile.tgz"
+    mock_bin="$(mktemp -d)"
+    log_file="$(mktemp)"
+    mkdir -p "${pkg_dir}/scenarios/custom/future-profile" "${pkg_dir}/scripts"
+    cat >"${pkg_dir}/profile.env" <<'EOF'
+PK3S_INFRA_PROFILE_NAME=demo
+PK3S_INFRA_SCENARIO=future-profile
+PK3S_INFRA_ENGINE=shell
+EOF
+    cat >"${pkg_dir}/profile.yaml" <<'EOF'
+apiVersion: infra.productive-k3s.io/v1
+kind: Profile
+metadata:
+  name: demo
+  version: 0.1.0
+spec:
+  scenario:
+    type: future-profile
+    path: scenarios/custom/future-profile
+  engine:
+    type: shell
+  execution:
+    installScript: scripts/install.sh
+    targets:
+      status: inspect
+EOF
+    cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    chmod +x "${pkg_dir}/scripts/install.sh"
+    cat >"${mock_bin}/make" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"${MOCK_MAKE_LOG}"
+exit 0
+EOF
+    chmod +x "${mock_bin}/make"
+    tar -czf "${archive}" -C "${pkg_dir}" .
+
+    When run bash -lc 'PATH="$1:$PATH" MOCK_MAKE_LOG="$2" "$3" profile status --tgz "$4"; printf "\n__MAKE__\n"; cat "$2"' bash "$mock_bin" "$log_file" "$SCRIPT" "$archive"
+    The status should equal 0
+    The output should include '__MAKE__'
+    The output should include 'scenarios/custom/future-profile'
+    The output should include 'inspect'
+  End
+
   It 'restores persisted runtime state before packaged multipass status'
     work_dir="$(mktemp -d)"
     pkg_dir="${work_dir}/pkg"
@@ -944,6 +1058,102 @@ EOF
     The output should include 'up'
   End
 
+  It 'propagates packaged aws override env into OpenTofu plan'
+    work_dir="$(mktemp -d)"
+    pkg_dir="${work_dir}/pkg"
+    archive="${work_dir}/aws-profile.tgz"
+    override_env="${work_dir}/aws.env"
+    mock_bin="$(mktemp -d)"
+    log_file="${work_dir}/tofu.log"
+    mkdir -p "${pkg_dir}/scripts" "${pkg_dir}/scenarios/cloud/aws-single-node/opentofu"
+    cat >"${pkg_dir}/profile.env" <<'EOF'
+PK3S_INFRA_PROFILE_NAME=aws-single-node-basic
+PK3S_INFRA_SCENARIO=aws-single-node
+PK3S_INFRA_ENGINE=opentofu
+AWS_REGION=
+AWS_CLUSTER_NAME=
+AWS_INSTANCE_TYPE=
+AWS_SSH_USER=
+AWS_SSH_KEY_PATH=
+AWS_ROOT_VOLUME_SIZE_GB=
+EOF
+    cat >"${override_env}" <<'EOF'
+AWS_REGION=us-east-1
+AWS_CLUSTER_NAME=demo
+AWS_INSTANCE_TYPE=t3.large
+AWS_SSH_USER=ubuntu
+AWS_SSH_KEY_PATH=/tmp/id_ed25519
+AWS_ROOT_VOLUME_SIZE_GB=50
+EOF
+    cat >"${pkg_dir}/profile.yaml" <<'EOF'
+apiVersion: infra.productive-k3s.io/v1
+kind: Profile
+metadata:
+  name: aws-single-node-basic
+  version: 0.1.0
+spec:
+  scenario:
+    type: aws-single-node
+  engine:
+    type: opentofu
+  execution:
+    installScript: scripts/install.sh
+  inputs:
+    - name: AWS_REGION
+      required: true
+      sensitive: false
+      source: local-override
+    - name: AWS_CLUSTER_NAME
+      required: true
+      sensitive: false
+      source: local-override
+    - name: AWS_INSTANCE_TYPE
+      required: true
+      sensitive: false
+      source: local-override
+    - name: AWS_SSH_USER
+      required: true
+      sensitive: false
+      source: local-override
+    - name: AWS_SSH_KEY_PATH
+      required: true
+      sensitive: false
+      source: local-override
+    - name: AWS_ROOT_VOLUME_SIZE_GB
+      required: true
+      sensitive: false
+      source: local-override
+EOF
+    cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    chmod +x "${pkg_dir}/scripts/install.sh"
+    cat >"${pkg_dir}/scenarios/cloud/aws-single-node/Makefile" <<'EOF'
+export TF_VAR_region := $(AWS_REGION)
+export TF_VAR_cluster_name := $(AWS_CLUSTER_NAME)
+all:
+	@true
+EOF
+    cat >"${mock_bin}/tofu" <<'EOF'
+#!/usr/bin/env bash
+printf 'TF_VAR_region=%s\n' "${TF_VAR_region:-}" >>"${MOCK_TOFU_LOG}"
+printf 'TF_VAR_cluster_name=%s\n' "${TF_VAR_cluster_name:-}" >>"${MOCK_TOFU_LOG}"
+printf '%s\n' "$*" >>"${MOCK_TOFU_LOG}"
+exit 0
+EOF
+    chmod +x "${mock_bin}/tofu"
+    tar -czf "${archive}" -C "${pkg_dir}" .
+
+    When run bash -lc 'PATH="$1:$PATH" MOCK_TOFU_LOG="$2" "$3" profile plan --tgz "$4" --env-file "$5"; printf "\n__TOFU__\n"; cat "$2"' bash "$mock_bin" "$log_file" "$SCRIPT" "$archive" "$override_env"
+    The status should equal 0
+    The output should include '__TOFU__'
+    The output should include 'TF_VAR_region=us-east-1'
+    The output should include 'TF_VAR_cluster_name=demo'
+    The output should include '-backend=false'
+    The output should include 'plan'
+  End
+
   It 'exports a packaged profile tgz as a self-contained installer bundle'
     work_dir="$(mktemp -d)"
     pkg_dir="${work_dir}/pkg"
@@ -989,7 +1199,9 @@ EOF
     When run bash -lc '"$1" profile export --tgz "$2" --output "$3"; printf "\n__FILES__\n"; find "$3" -maxdepth 2 -type f | sort; printf "\n__CONFIG__\n"; cat "$3/install-config.env"; printf "\n__MANIFEST__\n"; cat "$3/manifest.json"' bash "$SCRIPT" "$archive" "$output_dir"
     The status should equal 0
     The output should include '__FILES__'
+    The output should include 'AGENTS.md'
     The output should include 'install.sh'
+    The output should include 'preflight.sh'
     The output should include 'profile.tgz'
     The output should include 'install-config.env'
     The output should include 'manifest.json'
@@ -1048,5 +1260,62 @@ EOF
     The output should include 'profile.env'
     The output should include 'scripts/install.sh'
     The output should include 'scenarios/local/multipass/Makefile'
+  End
+
+  It 'includes shared remote bootstrap files in exported aws source profiles'
+    work_dir="$(mktemp -d)"
+    output_dir="${work_dir}/bundle"
+    profiles_repo="$(mktemp -d)"
+    infra_repo="$(mktemp -d)"
+    profile_env="${profiles_repo}/profiles/cloud/aws-single-node/basic.env"
+    mkdir -p \
+      "${profiles_repo}/profiles/cloud/aws-single-node" \
+      "${profiles_repo}/scenarios/cloud/aws-single-node/opentofu" \
+      "${profiles_repo}/scenarios/cloud/aws-single-node/scripts" \
+      "${infra_repo}/ansible/roles/remote_cluster/files" \
+      "${infra_repo}/scripts"
+    cat >"${profile_env}" <<'EOF'
+PK3S_INFRA_PROFILE_NAME=aws-single-node-basic
+PK3S_INFRA_ENGINE=opentofu
+PK3S_INFRA_SCENARIO=aws-single-node
+AWS_REGION=us-east-1
+AWS_CLUSTER_NAME=demo
+AWS_INSTANCE_TYPE=t3.large
+AWS_SSH_USER=ubuntu
+AWS_SSH_KEY_PATH=/tmp/id_ed25519
+AWS_ROOT_VOLUME_SIZE_GB=50
+EOF
+    cat >"${profiles_repo}/profiles/cloud/aws-single-node/basic.package.yaml" <<'EOF'
+spec:
+  inputs:
+    - name: AWS_REGION
+      required: true
+      sensitive: false
+      source: local-override
+EOF
+    cat >"${profiles_repo}/scenarios/cloud/aws-single-node/Makefile" <<'EOF'
+all:
+	@true
+EOF
+    : >"${profiles_repo}/scenarios/cloud/aws-single-node/opentofu/main.tf"
+    : >"${profiles_repo}/scenarios/cloud/aws-single-node/scripts/refresh-generated-artifacts.sh"
+    cat >"${infra_repo}/ansible/roles/remote_cluster/files/common.sh" <<'EOF'
+#!/usr/bin/env bash
+EOF
+    mkdir -p "${infra_repo}/scripts/export-templates"
+    cp -R "${SHELLSPEC_PROJECT_ROOT}/scripts/export-templates/profile" "${infra_repo}/scripts/export-templates/"
+    : >"${infra_repo}/LICENSE"
+    : >"${infra_repo}/README.md"
+    : >"${infra_repo}/productive-k3s-infra.sh"
+    : >"${infra_repo}/scripts/productive-k3s-infra.sh"
+    : >"${infra_repo}/scripts/release-config.sh"
+    : >"${infra_repo}/scripts/send-telemetry-event.sh"
+    : >"${infra_repo}/scripts/export-runtime.sh"
+
+    When run bash -lc 'PRODUCTIVE_K3S_INFRA_REPO_DIR="$5" PRODUCTIVE_K3S_PROFILES_REPO_DIR="$4" "$1" export --profile "$2" --output "$3"; printf "\n__TGZ__\n"; tar -tzf "$3/profile.tgz" | sort' bash "$SCRIPT" "$profile_env" "$output_dir" "$profiles_repo" "$infra_repo"
+    The status should equal 0
+    The output should include '__TGZ__'
+    The output should include 'ansible/roles/remote_cluster/files/common.sh'
+    The output should include 'scenarios/cloud/aws-single-node/Makefile'
   End
 End

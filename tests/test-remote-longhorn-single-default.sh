@@ -87,6 +87,10 @@ load_cluster_metadata() {
   ALL_NODE_IPS=("10.0.0.10")
 }
 
+storageclass_probe_state_file() {
+  printf '%s\n' "${SCENARIO_DIR}/storageclass-probe-state"
+}
+
 productive_k3s_remote_kubectl_cmd() {
   printf 'sudo k3s kubectl'
 }
@@ -123,13 +127,26 @@ remote_exec() {
     *"getent hosts registry.k3s.lab.internal"*)
       printf '10.0.0.10 registry.k3s.lab.internal\n'
       ;;
-    *"curl -k -fsS --max-time 20 https://rancher.k3s.lab.internal >/dev/null"*)
+    *"curl -k -sS -o /dev/null -w '%{http_code}' --max-time 20 https://rancher.k3s.lab.internal"*)
+      printf '404\n'
       ;;
-    *"curl -k -fsS --max-time 20 https://registry.k3s.lab.internal/v2/ >/dev/null"*)
+    *"curl -k -sS -o /dev/null -w '%{http_code}' --max-time 20 https://registry.k3s.lab.internal/v2/"*)
+      printf '200\n'
       ;;
     *"kubectl get sc longhorn-single >/dev/null 2>&1"*)
       ;;
     *"kubectl get sc -o jsonpath="*"awk -F'|' '\$2 == \"true\" {print \$1}'"*)
+      state_file="$(storageclass_probe_state_file)"
+      count=0
+      if [[ -f "${state_file}" ]]; then
+        count="$(cat "${state_file}")"
+      fi
+      count="$((count + 1))"
+      printf '%s\n' "${count}" > "${state_file}"
+      if [[ "${count}" == "1" ]]; then
+        printf 'local-path\n'
+        return 0
+      fi
       printf 'longhorn-single\n'
       ;;
     *"kubectl get sc -o jsonpath="*)
@@ -163,5 +180,24 @@ if grep -q "kubectl patch storageclass longhorn -p '{\"metadata\":{\"annotations
 fi
 
 bash "${TEST_SCENARIO_DIR}/scripts/validate-cluster.sh"
+
+grep -q "curl -k -sS -o /dev/null -w '%{http_code}' --max-time 20 https://rancher.k3s.lab.internal" "${TEST_SCENARIO_DIR}/command.log" || {
+  echo "[FAIL] validate should probe Rancher over HTTPS using HTTP status inspection" >&2
+  cat "${TEST_SCENARIO_DIR}/command.log" >&2
+  exit 1
+}
+
+grep -q "kubectl get sc -o jsonpath=" "${TEST_SCENARIO_DIR}/command.log" || {
+  echo "[FAIL] validate should probe default StorageClass state" >&2
+  cat "${TEST_SCENARIO_DIR}/command.log" >&2
+  exit 1
+}
+
+probe_count="$(cat "${TEST_SCENARIO_DIR}/storageclass-probe-state")"
+if [[ "${probe_count}" -lt 2 ]]; then
+  echo "[FAIL] validate should retry until the default StorageClass converges" >&2
+  cat "${TEST_SCENARIO_DIR}/command.log" >&2
+  exit 1
+fi
 
 echo "[PASS] remote cluster scripts respect longhorn-single as the single-node default StorageClass"

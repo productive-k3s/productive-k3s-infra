@@ -100,6 +100,13 @@ grep -F '[PASS] onprem-basic live test completed' "${STDOUT_LOG}" >/dev/null || 
   exit 1
 }
 
+for _ in $(seq 1 20); do
+  if grep -F 'delete ' "${MULTIPASS_LOG}" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.1
+done
+
 grep -F 'delete ' "${MULTIPASS_LOG}" >/dev/null || {
   printf '[FAIL] cleanup did not attempt multipass delete\n' >&2
   cat "${MULTIPASS_LOG}" >&2

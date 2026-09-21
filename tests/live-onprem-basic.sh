@@ -17,7 +17,15 @@ SSH_KEY_PATH=""
 SSH_PUBKEY=""
 MULTIPASS_LAUNCH_RETRIES="${MULTIPASS_LAUNCH_RETRIES:-5}"
 MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS="${MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS:-5}"
+MULTIPASS_LAUNCH_TIMEOUT_SECONDS="${MULTIPASS_LAUNCH_TIMEOUT_SECONDS:-180}"
 MULTIPASS_DELETE_TIMEOUT_SECONDS="${MULTIPASS_DELETE_TIMEOUT_SECONDS:-120}"
+ASYNC_MULTIPASS_CLEANUP_LOG_DIR="${ASYNC_MULTIPASS_CLEANUP_LOG_DIR:-/tmp}"
+MULTIPASS_LIST_TIMEOUT_SECONDS="${MULTIPASS_LIST_TIMEOUT_SECONDS:-15}"
+
+is_transient_multipass_remote_error() {
+  local stderr_file="$1"
+  grep -Eq 'Remote ".*" is unknown or unreachable\.' "${stderr_file}"
+}
 
 resolve_productive_k3s_source() {
   if [[ -n "${PRODUCTIVE_K3S_SOURCE:-}" ]]; then
@@ -33,14 +41,19 @@ resolve_productive_k3s_source() {
 }
 
 export PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS="${PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS:-true}"
+export PRODUCTIVE_K3S_AUTO_APPROVE_APPLY_PLAN="${PRODUCTIVE_K3S_AUTO_APPROVE_APPLY_PLAN:-true}"
+
+now_local() {
+  date +"%Y-%m-%d %H:%M:%S%z"
+}
 
 fail() {
-  printf '[FAIL] %s\n' "$1" >&2
+  printf '[%s] [FAIL] %s\n' "$(now_local)" "$1" >&2
   exit 1
 }
 
 warn() {
-  printf '[WARN] %s\n' "$1" >&2
+  printf '[%s] [WARN] %s\n' "$(now_local)" "$1" >&2
 }
 
 emit_launch_recovery_hints() {
@@ -75,14 +88,42 @@ pick_ssh_key() {
 
 cleanup() {
   local rc=$?
-  run_multipass_cleanup delete "${SERVER_NAME}" "${AGENT_NAME}"
-  run_multipass_cleanup purge
+  if ! cleanup_instances "${SERVER_NAME}" "${AGENT_NAME}"; then
+    schedule_multipass_cleanup "${SERVER_NAME}" "${AGENT_NAME}"
+  fi
   if [[ "${rc}" == "0" || "${LIVE_ONPREM_PRESERVE_WORKDIR_ON_FAILURE}" != "true" ]]; then
     rm -rf "${WORK_DIR}"
   else
     warn "Preserving failed live-onprem workdir for inspection: ${WORK_DIR}"
   fi
   make -C "${SCENARIO_DIR}" clean >/dev/null 2>&1 || true
+}
+
+schedule_multipass_cleanup() {
+  local server_name="$1"
+  local agent_name="$2"
+  local cleanup_log="${ASYNC_MULTIPASS_CLEANUP_LOG_DIR%/}/pk3s-live-onprem-cleanup-${STAMP}.log"
+  local server_name_q=""
+  local agent_name_q=""
+  local cleanup_cmd=""
+
+  printf '[%s] [INFO] Scheduling background Multipass cleanup: %s\n' "$(now_local)" "${cleanup_log}"
+  printf -v server_name_q '%q' "${server_name}"
+  printf -v agent_name_q '%q' "${agent_name}"
+  cleanup_cmd="$(cat <<EOF
+set +e
+if command -v timeout >/dev/null 2>&1; then
+  timeout --kill-after=5s ${MULTIPASS_DELETE_TIMEOUT_SECONDS}s multipass stop ${server_name_q} ${agent_name_q} >/dev/null 2>&1 || true
+  timeout --kill-after=5s ${MULTIPASS_DELETE_TIMEOUT_SECONDS}s multipass delete ${server_name_q} ${agent_name_q} >/dev/null 2>&1 || true
+  timeout --kill-after=5s ${MULTIPASS_DELETE_TIMEOUT_SECONDS}s multipass purge >/dev/null 2>&1 || true
+else
+  multipass stop ${server_name_q} ${agent_name_q} >/dev/null 2>&1 || true
+  multipass delete ${server_name_q} ${agent_name_q} >/dev/null 2>&1 || true
+  multipass purge >/dev/null 2>&1 || true
+fi
+EOF
+)"
+  nohup bash -lc "${cleanup_cmd}" >"${cleanup_log}" 2>&1 </dev/null &
 }
 
 run_multipass_cleanup() {
@@ -93,11 +134,37 @@ run_multipass_cleanup() {
     if timeout --kill-after=5s "${MULTIPASS_DELETE_TIMEOUT_SECONDS}s" multipass "${subcommand}" "$@" >/dev/null 2>&1; then
       return 0
     fi
-    warn "multipass ${subcommand} timed out after ${MULTIPASS_DELETE_TIMEOUT_SECONDS}s; continuing"
-    return 0
+    local cleanup_rc=$?
+    if [[ "${cleanup_rc}" == "124" ]]; then
+      warn "multipass ${subcommand} timed out after ${MULTIPASS_DELETE_TIMEOUT_SECONDS}s"
+    fi
+    return "${cleanup_rc}"
   fi
 
   multipass "${subcommand}" "$@" >/dev/null 2>&1 || true
+}
+
+cleanup_instances() {
+  local server_name="$1"
+  local agent_name="$2"
+
+  run_multipass_cleanup stop "${server_name}" "${agent_name}" || return 1
+  run_multipass_cleanup delete "${server_name}" "${agent_name}" || return 1
+  run_multipass_cleanup purge || return 1
+}
+
+cleanup_partial_launch_state() {
+  local name="$1"
+  run_multipass_cleanup delete "${name}"
+  run_multipass_cleanup purge
+}
+
+probe_multipass_backend() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --kill-after=5s "${MULTIPASS_LIST_TIMEOUT_SECONDS}s" multipass list >/dev/null 2>&1 || true
+    return 0
+  fi
+  multipass list >/dev/null 2>&1 || true
 }
 
 write_cloud_init() {
@@ -143,27 +210,49 @@ launch_instance() {
   local attempts="${MULTIPASS_LAUNCH_RETRIES}"
   local attempt=1
   local stderr_file
+  local launch_exit_code=0
   stderr_file="$(mktemp "${WORK_DIR}/multipass-launch.${name}.XXXXXX.stderr")"
 
   while (( attempt <= attempts )); do
-    if multipass launch 24.04 --name "${name}" --cpus 4 --memory 14G --disk 70G --cloud-init "${cloud_init_file}" 2>"${stderr_file}"; then
+    launch_exit_code=0
+    if command -v timeout >/dev/null 2>&1; then
+      set +e
+      timeout --kill-after=5s "${MULTIPASS_LAUNCH_TIMEOUT_SECONDS}s" \
+        multipass launch 24.04 --name "${name}" --cpus 4 --memory 14G --disk 70G --cloud-init "${cloud_init_file}" \
+        2>"${stderr_file}"
+      launch_exit_code=$?
+      set -e
+    else
+      set +e
+      multipass launch 24.04 --name "${name}" --cpus 4 --memory 14G --disk 70G --cloud-init "${cloud_init_file}" 2>"${stderr_file}"
+      launch_exit_code=$?
+      set -e
+    fi
+
+    if [[ "${launch_exit_code}" == "0" ]]; then
       rm -f "${stderr_file}"
       return 0
     fi
 
     if (( attempt < attempts )); then
-      if grep -Fq 'Remote "" is unknown or unreachable.' "${stderr_file}"; then
+      if [[ "${launch_exit_code}" == "124" ]]; then
+        warn "multipass launch timed out for ${name} after ${MULTIPASS_LAUNCH_TIMEOUT_SECONDS}s; retrying (${attempt}/${attempts})"
+      elif is_transient_multipass_remote_error "${stderr_file}"; then
         warn "multipass launch hit a transient remote resolution error for ${name}; retrying (${attempt}/${attempts})"
       else
         warn "multipass launch failed for ${name}; retrying (${attempt}/${attempts})"
         cat "${stderr_file}" >&2
       fi
-      multipass list >/dev/null 2>&1 || true
+      cleanup_partial_launch_state "${name}"
+      probe_multipass_backend
       sleep "${MULTIPASS_LAUNCH_RETRY_DELAY_SECONDS}"
       ((attempt++))
       continue
     fi
 
+    if [[ "${launch_exit_code}" == "124" ]]; then
+      warn "multipass launch timed out for ${name} after ${MULTIPASS_LAUNCH_TIMEOUT_SECONDS}s"
+    fi
     cat "${stderr_file}" >&2
     rm -f "${stderr_file}"
     emit_launch_recovery_hints "${name}"
@@ -211,4 +300,4 @@ EOF
 make -C "${SCENARIO_DIR}" ONPREM_ENV_FILE="${ENV_FILE}" TELEMETRY_ENABLED=false up
 make -C "${SCENARIO_DIR}" ONPREM_ENV_FILE="${ENV_FILE}" TELEMETRY_ENABLED=false validate
 
-printf '[PASS] onprem-basic live test completed\n'
+printf '[%s] [PASS] onprem-basic live test completed\n' "$(now_local)"

@@ -48,6 +48,24 @@ When telemetry is enabled, Infra emits its own correlated command events such as
 - `infra.command.started`
 - `infra.command.completed`
 
+## Local Operation Events
+
+Infra also exposes a local operation event stream for callers that need structured progress, such as the Productive K3S CLI TUI:
+
+```bash
+./productive-k3s-infra.sh --events ndjson profile validate --tgz ./multipass-1-server-2-agents.tgz >events.ndjson 2>human.log
+```
+
+This stream is deliberately separate from telemetry:
+
+- it is enabled only by the local `--events ndjson` flag
+- it is written to stdout as newline-delimited JSON
+- human-readable logs and child process output are written to stderr
+- it is not sent to a remote endpoint
+- disabling or enabling telemetry does not affect it
+
+The event schema is `productive-k3s-operation-event/v1`. Events include `component`, `operation`, `step`, `status`, `message`, `subject`, and `emitted_at`.
+
 ## Supported propagated variables
 
 - `TELEMETRY_ENABLED`

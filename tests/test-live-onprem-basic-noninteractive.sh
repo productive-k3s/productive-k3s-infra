@@ -107,6 +107,15 @@ if [[ "${launch_count}" != "3" ]]; then
   exit 1
 fi
 
+for expected_cleanup in 'stop productive-k3s-core-test-onprem-server-' 'delete productive-k3s-core-test-onprem-server-' 'purge'; do
+  grep -F "${expected_cleanup}" "${MULTIPASS_LOG}" >/dev/null || {
+    printf '[FAIL] expected synchronous cleanup step containing %s\n' "${expected_cleanup}" >&2
+    printf 'Captured multipass invocations:\n' >&2
+    cat "${MULTIPASS_LOG}" >&2
+    exit 1
+  }
+done
+
 grep -F -- '-R 10.0.0.10' "${SSH_KEYGEN_LOG}" >/dev/null || {
   printf '[FAIL] live-onprem-basic.sh did not clear known_hosts for the reused IP\n' >&2
   printf 'Captured ssh-keygen invocations:\n' >&2

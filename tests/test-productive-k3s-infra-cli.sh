@@ -296,6 +296,7 @@ mkdir -p "${RELEASE_REPO}/scripts" "${RELEASE_REPO}/scenarios/local/multipass"
 cp "${REPO_DIR}/productive-k3s-infra.sh" "${RELEASE_REPO}/productive-k3s-infra.sh"
 cp "${REPO_DIR}/scripts/productive-k3s-infra.sh" "${RELEASE_REPO}/scripts/productive-k3s-infra.sh"
 cp "${REPO_DIR}/scripts/export-runtime.sh" "${RELEASE_REPO}/scripts/export-runtime.sh"
+cp -R "${REPO_DIR}/scripts/export-templates" "${RELEASE_REPO}/scripts/"
 cat > "${RELEASE_REPO}/scripts/release.env" <<'EOF'
 PK3S_INFRA_RELEASE_TAG=1.2.3-4.5.6
 PK3S_INFRA_SEMVER=1.2.3

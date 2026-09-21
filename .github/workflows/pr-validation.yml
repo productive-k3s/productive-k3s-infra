@@ -27,13 +27,13 @@ jobs:
       TELEMETRY_ENABLED: "false"
     steps:
       - name: Checkout productive-k3s-infra
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4
         with:
           path: productive-k3s-infra
           fetch-depth: 0
 
       - name: Checkout productive-k3s-profiles
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4
         with:
           repository: jemacchi/productive-k3s-profiles
           ref: main
@@ -41,7 +41,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # actions/setup-python@v5
         with:
           python-version: "3.11"
 
@@ -52,13 +52,17 @@ jobs:
           mkdir -p "$HOME/.local/bin" "$HOME/.local/share"
 
           curl -fsSLO https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz
+          echo "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198  shellcheck-v0.11.0.linux.x86_64.tar.xz" | sha256sum -c -
           tar -xJf shellcheck-v0.11.0.linux.x86_64.tar.xz
           install shellcheck-v0.11.0/shellcheck "$HOME/.local/bin/shellcheck"
 
-          curl -fsSLo "$HOME/.local/bin/shfmt" https://github.com/mvdan/sh/releases/download/v3.13.1/shfmt_v3.13.1_linux_amd64
+          curl -fsSLO https://github.com/mvdan/sh/releases/download/v3.13.1/shfmt_v3.13.1_linux_amd64
+          echo "fb096c5d1ac6beabbdbaa2874d025badb03ee07929f0c9ff67563ce8c75398b1  shfmt_v3.13.1_linux_amd64" | sha256sum -c -
+          install shfmt_v3.13.1_linux_amd64 "$HOME/.local/bin/shfmt"
           chmod +x "$HOME/.local/bin/shfmt"
 
           curl -fsSLO https://github.com/shellspec/shellspec/releases/download/0.28.1/shellspec-dist.tar.gz
+          echo "350d3de04ba61505c54eda31a3c2ee912700f1758b1a80a284bc08fd8b6c5992  shellspec-dist.tar.gz" | sha256sum -c -
           mkdir -p "$HOME/.local/share/shellspec"
           tar -xzf shellspec-dist.tar.gz -C "$HOME/.local/share/shellspec"
           cat > "$HOME/.local/bin/shellspec" <<'EOF'
@@ -67,7 +71,7 @@ jobs:
           EOF
           chmod +x "$HOME/.local/bin/shellspec"
 
-          python3 -m pip install --user codespell
+          python3 -m pip install --user codespell==2.4.3
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Run quick checks
@@ -89,13 +93,13 @@ jobs:
       TELEMETRY_ENABLED: "false"
     steps:
       - name: Checkout productive-k3s-infra
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4
         with:
           path: productive-k3s-infra
           fetch-depth: 0
 
       - name: Checkout productive-k3s-core
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4
         with:
           repository: jemacchi/productive-k3s-core
           ref: main
@@ -103,7 +107,7 @@ jobs:
           fetch-depth: 0
 
       - name: Checkout productive-k3s-profiles
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4
         with:
           repository: jemacchi/productive-k3s-profiles
           ref: main
@@ -111,7 +115,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
+        uses: opentofu/setup-opentofu@9d84900f3238fab8cd84ce47d658d25dd008be2f # opentofu/setup-opentofu@v1
         with:
           tofu_wrapper: false
 
@@ -153,7 +157,7 @@ jobs:
 
       - name: Upload matrix artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # actions/upload-artifact@v4
         with:
           name: pr-validation-artifacts
           path: |
@@ -174,13 +178,13 @@ jobs:
       AWS_SECRET_ACCESS_KEY: "test"
     steps:
       - name: Checkout productive-k3s-infra
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4
         with:
           path: productive-k3s-infra
           fetch-depth: 0
 
       - name: Checkout productive-k3s-profiles
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4
         with:
           repository: jemacchi/productive-k3s-profiles
           ref: main
@@ -188,7 +192,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
+        uses: opentofu/setup-opentofu@9d84900f3238fab8cd84ce47d658d25dd008be2f # opentofu/setup-opentofu@v1
         with:
           tofu_wrapper: false
 
@@ -240,13 +244,13 @@ jobs:
       TELEMETRY_ENABLED: "false"
     steps:
       - name: Checkout productive-k3s-infra
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4
         with:
           path: productive-k3s-infra
           fetch-depth: 0
 
       - name: Checkout productive-k3s-core
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4
         with:
           repository: jemacchi/productive-k3s-core
           ref: main
@@ -254,7 +258,7 @@ jobs:
           fetch-depth: 0
 
       - name: Checkout productive-k3s-profiles
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # actions/checkout@v4
         with:
           repository: jemacchi/productive-k3s-profiles
           ref: main
@@ -291,7 +295,7 @@ jobs:
 
       - name: Upload live artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # actions/upload-artifact@v4
         with:
           name: pr-validation-live-onprem-github-host-full-stack-artifacts
           path: |
