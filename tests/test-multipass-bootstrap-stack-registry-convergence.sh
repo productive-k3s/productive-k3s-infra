@@ -25,7 +25,7 @@ cat > "${TEST_SCENARIO_DIR}/generated/cluster.json" <<'EOF'
   "base_domain": "k3s.lab.internal",
   "remote_dir": "/home/ubuntu/productive-k3s-core",
   "productive_k3s": {
-    "source": "remote",
+    "source": "local",
     "version": "v9.9.9",
     "release_repo": "productive-k3s/productive-k3s-core",
     "stack_tgz_url": "https://downloads.productive-k3s.io/addons/base-0.1.0.tgz",

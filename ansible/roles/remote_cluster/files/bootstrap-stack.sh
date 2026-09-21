@@ -32,7 +32,7 @@ if (( ${#ALL_NODE_IPS[@]} > 1 )); then
 fi
 
 stack_tgz_arg=()
-if [[ "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" == "remote" ]]; then
+if [[ -n "${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}" ]]; then
   stack_artifact_local_tgz="$(mktemp "${GENERATED_DIR}/stack-artifact.XXXXXX.tgz")"
   log "Downloading published stack artifact on controller from ${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}"
   log "Controller download started at $(date -Iseconds)"
@@ -60,6 +60,9 @@ if [[ "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" == "remote" ]]; then
   rm -f "${stack_artifact_local_tgz}"
   stack_artifact_local_tgz=""
   stack_tgz_arg=(--stack-tgz "${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}")
+elif [[ "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" == "remote" ]]; then
+  err "remote source requires productive_k3s.stack_tgz_url in ${CLUSTER_JSON}"
+  exit 1
 fi
 
 log "Starting remote stack bootstrap session"
