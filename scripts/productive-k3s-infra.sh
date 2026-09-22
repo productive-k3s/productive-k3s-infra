@@ -95,9 +95,10 @@ generate_telemetry_id() {
 
 json_escape() {
   printf '%s' "$1" | sed \
+    -e ':a;N;$!ba' \
     -e 's/\\/\\\\/g' \
     -e 's/"/\\"/g' \
-    -e ':a;N;$!ba;s/\n/\\n/g' \
+    -e 's/\n/\\n/g' \
     -e 's/\r/\\r/g' \
     -e 's/\t/\\t/g'
 }
@@ -275,16 +276,6 @@ resolve_source_repo_dir() {
   fi
   [[ -d "${PROFILES_SOURCE_REPO_DIR}" ]] || die 3 "productive-k3s-profiles checkout not found: ${PROFILES_SOURCE_REPO_DIR}"
   printf '%s\n' "${PROFILES_SOURCE_REPO_DIR}"
-}
-
-resolve_source_profiles_dir() {
-  local source_repo="${PROFILES_SOURCE_REPO_DIR}"
-  if [[ -z "${source_repo}" ]]; then
-    die 3 "the source-based '${COMMAND:-source}' surface requires PRODUCTIVE_K3S_PROFILES_REPO_DIR to point at a productive-k3s-profiles checkout"
-  fi
-  [[ -d "${source_repo}" ]] || die 3 "productive-k3s-profiles checkout not found: ${source_repo}"
-  [[ -d "${source_repo}/profiles" ]] || die 3 "profiles directory not found in productive-k3s-profiles checkout: ${source_repo}/profiles"
-  printf '%s\n' "${source_repo}/profiles"
 }
 
 resolve_source_scenario_dir() {
@@ -1002,24 +993,41 @@ trim_yaml_value() {
 profile_yaml_get() {
   local file="$1"
   local key="$2"
-  awk -v key="${key}" '
-    /^metadata:/ { section="metadata"; subsection=""; nested=""; next }
-    /^spec:/ { section="spec"; subsection=""; nested=""; next }
-    section == "spec" && /^  scenario:/ { subsection="scenario"; nested=""; next }
-    section == "spec" && /^  engine:/ { subsection="engine"; nested=""; next }
-    section == "spec" && /^  execution:/ { subsection="execution"; nested=""; next }
-    section == "spec" && subsection == "execution" && /^    targets:/ { nested="targets"; next }
-    section == "spec" && /^  [a-zA-Z]/ { subsection=""; nested="" }
-    section == "metadata" && key == "metadata.name" && /^  name:/ { print; exit }
-    section == "metadata" && key == "metadata.version" && /^  version:/ { print; exit }
-    section == "spec" && subsection == "scenario" && key == "spec.scenario.type" && /^    type:/ { print; exit }
-    section == "spec" && subsection == "scenario" && key == "spec.scenario.path" && /^    path:/ { print; exit }
-    section == "spec" && subsection == "engine" && key == "spec.engine.type" && /^    type:/ { print; exit }
-    section == "spec" && subsection == "execution" && key == "spec.execution.installScript" && /^    installScript:/ { print; exit }
-    section == "spec" && subsection == "execution" && nested == "targets" && key == "spec.execution.targets.apply" && /^      apply:/ { print; exit }
-    section == "spec" && subsection == "execution" && nested == "targets" && key == "spec.execution.targets.status" && /^      status:/ { print; exit }
-    section == "spec" && subsection == "execution" && nested == "targets" && key == "spec.execution.targets.destroy" && /^      destroy:/ { print; exit }
-  ' "${file}"
+  local line section="" subsection="" nested=""
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    case "${line}" in
+      metadata:) section="metadata"; subsection=""; nested=""; continue ;;
+      spec:) section="spec"; subsection=""; nested=""; continue ;;
+    esac
+    if [[ "${section}" == "metadata" && "${key}" == "metadata.name" && "${line}" == "  name:"* ]]; then printf '%s\n' "${line}"; return 0; fi
+    if [[ "${section}" == "metadata" && "${key}" == "metadata.version" && "${line}" == "  version:"* ]]; then printf '%s\n' "${line}"; return 0; fi
+    [[ "${section}" == "spec" ]] || continue
+    case "${line}" in
+      "  scenario:") subsection="scenario"; nested=""; continue ;;
+      "  engine:") subsection="engine"; nested=""; continue ;;
+      "  execution:") subsection="execution"; nested=""; continue ;;
+      "  "[a-zA-Z]*":") subsection=""; nested=""; continue ;;
+    esac
+    if [[ "${subsection}" == "scenario" ]]; then
+      case "${line}" in
+        "    type:"*) [[ "${key}" == "spec.scenario.type" ]] && { printf '%s\n' "${line}"; return 0; } ;;
+        "    path:"*) [[ "${key}" == "spec.scenario.path" ]] && { printf '%s\n' "${line}"; return 0; } ;;
+      esac
+    elif [[ "${subsection}" == "engine" && "${key}" == "spec.engine.type" && "${line}" == "    type:"* ]]; then
+      printf '%s\n' "${line}"
+      return 0
+    elif [[ "${subsection}" == "execution" ]]; then
+      [[ "${line}" == "    targets:" ]] && { nested="targets"; continue; }
+      [[ "${key}" == "spec.execution.installScript" && "${line}" == "    installScript:"* ]] && { printf '%s\n' "${line}"; return 0; }
+      if [[ "${nested}" == "targets" ]]; then
+        case "${line}" in
+          "      apply:"*) [[ "${key}" == "spec.execution.targets.apply" ]] && { printf '%s\n' "${line}"; return 0; } ;;
+          "      status:"*) [[ "${key}" == "spec.execution.targets.status" ]] && { printf '%s\n' "${line}"; return 0; } ;;
+          "      destroy:"*) [[ "${key}" == "spec.execution.targets.destroy" ]] && { printf '%s\n' "${line}"; return 0; } ;;
+        esac
+      fi
+    fi
+  done < "${file}"
 }
 
 profile_package_metadata_path() {
@@ -1238,36 +1246,55 @@ run_profile_export_from_source_profile() {
 
 profile_input_records() {
   local file="$1"
-  awk '
-    function emit() {
-      if (name != "") {
-        print name "|" required "|" sensitive "|" source "|" description
-        name=""
-      }
-    }
-    /^spec:/ { in_spec=1; in_inputs=0; next }
-    in_spec && /^  inputs:/ { in_inputs=1; next }
-    in_inputs && /^  [a-zA-Z]/ { emit(); done=1; exit }
-    in_inputs && /^    - name:/ {
-      emit()
-      name=$3
+  local line in_spec=0 in_inputs=0
+  local name="" required="false" sensitive="false" source="either" description=""
+
+  __pk3s_emit_profile_input_record() {
+    [[ -n "${name}" ]] || return 0
+    printf '%s|%s|%s|%s|%s\n' "${name}" "${required}" "${sensitive}" "${source}" "${description}"
+    name=""
+  }
+
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    if [[ "${line}" == "spec:" ]]; then
+      in_spec=1
+      in_inputs=0
+      continue
+    fi
+    if [[ "${in_spec}" == "1" && "${line}" == "  inputs:" ]]; then
+      in_inputs=1
+      continue
+    fi
+    [[ "${in_inputs}" == "1" ]] || continue
+    if [[ "${line}" == "  "[a-zA-Z]*":" ]]; then
+      __pk3s_emit_profile_input_record
+      break
+    fi
+    if [[ "${line}" == "    - name:"* ]]; then
+      __pk3s_emit_profile_input_record
+      name="${line#    - name:}"
+      name="${name# }"
       required="false"
       sensitive="false"
       source="either"
       description=""
-      next
-    }
-    in_inputs && /^      required:/ { required=$2; next }
-    in_inputs && /^      sensitive:/ { sensitive=$2; next }
-    in_inputs && /^      source:/ { source=$2; next }
-    in_inputs && /^      description:/ {
-      description=substr($0, index($0, ":") + 2)
-      gsub(/^"/, "", description)
-      gsub(/"$/, "", description)
-      next
-    }
-    END { if (!done) emit() }
-  ' "${file}"
+      continue
+    fi
+    case "${line}" in
+      "      required:"*) required="${line#      required:}"; required="${required# }" ;;
+      "      sensitive:"*) sensitive="${line#      sensitive:}"; sensitive="${sensitive# }" ;;
+      "      source:"*) source="${line#      source:}"; source="${source# }" ;;
+      "      description:"*)
+        description="${line#      description:}"
+        description="${description# }"
+        description="${description%\"}"
+        description="${description#\"}"
+        ;;
+    esac
+  done < "${file}"
+
+  __pk3s_emit_profile_input_record
+  unset -f __pk3s_emit_profile_input_record
 }
 
 validate_profile_input_metadata() {
@@ -2030,9 +2057,10 @@ run_dev_profile_command() {
   esac
 }
 
+main() {
 if (($# == 0)); then
   usage >&2
-  exit 2
+  return 2
 fi
 
 PARSED_ARGS=()
@@ -2124,7 +2152,7 @@ case "${COMMAND}" in
   version)
     if [[ "${GLOBAL_JSON}" -eq 1 ]]; then
       render_bundle_info_json
-      exit 0
+      return 0
     fi
     printf '%s\n' "${VERSION}"
     ;;
@@ -2203,4 +2231,9 @@ fi
 
 emit_operation_completed_event "${OPERATION_NAME}" "${RC}" "${OPERATION_SUBJECT}"
 OPERATION_COMPLETED_EMITTED=1
-exit "${RC}"
+return "${RC}"
+}
+
+if [[ "${PRODUCTIVE_K3S_LIB_ONLY:-0}" != "1" ]]; then
+  main "$@"
+fi

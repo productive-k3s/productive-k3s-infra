@@ -32,9 +32,76 @@ Describe 'productive-k3s-infra cli helper functions'
     The output should equal 'validate|up|down|status'
   End
 
+  It 'resolves dynamic scenario paths and categories from a profiles checkout'
+    When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
+      repo="$(mktemp -d)"
+      mkdir -p "${repo}/scenarios/cloud/future-profile"
+      PROFILES_SOURCE_REPO_DIR="${repo}"
+      printf "%s|" "$(scenario_rel_dir future-profile)"
+      printf "%s|" "$(resolve_scenario future-profile)"
+      printf "%s|" "$(profile_category future-profile)"
+      printf "%s" "$(command_to_target destroy future-profile)"'
+    The status should equal 0
+    The output should equal 'scenarios/cloud/future-profile|future-profile|cloud|down'
+  End
+
+  It 'rejects unsupported dynamic scenario targets'
+    When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
+      repo="$(mktemp -d)"
+      mkdir -p "${repo}/scenarios/edge/future-edge"
+      PROFILES_SOURCE_REPO_DIR="${repo}"
+      command_to_target destroy future-edge'
+    The status should equal 1
+  End
+
   It 'rejects unsupported destroy mappings for onprem scenarios'
     When run /usr/bin/bash "$RUNNER" "$SCRIPT" 'command_to_target destroy onprem-basic'
     The status should equal 1
+  End
+
+  It 'blocks source-only helpers on package-only runtime surfaces'
+    When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
+      RUNTIME_SURFACE=package-only
+      require_source_surface list-profiles'
+    The status should equal 2
+    The stderr should include "the 'list-profiles' command is not available in the package-only release surface"
+  End
+
+  It 'resolves source scenario directories from a profiles checkout'
+    When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
+      repo="$(mktemp -d)"
+      mkdir -p "${repo}/scenarios/cloud/future-profile"
+      PROFILES_SOURCE_REPO_DIR="${repo}"
+      COMMAND=validate
+      printf "%s|" "$(resolve_source_repo_dir)"
+      printf "%s" "$(resolve_source_scenario_dir future-profile)"'
+    The status should equal 0
+    The output should include '/scenarios/cloud/future-profile'
+  End
+
+  It 'rejects missing source scenario directories'
+    When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
+      repo="$(mktemp -d)"
+      mkdir -p "${repo}/scenarios/cloud"
+      PROFILES_SOURCE_REPO_DIR="${repo}"
+      COMMAND=validate
+      resolve_source_scenario_dir missing-profile'
+    The status should equal 1
+    The stderr should include 'unsupported scenario directory mapping: missing-profile'
+  End
+
+  It 'formats operation names and completion events'
+    When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
+      GLOBAL_EVENTS_FORMAT=ndjson
+      printf "%s|" "$(operation_name_for_args profile apply)"
+      printf "%s|" "$(operation_name_for_args dev profile destroy)"
+      printf "%s|" "$(operation_name_for_args multipass)"
+      printf "%s\n" "$(operation_name_for_args doctor)"
+      emit_operation_completed_event infra.apply 7 demo-subject'
+    The status should equal 0
+    The output should include 'profile.apply|profile.destroy|scenario.up|infra.doctor'
+    The output should include '"status":"failed"'
+    The output should include '"subject":"demo-subject"'
   End
 
   It 'prefers an explicit tofu binary override'
