@@ -14,6 +14,7 @@ PROFILES_SOURCE_SCENARIOS_DIR := $(PROFILES_SOURCE_REPO)/scenarios
 	test-coverage \
 	test-local-bash \
 	test-local-all \
+	test-logs-clean \
 	test-clean \
 	test-checkstatus \
 	test-static \
@@ -56,6 +57,10 @@ test-local-bash:
 
 test-local-all:
 	bash $(DEV_WRAPPER) test-local-all
+
+test-logs-clean:
+	rm -rf test-artifacts runs coverage htmlcov .pytest_cache .coverage
+	rm -f coverage.out coverage.txt coverage.xml
 
 test-clean:
 	bash $(DEV_WRAPPER) test-clean

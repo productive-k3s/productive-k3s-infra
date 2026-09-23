@@ -27,6 +27,7 @@ SCENARIO ?=
 	test-live-gha-onprem \
 	test-local-all \
 	test-matrix-all \
+	test-logs-clean \
 	infra-help \
 	infra-doctor \
 	infra-list-profiles \
@@ -98,6 +99,9 @@ test-local-all:
 
 test-matrix-all:
 	$(MAKE) -C $(TESTS_DIR) test-matrix-all
+
+test-logs-clean:
+	$(MAKE) -C $(TESTS_DIR) test-logs-clean
 
 infra-help:
 	$(PUBLIC_CLI) help
