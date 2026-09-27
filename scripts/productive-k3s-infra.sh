@@ -121,16 +121,6 @@ infra_command_emits_telemetry() {
       [[ "${subcommand}" == "install" || "${subcommand}" == "apply" || "${subcommand}" == "destroy" ]]
       return
       ;;
-    multipass|onprem|onprem-basic|on-prem|onprem-arm|onprem-basic-arm|on-prem-arm|aws-single-node)
-      case "${subcommand:-up}" in
-        up|destroy)
-          return 0
-          ;;
-        *)
-          return 1
-          ;;
-      esac
-      ;;
     *)
       return 1
       ;;
@@ -216,7 +206,6 @@ Usage:
   ./productive-k3s-infra.sh export --profile <file> --output <file|dir> [flags]
   ./productive-k3s-infra.sh profile <validate|install|plan|apply|destroy|status|export> --tgz <file> [flags]
   ./productive-k3s-infra.sh dev profile <validate|plan|apply|destroy|status|export> --profile-env <file> [flags]
-  ./productive-k3s-infra.sh <scenario> [command] [make-args...]
 
 Profile-driven commands:
   help
@@ -239,12 +228,6 @@ Profile-driven commands:
   destroy --profile <file>
   status --profile <file>
   export --profile <file> --output <file|dir>
-
-Legacy compatibility:
-  multipass [command]
-  onprem | onprem-basic [command]
-  onprem-arm | onprem-basic-arm [command]
-  aws-single-node [command]
 
 Supported global flags:
   --profile <file>
@@ -279,15 +262,15 @@ resolve_source_repo_dir() {
 }
 
 resolve_source_scenario_dir() {
-  local scenario="$1"
-  local source_repo="${PROFILES_SOURCE_REPO_DIR}" rel_dir
+  local scenario_path="$1"
+  local source_repo="${PROFILES_SOURCE_REPO_DIR}"
   if [[ -z "${source_repo}" ]]; then
     die 3 "the source-based '${COMMAND:-source}' surface requires PRODUCTIVE_K3S_PROFILES_REPO_DIR to point at a productive-k3s-profiles checkout"
   fi
   [[ -d "${source_repo}" ]] || die 3 "productive-k3s-profiles checkout not found: ${source_repo}"
-  rel_dir="$(scenario_rel_dir "${scenario}")" || die 1 "unsupported scenario directory mapping: ${scenario}"
-  [[ -d "${source_repo}/${rel_dir}" ]] || die 1 "scenario directory not found in productive-k3s-profiles checkout: ${source_repo}/${rel_dir}"
-  printf '%s\n' "${source_repo}/${rel_dir}"
+  validate_profile_package_relative_path "PK3S_INFRA_SCENARIO_PATH" "${scenario_path}"
+  [[ -d "${source_repo}/${scenario_path}" ]] || die 1 "scenario directory not found in productive-k3s-profiles checkout: ${source_repo}/${scenario_path}"
+  printf '%s\n' "${source_repo}/${scenario_path}"
 }
 
 log() {
@@ -349,9 +332,6 @@ operation_name_for_args() {
       else
         printf 'dev.%s\n' "${subcommand:-unknown}"
       fi
-      ;;
-    multipass|onprem|onprem-basic|on-prem|onprem-arm|onprem-basic-arm|on-prem-arm|aws-single-node)
-      printf 'scenario.%s\n' "${2:-up}"
       ;;
     *)
       printf 'infra.%s\n' "${command}"
@@ -503,9 +483,7 @@ render_bom_json() {
   "platform_support": {
     "developer_hosts": ["linux", "macos", "windows-wsl-or-powershell"],
     "runtime_targets": [
-      {"profile_category": "local", "path": "scenarios/local/multipass", "host": "local workstation", "driver": "multipass"},
-      {"profile_category": "edge", "path": "scenarios/edge/onprem-basic", "host": "remote linux over ssh", "driver": "ansible|shell"},
-      {"profile_category": "cloud", "path": "scenarios/cloud/aws-single-node", "host": "aws ec2 over ssh", "driver": "opentofu"}
+      {"profile_category": "package-declared", "path": "spec.scenario.path", "driver": "spec.engine.type"}
     ]
   },
   "productive_k3s": {
@@ -525,17 +503,11 @@ render_bom_json() {
       {"name": "tofu", "min_version": "1.8.0", "reason": "preferred OpenTofu engine for local and cloud scenarios"},
       {"name": "terraform", "min_version": "1.8.0", "reason": "fallback CLI when OpenTofu is unavailable"},
       {"name": "jq", "min_version": "1.6", "reason": "JSON inspection and generated artifact helpers"},
-      {"name": "multipass", "min_version": "1.14", "reason": "local multipass scenario execution and live validation"},
-      {"name": "ansible-playbook", "min_version": "2.15", "reason": "remote on-prem scenario orchestration"},
+      {"name": "ansible-playbook", "min_version": "2.15", "reason": "optional remote scenario orchestration"},
       {"name": "curl", "min_version": "7.81", "reason": "release artifact and helper downloads"}
     ]
   },
-  "scenarios": [
-    {"name": "multipass", "category": "local", "engine": "opentofu", "path": "scenarios/local/multipass"},
-    {"name": "onprem-basic", "category": "edge", "engine": "ansible|shell", "path": "scenarios/edge/onprem-basic"},
-    {"name": "onprem-basic-arm", "category": "edge", "engine": "ansible|shell", "path": "scenarios/edge/onprem-basic-arm"},
-    {"name": "aws-single-node", "category": "cloud", "engine": "opentofu", "path": "scenarios/cloud/aws-single-node"}
-  ],
+  "scenarios": [],
   "package_contract": {
     "profile_tgz_supported": true,
     "profile_env_role": "package-defaults",
@@ -553,130 +525,21 @@ trim() {
   printf '%s' "${value}"
 }
 
-resolve_scenario() {
-  case "$1" in
-    multipass)
-      printf 'multipass\n'
-      ;;
-    onprem-arm|onprem-basic-arm|on-prem-arm)
-      printf 'onprem-basic-arm\n'
-      ;;
-    onprem|onprem-basic|on-prem)
-      printf 'onprem-basic\n'
-      ;;
-    aws-single-node)
-      printf 'aws-single-node\n'
-      ;;
-    *)
-      scenario_rel_dir "$1" >/dev/null 2>&1 || return 1
-      printf '%s\n' "$1"
-      ;;
-  esac
-}
-
-scenario_rel_dir() {
-  case "$1" in
-    multipass)
-      printf 'scenarios/local/multipass\n'
-      ;;
-    onprem-basic)
-      printf 'scenarios/edge/onprem-basic\n'
-      ;;
-    onprem-basic-arm)
-      printf 'scenarios/edge/onprem-basic-arm\n'
-      ;;
-    aws-single-node)
-      printf 'scenarios/cloud/aws-single-node\n'
-      ;;
-    *)
-      local source_repo="${PROFILES_SOURCE_REPO_DIR:-}" rel_dir
-      if [[ -n "${source_repo}" && -d "${source_repo}/scenarios" ]]; then
-        rel_dir="$(
-          cd "${source_repo}" && \
-          find scenarios -mindepth 2 -maxdepth 2 -type d -name "$1" | sort | head -n1
-        )"
-        [[ -n "${rel_dir}" ]] || return 1
-        printf '%s\n' "${rel_dir}"
-        return 0
-      fi
-      return 1
-      ;;
-  esac
-}
-
-profile_env_var_name() {
-  case "$1" in
-    onprem-basic|onprem-basic-arm)
-      printf 'ONPREM_ENV_FILE\n'
-      ;;
-    aws-single-node)
-      printf 'AWS_ENV_FILE\n'
-      ;;
-    *)
-      printf '\n'
-      ;;
-  esac
-}
-
-profile_category() {
-  case "${1:-}" in
-    multipass)
-      printf 'local\n'
-      ;;
-    onprem-basic|onprem-basic-arm)
-      printf 'edge\n'
-      ;;
-    aws-single-node)
-      printf 'cloud\n'
-      ;;
-    *)
-      local rel_dir category
-      rel_dir="$(scenario_rel_dir "$1")" || return 1
-      category="${rel_dir#scenarios/}"
-      category="${category%%/*}"
-      [[ -n "${category}" ]] || return 1
-      printf '%s\n' "${category}"
-      ;;
-  esac
-}
-
-command_to_target() {
+source_profile_target() {
   local command="$1"
-  local scenario="$2"
   case "$command" in
     validate)
       printf 'validate\n'
       ;;
-    apply)
-      printf 'up\n'
-      ;;
-    plan)
-      printf 'up\n'
+    apply|plan)
+      printf '%s\n' "${PK3S_INFRA_APPLY_TARGET}"
       ;;
     destroy)
-      case "$scenario" in
-        multipass|aws-single-node)
-          printf 'down\n'
-          ;;
-        onprem-basic|onprem-basic-arm)
-          return 1
-          ;;
-        *)
-          local rel_dir
-          rel_dir="$(scenario_rel_dir "${scenario}")" || return 1
-          case "${rel_dir}" in
-            scenarios/local/*|scenarios/cloud/*)
-              printf 'down\n'
-              ;;
-            *)
-              return 1
-              ;;
-          esac
-          ;;
-      esac
+      [[ -n "${PK3S_INFRA_DESTROY_TARGET:-}" ]] || return 1
+      printf '%s\n' "${PK3S_INFRA_DESTROY_TARGET}"
       ;;
     status)
-      printf 'status\n'
+      printf '%s\n' "${PK3S_INFRA_STATUS_TARGET}"
       ;;
     *)
       return 1
@@ -702,15 +565,13 @@ require_env() {
 validate_profile() {
   require_env PK3S_INFRA_PROFILE_NAME
   require_env PK3S_INFRA_ENGINE
-
-  if [[ -z "$(trim "${PK3S_INFRA_SCENARIO:-}")" ]]; then
-    die 4 "profile is missing required variable: PK3S_INFRA_SCENARIO"
-  fi
-
   require_env PK3S_INFRA_SCENARIO
-
-  PK3S_INFRA_SCENARIO="$(resolve_scenario "${PK3S_INFRA_SCENARIO}")" || die 4 "unsupported PK3S_INFRA_SCENARIO: ${PK3S_INFRA_SCENARIO}"
-  export PK3S_INFRA_SCENARIO
+  require_env PK3S_INFRA_CATEGORY
+  require_env PK3S_INFRA_SCENARIO_PATH
+  require_env PK3S_INFRA_INSTALL_SCRIPT
+  require_env PK3S_INFRA_APPLY_TARGET
+  require_env PK3S_INFRA_STATUS_TARGET
+  require_env PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME
 
   case "${PK3S_INFRA_ENGINE}" in
     opentofu|ansible|shell) ;;
@@ -718,45 +579,15 @@ validate_profile() {
       die 4 "unsupported PK3S_INFRA_ENGINE: ${PK3S_INFRA_ENGINE}"
       ;;
   esac
-
-  case "${PK3S_INFRA_SCENARIO}" in
-    multipass)
-      if [[ "${PK3S_INFRA_ENGINE}" != "opentofu" ]]; then
-        die 4 "multipass profiles must use PK3S_INFRA_ENGINE=opentofu"
-      fi
-      require_env TF_VAR_cluster_name
-      require_env TF_VAR_image
-      require_env TF_VAR_base_domain
-      require_env TF_VAR_remote_dir
-      require_env TF_VAR_server_cpus
-      require_env TF_VAR_server_memory
-      require_env TF_VAR_server_disk
-      require_env TF_VAR_agent_cpus
-      require_env TF_VAR_agent_memory
-      require_env TF_VAR_agent_disk
-      ;;
-    onprem-basic|onprem-basic-arm)
-      if [[ "${PK3S_INFRA_ENGINE}" != "ansible" && "${PK3S_INFRA_ENGINE}" != "shell" ]]; then
-        die 4 "${PK3S_INFRA_SCENARIO} profiles must use PK3S_INFRA_ENGINE=ansible or shell"
-      fi
-      require_env ONPREM_SERVER_IP
-      require_env ONPREM_SSH_USER
-      if [[ -z "$(trim "${ONPREM_SSH_KEY_PATH:-${ONPREM_SSH_PRIVATE_KEY_PATH:-}}")" ]]; then
-        die 4 "profile is missing required variable: ONPREM_SSH_KEY_PATH"
-      fi
-      ;;
-    aws-single-node)
-      if [[ "${PK3S_INFRA_ENGINE}" != "opentofu" ]]; then
-        die 4 "aws-single-node profiles must use PK3S_INFRA_ENGINE=opentofu"
-      fi
-      require_env AWS_REGION
-      require_env AWS_CLUSTER_NAME
-      require_env AWS_INSTANCE_TYPE
-      require_env AWS_SSH_USER
-      require_env AWS_SSH_KEY_PATH
-      require_env AWS_ROOT_VOLUME_SIZE_GB
-      ;;
+  case "${PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME}" in
+    true|false) ;;
+    *) die 4 "PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME must be true or false" ;;
   esac
+  validate_profile_package_relative_path "PK3S_INFRA_SCENARIO_PATH" "${PK3S_INFRA_SCENARIO_PATH}"
+  validate_profile_package_relative_path "PK3S_INFRA_INSTALL_SCRIPT" "${PK3S_INFRA_INSTALL_SCRIPT}"
+  validate_profile_package_target "PK3S_INFRA_APPLY_TARGET" "${PK3S_INFRA_APPLY_TARGET}"
+  validate_profile_package_target "PK3S_INFRA_STATUS_TARGET" "${PK3S_INFRA_STATUS_TARGET}"
+  validate_profile_package_target "PK3S_INFRA_DESTROY_TARGET" "${PK3S_INFRA_DESTROY_TARGET:-}"
 }
 
 run_opentofu_plan() {
@@ -850,8 +681,8 @@ profile_command_dispatch() {
   emit_operation_event "${operation}" "profile.source.validate" "success" "Source profile validation passed" "${PK3S_INFRA_PROFILE_NAME}"
 
   emit_operation_event "${operation}" "profile.scenario.resolve" "running" "Resolving source scenario" "${PK3S_INFRA_PROFILE_NAME}"
-  target="$(command_to_target "${command}" "${PK3S_INFRA_SCENARIO}")" || die 2 "unsupported command '${command}' for scenario '${PK3S_INFRA_SCENARIO}'"
-  scenario_dir="$(resolve_source_scenario_dir "${PK3S_INFRA_SCENARIO}")"
+  target="$(source_profile_target "${command}")" || die 2 "source profile '${PK3S_INFRA_PROFILE_NAME}' does not declare a target for '${command}'"
+  scenario_dir="$(resolve_source_scenario_dir "${PK3S_INFRA_SCENARIO_PATH}")"
   emit_operation_event "${operation}" "profile.scenario.resolve" "success" "Source scenario resolved" "${PK3S_INFRA_SCENARIO}"
 
   log "INFO" "Loading profile: ${profile}"
@@ -878,7 +709,7 @@ profile_command_dispatch() {
         ;;
       ansible|shell)
         log "INFO" "Plan mode delegates to 'make -n' for the current remote backend contract"
-        env_file_var="$(profile_env_var_name "${PK3S_INFRA_SCENARIO}")"
+        env_file_var="${PK3S_INFRA_ENV_FILE_VARIABLE:-}"
         emit_operation_event "${operation}" "profile.plan.run" "running" "Running scenario make dry-run" "${PK3S_INFRA_PROFILE_NAME}"
         if [[ -n "${env_file_var}" ]]; then
           env "${env_file_var}=${profile}" "${MAKE_BIN}" -n -C "${scenario_dir}" "${target}" || {
@@ -900,11 +731,7 @@ profile_command_dispatch() {
     esac
   fi
 
-  if [[ "${command}" == "destroy" && ( "${PK3S_INFRA_SCENARIO}" == "onprem-basic" || "${PK3S_INFRA_SCENARIO}" == "onprem-basic-arm" ) && "${GLOBAL_YES}" -ne 1 ]]; then
-    die 2 "destroy is not supported for ${PK3S_INFRA_SCENARIO} in the stage-1 profile contract"
-  fi
-
-  env_file_var="$(profile_env_var_name "${PK3S_INFRA_SCENARIO}")"
+  env_file_var="${PK3S_INFRA_ENV_FILE_VARIABLE:-}"
   export TELEMETRY_PARENT_RUN_ID="${TELEMETRY_RUN_ID:-}"
   export TELEMETRY_RUN_ID=""
   export TELEMETRY_COMPONENT="infra"
@@ -924,26 +751,6 @@ profile_command_dispatch() {
     return "${rc}"
   }
   emit_operation_event "${operation}" "profile.${command}.run" "success" "Scenario make target completed" "${PK3S_INFRA_PROFILE_NAME}"
-}
-
-legacy_dispatch() {
-  local scenario command
-  enforce_release_bound_productive_k3s_version
-  scenario="$(resolve_scenario "$1")" || die 2 "unsupported scenario: $1"
-  shift
-
-  command="${1:-up}"
-  if (($# > 0)); then
-    shift
-  fi
-
-  local scenario_dir
-  scenario_dir="$(resolve_source_scenario_dir "${scenario}")"
-
-  export TELEMETRY_PARENT_RUN_ID="${TELEMETRY_RUN_ID:-}"
-  export TELEMETRY_RUN_ID=""
-  export TELEMETRY_COMPONENT="infra"
-  "${MAKE_BIN}" -C "${scenario_dir}" "${command}" "$@"
 }
 
 run_doctor() {
@@ -1054,10 +861,9 @@ copy_profile_package_inputs_block() {
 
 write_source_profile_install_wrapper() {
   local target_path="$1"
-  local scenario_type="$2"
-  local scenario_dir="$3"
-  local env_var
-  env_var="$(profile_env_var_name "${scenario_type}")"
+  local scenario_dir="$2"
+  local apply_target="$3"
+  local env_var="${4:-}"
   {
     printf '#!/usr/bin/env bash\n'
     printf 'set -euo pipefail\n\n'
@@ -1111,7 +917,7 @@ write_source_profile_install_wrapper() {
     if [[ -n "${env_var}" ]]; then
       printf 'export %s="${PROFILE_ENV}"\n' "${env_var}"
     fi
-    printf 'exec make -C "${SCENARIO_DIR}" up "$@"\n'
+    printf 'exec make -C "${SCENARIO_DIR}" %q "$@"\n' "${apply_target}"
   } > "${target_path}"
   chmod +x "${target_path}"
 }
@@ -1122,7 +928,12 @@ write_source_profile_manifest() {
   local scenario_type="$3"
   local scenario_path="$4"
   local engine_type="$5"
-  local package_metadata="$6"
+  local profile_category="$6"
+  local install_script="$7"
+  local apply_target="$8"
+  local status_target="$9"
+  local destroy_target="${10}"
+  local package_metadata="${11}"
 
   {
     printf 'apiVersion: infra.productive-k3s.io/v1\n'
@@ -1130,7 +941,7 @@ write_source_profile_manifest() {
     printf 'metadata:\n'
     printf '  name: %s\n' "${profile_name}"
     printf '  version: exported\n'
-    printf '  category: %s\n' "$(profile_category "${scenario_type}")"
+    printf '  category: %s\n' "${profile_category}"
     printf 'spec:\n'
     printf '  scenario:\n'
     printf '    type: %s\n' "${scenario_type}"
@@ -1138,12 +949,12 @@ write_source_profile_manifest() {
     printf '  engine:\n'
     printf '    type: %s\n' "${engine_type}"
     printf '  execution:\n'
-    printf '    installScript: scripts/install.sh\n'
+    printf '    installScript: %s\n' "${install_script}"
     printf '    targets:\n'
-    printf '      apply: up\n'
-    printf '      status: status\n'
-    if [[ "${engine_type}" == "opentofu" ]]; then
-      printf '      destroy: down\n'
+    printf '      apply: %s\n' "${apply_target}"
+    printf '      status: %s\n' "${status_target}"
+    if [[ -n "${destroy_target}" ]]; then
+      printf '      destroy: %s\n' "${destroy_target}"
     fi
     copy_profile_package_inputs_block "${package_metadata}" /dev/stdout
   } > "${target_path}"
@@ -1153,6 +964,7 @@ create_source_profile_tgz() {
   local profile="$1"
   local output_tgz="$2"
   local package_root profile_name scenario_type engine_type source_repo scenario_dir_rel scenario_dir package_metadata
+  local profile_category install_script apply_target status_target destroy_target env_file_variable include_remote_runtime
 
   enforce_release_bound_productive_k3s_version
   source_profile "${profile}"
@@ -1162,23 +974,28 @@ create_source_profile_tgz() {
   profile_name="${PK3S_INFRA_PROFILE_NAME}"
   scenario_type="${PK3S_INFRA_SCENARIO}"
   engine_type="${PK3S_INFRA_ENGINE}"
+  profile_category="${PK3S_INFRA_CATEGORY}"
+  scenario_dir_rel="${PK3S_INFRA_SCENARIO_PATH}"
+  install_script="${PK3S_INFRA_INSTALL_SCRIPT}"
+  apply_target="${PK3S_INFRA_APPLY_TARGET}"
+  status_target="${PK3S_INFRA_STATUS_TARGET}"
+  destroy_target="${PK3S_INFRA_DESTROY_TARGET:-}"
+  env_file_variable="${PK3S_INFRA_ENV_FILE_VARIABLE:-}"
+  include_remote_runtime="${PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME}"
   source_repo="$(resolve_source_repo_dir)"
-  scenario_dir_rel="$(scenario_rel_dir "${scenario_type}")"
   scenario_dir="${source_repo}/${scenario_dir_rel}"
   package_metadata="$(profile_package_metadata_path "${profile}")"
 
   package_root="$(mktemp -d)"
-  mkdir -p "${package_root}/scripts" "${package_root}/${scenario_dir_rel}"
+  mkdir -p "$(dirname "${package_root}/${install_script}")" "${package_root}/${scenario_dir_rel}"
   cp "${profile}" "${package_root}/profile.env"
   cp -R "${scenario_dir}/." "${package_root}/${scenario_dir_rel}/"
-  case "${scenario_type}" in
-    aws-single-node|onprem-basic|onprem-basic-arm)
-      mkdir -p "${package_root}/ansible/roles/remote_cluster"
-      cp -R "${REPO_DIR}/ansible/roles/remote_cluster/files" "${package_root}/ansible/roles/remote_cluster/"
-      ;;
-  esac
-  write_source_profile_manifest "${package_root}/profile.yaml" "${profile_name}" "${scenario_type}" "${scenario_dir_rel}" "${engine_type}" "${package_metadata}"
-  write_source_profile_install_wrapper "${package_root}/scripts/install.sh" "${scenario_type}" "${scenario_dir_rel}"
+  if [[ "${include_remote_runtime}" == "true" ]]; then
+    mkdir -p "${package_root}/ansible/roles/remote_cluster"
+    cp -R "${REPO_DIR}/ansible/roles/remote_cluster/files" "${package_root}/ansible/roles/remote_cluster/"
+  fi
+  write_source_profile_manifest "${package_root}/profile.yaml" "${profile_name}" "${scenario_type}" "${scenario_dir_rel}" "${engine_type}" "${profile_category}" "${install_script}" "${apply_target}" "${status_target}" "${destroy_target}" "${package_metadata}"
+  write_source_profile_install_wrapper "${package_root}/${install_script}" "${scenario_dir_rel}" "${apply_target}" "${env_file_variable}"
   tar -czf "${output_tgz}" -C "${package_root}" .
   rm -rf "${package_root}"
 }
@@ -1416,8 +1233,11 @@ validate_profile_package() {
 
   [[ -n "${profile_name}" ]] || die 4 "profile package metadata.name is required"
   [[ -n "${scenario_type}" ]] || die 4 "profile package spec.scenario.type is required"
+  [[ -n "${scenario_path}" ]] || die 4 "profile package spec.scenario.path is required"
   [[ -n "${engine_type}" ]] || die 4 "profile package spec.engine.type is required"
   [[ -n "${install_script}" ]] || die 4 "profile package spec.execution.installScript is required"
+  [[ -n "${apply_target}" ]] || die 4 "profile package spec.execution.targets.apply is required"
+  [[ -n "${status_target}" ]] || die 4 "profile package spec.execution.targets.status is required"
   validate_profile_package_relative_path "spec.scenario.path" "${scenario_path}"
   validate_profile_package_relative_path "spec.execution.installScript" "${install_script}"
   validate_profile_package_target "spec.execution.targets.apply" "${apply_target}"
@@ -1504,19 +1324,12 @@ merged_packaged_profile_env_file() {
 
 warn_if_packaged_profile_uses_embedded_env_only() {
   local profile_name="$1"
-  local scenario_type="$2"
-  local override_env="${3:-}"
-  local manifest="${4:-}"
+  local override_env="${2:-}"
+  local manifest="${3:-}"
 
   if [[ -n "${override_env}" ]]; then
     return 0
   fi
-
-  case "${scenario_type}" in
-    multipass)
-      return 0
-      ;;
-  esac
 
   if [[ -n "${manifest}" ]]; then
     while IFS= read -r record; do
@@ -1530,51 +1343,32 @@ warn_if_packaged_profile_uses_embedded_env_only() {
   fi
 
   log "WARN" "Running packaged profile '${profile_name}' without local overrides; embedded profile.env defaults will be used as-is."
-  log "WARN" "For real cloud and on-prem installs, pass installation-specific values from the invoking machine with --env-file <file>."
+  log "WARN" "For provider-backed or remote installs, pass installation-specific values from the invoking machine with --env-file <file>."
 }
 
 packaged_profile_scenario_dir() {
   local package_root="$1"
-  local scenario_type="$2"
-  local scenario_path="${3:-}"
-  local rel_dir
-  if [[ -n "${scenario_path}" ]]; then
-    rel_dir="${scenario_path}"
-  else
-    rel_dir="$(scenario_rel_dir "${scenario_type}")" || die 4 "unsupported packaged profile scenario: ${scenario_type}"
-  fi
-  [[ -d "${package_root}/${rel_dir}" ]] || die 4 "profile package scenario directory not found: ${rel_dir}"
-  printf '%s\n' "${package_root}/${rel_dir}"
+  local scenario_path="$2"
+  [[ -d "${package_root}/${scenario_path}" ]] || die 4 "profile package scenario directory not found: ${scenario_path}"
+  printf '%s\n' "${package_root}/${scenario_path}"
 }
 
 packaged_profile_target() {
   local action="$1"
-  local scenario_type="$2"
-  local apply_target="${3:-}"
-  local status_target="${4:-}"
-  local destroy_target="${5:-}"
+  local apply_target="${2:-}"
+  local status_target="${3:-}"
+  local destroy_target="${4:-}"
 
   case "${action}" in
     install|apply)
-      if [[ -n "${apply_target}" ]]; then
-        printf '%s\n' "${apply_target}"
-      else
-        command_to_target "apply" "${scenario_type}"
-      fi
+      printf '%s\n' "${apply_target}"
       ;;
     status)
-      if [[ -n "${status_target}" ]]; then
-        printf '%s\n' "${status_target}"
-      else
-        command_to_target "status" "${scenario_type}"
-      fi
+      printf '%s\n' "${status_target}"
       ;;
     destroy)
-      if [[ -n "${destroy_target}" ]]; then
-        printf '%s\n' "${destroy_target}"
-      else
-        command_to_target "destroy" "${scenario_type}"
-      fi
+      [[ -n "${destroy_target}" ]] || return 1
+      printf '%s\n' "${destroy_target}"
       ;;
     *)
       return 1
@@ -1669,48 +1463,6 @@ source_packaged_profile_env_with_runtime_overrides() {
   set +a
   # shellcheck disable=SC1090
   source "${runtime_env}"
-}
-
-rewrite_packaged_source_profile_install_wrapper_if_needed() {
-  local package_root="$1"
-  local install_path="$2"
-  local scenario_type="$3"
-  local rel_dir
-
-  [[ -f "${install_path}" ]] || return 0
-  grep -Fq 'PROFILE_ENV="${PACKAGE_ROOT}/profile.env"' "${install_path}" || return 0
-  grep -Fq 'exec make -C "${SCENARIO_DIR}" up "$@"' "${install_path}" || return 0
-
-  rel_dir="$(scenario_rel_dir "${scenario_type}")" || return 0
-  [[ -d "${package_root}/${rel_dir}" ]] || return 0
-  write_source_profile_install_wrapper "${install_path}" "${scenario_type}" "${rel_dir}"
-}
-
-rewrite_packaged_multipass_bootstrap_helper_if_needed() {
-  local package_root="$1"
-  local scenario_type="$2"
-  local helper_path
-
-  [[ "${scenario_type}" == "multipass" ]] || return 0
-  helper_path="${package_root}/scenarios/local/multipass/scripts/run_bootstrap_session.py"
-  [[ -f "${helper_path}" ]] || return 0
-
-  python3 - "${helper_path}" <<'PY'
-from pathlib import Path
-import re
-import sys
-
-helper_path = Path(sys.argv[1])
-content = helper_path.read_text(encoding="utf-8")
-patched = re.sub(
-    r"(?m)^(\s*)rc = 0$",
-    r"\1rc = proc.returncode if proc.returncode is not None else 124",
-    content,
-    count=1,
-)
-if patched != content:
-    helper_path.write_text(patched, encoding="utf-8")
-PY
 }
 
 persist_profile_state() {
@@ -1880,7 +1632,7 @@ run_install_profile_package() {
     cp "${profile_env}" "${package_root}/profile.env"
     profile_env="${package_root}/profile.env"
   fi
-  scenario_dir="$(packaged_profile_scenario_dir "${package_root}" "${scenario_type}" "${scenario_path}")" || {
+  scenario_dir="$(packaged_profile_scenario_dir "${package_root}" "${scenario_path}")" || {
     local rc=$?
     emit_operation_event "${operation}" "profile.env.prepare" "failed" "Profile scenario directory could not be resolved" "${profile_name}"
     if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
@@ -1889,8 +1641,6 @@ run_install_profile_package() {
   }
   emit_operation_event "${operation}" "profile.env.prepare" "success" "Profile environment prepared" "${profile_name}"
   install_path="${manifest_dir}/${install_script}"
-  rewrite_packaged_source_profile_install_wrapper_if_needed "${package_root}" "${install_path}" "${scenario_type}"
-  rewrite_packaged_multipass_bootstrap_helper_if_needed "${package_root}" "${scenario_type}"
   emit_operation_event "${operation}" "profile.runtime.restore" "running" "Restoring profile runtime state" "${profile_name}"
   restore_profile_runtime_state "${profile_name}" "${scenario_dir}"
   emit_operation_event "${operation}" "profile.runtime.restore" "success" "Profile runtime state restored" "${profile_name}"
@@ -1906,7 +1656,7 @@ run_install_profile_package() {
       emit_operation_event "${operation}" "profile.inputs.validate" "running" "Validating profile runtime inputs" "${profile_name}"
       validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
       emit_operation_event "${operation}" "profile.inputs.validate" "success" "Profile runtime inputs validated" "${profile_name}"
-      warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${scenario_type}" "${OVERRIDE_ENV_PATH}" "${manifest}"
+      warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${OVERRIDE_ENV_PATH}" "${manifest}"
       log "INFO" "Executing packaged profile installer: ${install_script}"
       local runtime_env
       runtime_env="$(mktemp)"
@@ -1915,6 +1665,7 @@ run_install_profile_package() {
       if (
         capture_packaged_profile_runtime_overrides "${runtime_env}"
         source_packaged_profile_env_with_runtime_overrides "${profile_env}" "${runtime_env}"
+        export PK3S_PROFILE_ENV_ALREADY_LOADED=true
         cd "${manifest_dir}"
         bash "${install_path}"
       ); then
@@ -1939,8 +1690,8 @@ run_install_profile_package() {
       emit_operation_event "${operation}" "profile.inputs.validate" "running" "Validating profile runtime inputs" "${profile_name}"
       validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
       emit_operation_event "${operation}" "profile.inputs.validate" "success" "Profile runtime inputs validated" "${profile_name}"
-      warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${scenario_type}" "${OVERRIDE_ENV_PATH}" "${manifest}"
-      target="$(packaged_profile_target "status" "${scenario_type}" "${apply_target}" "${status_target}" "${destroy_target}")" || {
+      warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${OVERRIDE_ENV_PATH}" "${manifest}"
+      target="$(packaged_profile_target "status" "${apply_target}" "${status_target}" "${destroy_target}")" || {
         rm -rf "${tmp_dir}"
         die 2 "unsupported packaged profile command '${action}' for scenario '${scenario_type}'"
       }
@@ -1960,14 +1711,14 @@ run_install_profile_package() {
       emit_operation_event "${operation}" "profile.state.persist" "success" "Profile state persisted" "${profile_name}"
       ;;
     destroy)
-      target="$(packaged_profile_target "destroy" "${scenario_type}" "${apply_target}" "${status_target}" "${destroy_target}")" || {
+      target="$(packaged_profile_target "destroy" "${apply_target}" "${status_target}" "${destroy_target}")" || {
         rm -rf "${tmp_dir}"
         die 2 "unsupported packaged profile command '${action}' for scenario '${scenario_type}'"
       }
       emit_operation_event "${operation}" "profile.inputs.validate" "running" "Validating profile runtime inputs" "${profile_name}"
       validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
       emit_operation_event "${operation}" "profile.inputs.validate" "success" "Profile runtime inputs validated" "${profile_name}"
-      warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${scenario_type}" "${OVERRIDE_ENV_PATH}" "${manifest}"
+      warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${OVERRIDE_ENV_PATH}" "${manifest}"
       log "INFO" "Executing packaged profile destroy via scenario target: ${target}"
       emit_operation_event "${operation}" "profile.destroy.run" "running" "Executing packaged profile destroy" "${profile_name}"
       run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "${target}" || {
@@ -1988,7 +1739,7 @@ run_install_profile_package() {
           emit_operation_event "${operation}" "profile.inputs.validate" "running" "Validating profile runtime inputs" "${profile_name}"
           validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
           emit_operation_event "${operation}" "profile.inputs.validate" "success" "Profile runtime inputs validated" "${profile_name}"
-          warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${scenario_type}" "${OVERRIDE_ENV_PATH}" "${manifest}"
+          warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${OVERRIDE_ENV_PATH}" "${manifest}"
           log "INFO" "Executing packaged profile plan through embedded OpenTofu scenario"
           emit_operation_event "${operation}" "profile.plan.run" "running" "Executing packaged profile plan" "${profile_name}"
           run_opentofu_plan "${scenario_dir}" "${profile_env}" || {
@@ -2004,14 +1755,14 @@ run_install_profile_package() {
           emit_operation_event "${operation}" "profile.runtime.persist" "success" "Profile runtime state persisted" "${profile_name}"
           ;;
         ansible|shell)
-          target="$(packaged_profile_target "apply" "${scenario_type}" "${apply_target}" "${status_target}" "${destroy_target}")" || {
+          target="$(packaged_profile_target "apply" "${apply_target}" "${status_target}" "${destroy_target}")" || {
             rm -rf "${tmp_dir}"
             die 2 "unsupported packaged profile command '${action}' for scenario '${scenario_type}'"
           }
           emit_operation_event "${operation}" "profile.inputs.validate" "running" "Validating profile runtime inputs" "${profile_name}"
           validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
           emit_operation_event "${operation}" "profile.inputs.validate" "success" "Profile runtime inputs validated" "${profile_name}"
-          warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${scenario_type}" "${OVERRIDE_ENV_PATH}" "${manifest}"
+          warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${OVERRIDE_ENV_PATH}" "${manifest}"
           log "INFO" "Executing packaged profile plan via scenario make dry-run"
           emit_operation_event "${operation}" "profile.plan.run" "running" "Executing packaged profile plan" "${profile_name}"
           run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "${target}" "dry-run" || {
@@ -2210,11 +1961,6 @@ case "${COMMAND}" in
     require_source_surface "${COMMAND}"
     [[ -n "${PROFILE_PATH}" ]] || die 3 "the '${COMMAND}' command requires --profile <file>"
     run_profile_export_from_source_profile "${PROFILE_PATH}" "${OUTPUT_PATH}" || RC=$?
-    ;;
-  multipass|onprem|onprem-basic|on-prem|onprem-arm|onprem-basic-arm|on-prem-arm|aws-single-node)
-    require_source_surface "${COMMAND}"
-    TELEMETRY_SCENARIO="$(resolve_scenario "${COMMAND}")"
-    legacy_dispatch "$@" || RC=$?
     ;;
   *)
     die 2 "unsupported command: ${COMMAND}"

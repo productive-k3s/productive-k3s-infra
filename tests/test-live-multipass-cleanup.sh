@@ -6,10 +6,10 @@ WORK_DIR="$(mktemp -d "${ROOT_DIR}/.tmp-live-multipass-cleanup.XXXXXX")"
 STUB_DIR="${WORK_DIR}/stubs"
 mkdir -p "${STUB_DIR}"
 
-cleanup() {
+cleanup_test_workspace() {
   rm -rf "${WORK_DIR}"
 }
-trap cleanup EXIT
+trap cleanup_test_workspace EXIT
 
 cat >"${STUB_DIR}/multipass" <<'EOF'
 #!/usr/bin/env bash
@@ -21,6 +21,9 @@ CALLS_FILE="${LIVE_MULTIPASS_STUB_CALLS_FILE:?}"
 printf '%s\n' "$*" >> "${CALLS_FILE}"
 
 if [[ "$1" == "list" && "$2" == "--format" && "$3" == "json" ]]; then
+  if [[ "${LIVE_MULTIPASS_STUB_HANG_LIST:-false}" == "true" ]]; then
+    sleep 10
+  fi
   count="$(cat "${STATE_FILE}")"
   if [[ "${count}" -gt 0 ]]; then
     printf '%s' $((count - 1)) > "${STATE_FILE}"
@@ -98,5 +101,19 @@ grep -F 'purge' "${WORK_DIR}/calls" >/dev/null || {
   printf '[FAIL] expected force_delete_instances_by_prefix to purge after delete\n' >&2
   exit 1
 }
+
+set +e
+PATH="${STUB_DIR}:$PATH" \
+LIVE_MULTIPASS_STUB_STATE_FILE="${WORK_DIR}/state" \
+LIVE_MULTIPASS_STUB_CALLS_FILE="${WORK_DIR}/calls" \
+LIVE_MULTIPASS_STUB_HANG_LIST=true \
+MULTIPASS_COMMAND_TIMEOUT_SECONDS=1 \
+list_matching_instances productive-k3s-mp >/dev/null
+list_rc=$?
+set -e
+if [[ "${list_rc}" -eq 0 ]]; then
+  printf '[FAIL] expected a hung multipass inventory command to time out\n' >&2
+  exit 1
+fi
 
 printf '[PASS] live multipass cleanup waits for instance removal before returning\n'

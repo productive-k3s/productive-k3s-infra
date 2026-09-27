@@ -11,6 +11,7 @@ TOFU_APPLY_PARALLELISM="${TOFU_APPLY_PARALLELISM:-1}"
 SCENARIO_CLEANUP_TIMEOUT_SECONDS="${SCENARIO_CLEANUP_TIMEOUT_SECONDS:-120}"
 MULTIPASS_INSTANCE_REMOVAL_TIMEOUT_SECONDS="${MULTIPASS_INSTANCE_REMOVAL_TIMEOUT_SECONDS:-180}"
 MULTIPASS_INSTANCE_REMOVAL_POLL_SECONDS="${MULTIPASS_INSTANCE_REMOVAL_POLL_SECONDS:-5}"
+MULTIPASS_COMMAND_TIMEOUT_SECONDS="${MULTIPASS_COMMAND_TIMEOUT_SECONDS:-15}"
 MULTIPASS_SCENARIO_PREFIX="${MULTIPASS_SCENARIO_PREFIX:-productive-k3s-mp}"
 MULTIPASS_LAUNCH_MAX_ATTEMPTS="${MULTIPASS_LAUNCH_MAX_ATTEMPTS:-5}"
 
@@ -59,9 +60,14 @@ run_cleanup_make() {
 
 list_matching_instances() {
   local prefix="$1"
+  local inventory
 
-  multipass list --format json 2>/dev/null \
-    | jq -r --arg prefix "${prefix}" '.list[]?.name | select(startswith($prefix))'
+  if command -v timeout >/dev/null 2>&1; then
+    inventory="$(timeout --kill-after=5s "${MULTIPASS_COMMAND_TIMEOUT_SECONDS}s" multipass list --format json 2>/dev/null)" || return 1
+  else
+    inventory="$(multipass list --format json 2>/dev/null)" || return 1
+  fi
+  jq -r --arg prefix "${prefix}" '.list[]?.name | select(startswith($prefix))' <<<"${inventory}"
 }
 
 wait_for_instance_removal() {
@@ -70,14 +76,21 @@ wait_for_instance_removal() {
   local matches=""
 
   while (( SECONDS < deadline )); do
-    matches="$(list_matching_instances "${prefix}" || true)"
+    if ! matches="$(list_matching_instances "${prefix}")"; then
+      warn "multipass inventory did not respond; retrying"
+      sleep "${MULTIPASS_INSTANCE_REMOVAL_POLL_SECONDS}"
+      continue
+    fi
     if [[ -z "${matches}" ]]; then
       return 0
     fi
     sleep "${MULTIPASS_INSTANCE_REMOVAL_POLL_SECONDS}"
   done
 
-  matches="$(list_matching_instances "${prefix}" || true)"
+  if ! matches="$(list_matching_instances "${prefix}")"; then
+    warn "could not verify multipass instance removal because inventory did not respond"
+    return 1
+  fi
   if [[ -n "${matches}" ]]; then
     warn "multipass instances with prefix ${prefix} still exist after ${MULTIPASS_INSTANCE_REMOVAL_TIMEOUT_SECONDS}s:"
     printf '%s\n' "${matches}" >&2
@@ -91,7 +104,10 @@ force_delete_instances_by_prefix() {
   local prefix="$1"
   local matches=""
 
-  matches="$(list_matching_instances "${prefix}" || true)"
+  if ! matches="$(list_matching_instances "${prefix}")"; then
+    warn "could not enumerate multipass instances for forced cleanup"
+    return 1
+  fi
   if [[ -z "${matches}" ]]; then
     return 0
   fi
@@ -99,8 +115,13 @@ force_delete_instances_by_prefix() {
   warn "forcing direct multipass cleanup for instances with prefix ${prefix}"
   # shellcheck disable=SC2206
   local names=( ${matches} )
-  multipass delete "${names[@]}" >/dev/null 2>&1 || true
-  multipass purge >/dev/null 2>&1 || true
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --kill-after=5s "${MULTIPASS_COMMAND_TIMEOUT_SECONDS}s" multipass delete "${names[@]}" >/dev/null 2>&1 || true
+    timeout --kill-after=5s "${MULTIPASS_COMMAND_TIMEOUT_SECONDS}s" multipass purge >/dev/null 2>&1 || true
+  else
+    multipass delete "${names[@]}" >/dev/null 2>&1 || true
+    multipass purge >/dev/null 2>&1 || true
+  fi
 }
 
 main() {

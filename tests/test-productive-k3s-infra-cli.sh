@@ -87,10 +87,8 @@ cp "${SOURCE_SCENARIOS_DIR}/local/multipass/Makefile" "${SOURCE_SCENARIOS_DIR}/c
 
 HELP_OUTPUT="$(bash "$CLI" --help)"
 assert_contains "$HELP_OUTPUT" "Usage:"
-assert_contains "$HELP_OUTPUT" "multipass"
-assert_contains "$HELP_OUTPUT" "onprem | onprem-basic"
-assert_contains "$HELP_OUTPUT" "onprem-arm | onprem-basic-arm"
 assert_contains "$HELP_OUTPUT" "--profile"
+assert_contains "$HELP_OUTPUT" "profile install --tgz <file>"
 
 BUNDLE_INFO="$(bash "$CLI" bundle info --json)"
 assert_json_field "$BUNDLE_INFO" '.schema_version' '1'
@@ -114,39 +112,9 @@ assert_contains "$BOM_INFO" '"name": "bash"'
 assert_contains "$BOM_INFO" '"min_version": "5.1"'
 assert_contains "$BOM_INFO" '"name": "make"'
 assert_contains "$BOM_INFO" '"min_version": "4.3"'
-assert_contains "$BOM_INFO" '"name": "multipass"'
-assert_contains "$BOM_INFO" '"min_version": "1.14"'
 assert_contains "$BOM_INFO" '"runtime_targets"'
-assert_contains "$BOM_INFO" '"onprem-basic"'
-assert_contains "$BOM_INFO" '"aws-single-node"'
-
-OUTPUT_FILE="${TMP_DIR}/multipass.out"
-PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" \
-PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
-PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
-bash "$CLI" multipass validate TELEMETRY_ENABLED=false
-assert_contains "$(cat "$OUTPUT_FILE")" "-C ${SOURCE_REPO_DIR}/scenarios/local/multipass validate TELEMETRY_ENABLED=false"
-
-OUTPUT_FILE="${TMP_DIR}/onprem.out"
-PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" \
-PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
-PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
-bash "$CLI" onprem preflight
-assert_contains "$(cat "$OUTPUT_FILE")" "-C ${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic preflight"
-
-OUTPUT_FILE="${TMP_DIR}/aws.out"
-PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" \
-PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
-PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
-bash "$CLI" aws-single-node
-assert_contains "$(cat "$OUTPUT_FILE")" "-C ${SOURCE_REPO_DIR}/scenarios/cloud/aws-single-node up"
-
-OUTPUT_FILE="${TMP_DIR}/onprem-arm.out"
-PRODUCTIVE_K3S_PROFILES_REPO_DIR="$SOURCE_REPO_DIR" \
-PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
-PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
-bash "$CLI" onprem-arm preflight
-assert_contains "$(cat "$OUTPUT_FILE")" "-C ${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic-arm preflight"
+assert_contains "$BOM_INFO" '"profile_category": "package-declared"'
+assert_contains "$BOM_INFO" '"path": "spec.scenario.path"'
 
 PROFILE_DIR="${TMP_DIR}/profiles"
 mkdir -p "${PROFILE_DIR}"
@@ -155,6 +123,14 @@ cat > "${PROFILE_DIR}/onprem.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=onprem-example
 PK3S_INFRA_SCENARIO=onprem-basic
 PK3S_INFRA_ENGINE=ansible
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 ONPREM_SERVER_IP=192.168.1.10
 ONPREM_AGENT_IPS="192.168.1.11 192.168.1.12"
 ONPREM_SSH_USER=ubuntu
@@ -165,6 +141,14 @@ cat > "${PROFILE_DIR}/multipass.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=multipass-example
 PK3S_INFRA_SCENARIO=multipass
 PK3S_INFRA_ENGINE=opentofu
+PK3S_INFRA_CATEGORY=local
+PK3S_INFRA_SCENARIO_PATH=scenarios/local/multipass
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 TF_VAR_cluster_name=productive-k3s-mp
 TF_VAR_image=24.04
 TF_VAR_base_domain=k3s.lab.internal
@@ -181,6 +165,14 @@ cat > "${PROFILE_DIR}/onprem-arm.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=onprem-arm-example
 PK3S_INFRA_SCENARIO=onprem-basic-arm
 PK3S_INFRA_ENGINE=ansible
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic-arm
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 ONPREM_SERVER_IP=rp-arm.local
 ONPREM_AGENT_IPS=
 ONPREM_SSH_USER=ubuntu
@@ -248,21 +240,6 @@ assert_contains "$LIST_OUTPUT" "profiles/edge/on-prem/basic.env"
 assert_contains "$LIST_OUTPUT" "profiles/edge/on-prem/arm.env"
 assert_contains "$LIST_OUTPUT" "profiles/local/multipass/1-server-2-agents.env"
 
-ROOT_MULTIPASS="$(make -C "$REPO_DIR" -n multipass PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
-assert_contains "$ROOT_MULTIPASS" "make scenario-up SCENARIO=multipass"
-assert_contains "$ROOT_MULTIPASS" "make -C \"\$scenario_dir\" up"
-assert_contains "$ROOT_MULTIPASS" "${SOURCE_REPO_DIR}/scenarios/local/multipass"
-
-ROOT_ONPREM="$(make -C "$REPO_DIR" -n onprem PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
-assert_contains "$ROOT_ONPREM" "make scenario-up SCENARIO=onprem"
-assert_contains "$ROOT_ONPREM" "make -C \"\$scenario_dir\" up"
-assert_contains "$ROOT_ONPREM" "${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic"
-
-ROOT_ONPREM_ARM="$(make -C "$REPO_DIR" -n onprem-arm PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
-assert_contains "$ROOT_ONPREM_ARM" "make scenario-up SCENARIO=onprem-arm"
-assert_contains "$ROOT_ONPREM_ARM" "make -C \"\$scenario_dir\" up"
-assert_contains "$ROOT_ONPREM_ARM" "${SOURCE_REPO_DIR}/scenarios/edge/onprem-basic-arm"
-
 ROOT_TEST_LOCAL_ALL="$(make -C "$REPO_DIR" -n test-local-all PRODUCTIVE_K3S_PROFILES_REPO_DIR=${SOURCE_REPO_DIR})"
 assert_contains "$ROOT_TEST_LOCAL_ALL" "make -C ${REPO_DIR}/tests test-local-all"
 
@@ -292,7 +269,7 @@ fi
 printf '[PASS] productive-k3s-infra CLI dispatch is wired correctly\n'
 
 RELEASE_REPO="${TMP_DIR}/release-repo"
-mkdir -p "${RELEASE_REPO}/scripts" "${RELEASE_REPO}/scenarios/local/multipass"
+mkdir -p "${RELEASE_REPO}/scripts"
 cp "${REPO_DIR}/productive-k3s-infra.sh" "${RELEASE_REPO}/productive-k3s-infra.sh"
 cp "${REPO_DIR}/scripts/productive-k3s-infra.sh" "${RELEASE_REPO}/scripts/productive-k3s-infra.sh"
 cp "${REPO_DIR}/scripts/export-runtime.sh" "${RELEASE_REPO}/scripts/export-runtime.sh"
@@ -307,17 +284,6 @@ PRODUCTIVE_K3S_VERSION=4.5.6
 PRODUCTIVE_K3S_RELEASE_REPO=productive-k3s/productive-k3s-core
 EOF
 
-OUTPUT_FILE="${TMP_DIR}/release-bound.out"
-PRODUCTIVE_K3S_INFRA_REPO_DIR="${RELEASE_REPO}" \
-PRODUCTIVE_K3S_PROFILES_REPO_DIR="${RELEASE_REPO}" \
-PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
-PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
-PRODUCTIVE_K3S_SOURCE="remote" \
-bash "${RELEASE_REPO}/productive-k3s-infra.sh" multipass status
-assert_contains "$(cat "$OUTPUT_FILE")" "-C ${RELEASE_REPO}/scenarios/local/multipass status"
-assert_contains "$(cat "$OUTPUT_FILE")" "PRODUCTIVE_K3S_VERSION=4.5.6"
-assert_contains "$(cat "$OUTPUT_FILE")" "PRODUCTIVE_K3S_SOURCE=remote"
-
 RELEASE_BUNDLE_INFO="$(PRODUCTIVE_K3S_INFRA_REPO_DIR="${RELEASE_REPO}" PRODUCTIVE_K3S_SOURCE="remote" bash "${RELEASE_REPO}/productive-k3s-infra.sh" bundle info --json)"
 assert_json_field "$RELEASE_BUNDLE_INFO" '.bundle_version' '1.2.3-4.5.6'
 
@@ -325,24 +291,4 @@ RELEASE_BOM_INFO="$(PRODUCTIVE_K3S_INFRA_REPO_DIR="${RELEASE_REPO}" PRODUCTIVE_K
 assert_json_field "$RELEASE_BOM_INFO" '.bundle.bundle_version' '1.2.3-4.5.6'
 assert_json_field "$RELEASE_BOM_INFO" '.productive_k3s.bound_core_version' '4.5.6'
 
-if PRODUCTIVE_K3S_INFRA_REPO_DIR="${RELEASE_REPO}" \
-  PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
-  PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
-  PRODUCTIVE_K3S_VERSION="9.9.9" \
-  bash "${RELEASE_REPO}/productive-k3s-infra.sh" multipass status >/dev/null 2>&1; then
-  echo "[FAIL] release-bound CLI accepted a conflicting PRODUCTIVE_K3S_VERSION" >&2
-  exit 1
-fi
-
-printf '[PASS] release-bound CLI enforces the bundled productive-k3s version\n'
-
-if PRODUCTIVE_K3S_INFRA_REPO_DIR="${RELEASE_REPO}" \
-  PRODUCTIVE_K3S_INFRA_MAKE_BIN="$STUB_MAKE" \
-  PRODUCTIVE_K3S_INFRA_TEST_OUTPUT="$OUTPUT_FILE" \
-  PRODUCTIVE_K3S_SOURCE="local" \
-  bash "${RELEASE_REPO}/productive-k3s-infra.sh" multipass status >/dev/null 2>&1; then
-  echo "[FAIL] release-bound CLI accepted a conflicting PRODUCTIVE_K3S_SOURCE" >&2
-  exit 1
-fi
-
-printf '[PASS] release-bound CLI enforces remote productive-k3s source\n'
+printf '[PASS] release-bound CLI reports its bundled productive-k3s version\n'

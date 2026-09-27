@@ -16,6 +16,14 @@ Describe 'productive-k3s-infra cli dispatch'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_ENGINE=opentofu
 PK3S_INFRA_SCENARIO=multipass
+PK3S_INFRA_CATEGORY=local
+PK3S_INFRA_SCENARIO_PATH=scenarios/local/multipass
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 TF_VAR_cluster_name=demo
 TF_VAR_image=ubuntu-24.04
 TF_VAR_base_domain=k3s.lab.internal
@@ -47,6 +55,14 @@ EOF
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_ENGINE=opentofu
 PK3S_INFRA_SCENARIO=multipass
+PK3S_INFRA_CATEGORY=local
+PK3S_INFRA_SCENARIO_PATH=scenarios/local/multipass
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 TF_VAR_cluster_name=demo
 TF_VAR_image=ubuntu-24.04
 TF_VAR_base_domain=k3s.lab.internal
@@ -77,25 +93,4 @@ EOF
     rm -rf "${mock_bin}"
   End
 
-  It 'dispatches legacy multipass commands through make'
-    mock_bin="$(mktemp -d)"
-    log_file="$(mktemp)"
-    profiles_repo="$(mktemp -d)"
-    mkdir -p "${profiles_repo}/profiles" "${profiles_repo}/scenarios/local/multipass"
-    cat >"${mock_bin}/make" <<'EOF'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >>"${MOCK_MAKE_LOG}"
-exit 0
-EOF
-    chmod +x "${mock_bin}/make"
-
-    When run bash -lc 'PATH="$1:$PATH" MOCK_MAKE_LOG="$2" PRODUCTIVE_K3S_PROFILES_REPO_DIR="$4" "$3" multipass status; printf "\n__MAKE__\n"; cat "$2"' bash "$mock_bin" "$log_file" "$SCRIPT" "$profiles_repo"
-    The status should equal 0
-    The output should include '__MAKE__'
-    The output should include 'scenarios/local/multipass'
-    The output should include 'status'
-
-    rm -f "${log_file}"
-    rm -rf "${mock_bin}"
-  End
 End

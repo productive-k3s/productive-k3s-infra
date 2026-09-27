@@ -11,6 +11,14 @@ Describe 'productive-k3s-infra top-level cli paths'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_ENGINE=opentofu
 PK3S_INFRA_SCENARIO=multipass
+PK3S_INFRA_CATEGORY=local
+PK3S_INFRA_SCENARIO_PATH=scenarios/local/multipass
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 TF_VAR_cluster_name=demo
 TF_VAR_image=ubuntu-24.04
 TF_VAR_base_domain=k3s.lab.internal
@@ -44,6 +52,14 @@ EOF
 PK3S_INFRA_PROFILE_NAME=onprem
 PK3S_INFRA_ENGINE=ansible
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/on-prem
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
 ONPREM_SSH_KEY_PATH=/tmp/id_ed25519
@@ -70,6 +86,14 @@ EOF
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_ENGINE=opentofu
 PK3S_INFRA_SCENARIO=multipass
+PK3S_INFRA_CATEGORY=local
+PK3S_INFRA_SCENARIO_PATH=scenarios/local/multipass
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 TF_VAR_cluster_name=demo
 TF_VAR_image=ubuntu-24.04
 TF_VAR_base_domain=k3s.lab.internal
@@ -95,17 +119,25 @@ EOF
     The output should include 'status'
   End
 
-  It 'rejects shell engines for multipass profiles from the top-level command path'
+  It 'accepts engine selection independently from the profile name'
     profile="$(mktemp)"
     cat >"${profile}" <<'EOF'
-PK3S_INFRA_PROFILE_NAME=bad
+PK3S_INFRA_PROFILE_NAME=future-local
 PK3S_INFRA_ENGINE=shell
-PK3S_INFRA_SCENARIO=multipass
+PK3S_INFRA_SCENARIO=future-local
+PK3S_INFRA_CATEGORY=local
+PK3S_INFRA_SCENARIO_PATH=scenarios/local/future-local
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 EOF
 
     When run bash -lc '"$1" validate-profile --profile "$2"' bash "$SCRIPT" "$profile"
-    The status should equal 4
-    The stderr should include 'multipass profiles must use PK3S_INFRA_ENGINE=opentofu'
+    The status should equal 0
+    The output should include 'Profile validation passed'
   End
 
   It 'honors release-bound productive-k3s settings during doctor'
@@ -115,6 +147,14 @@ EOF
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_ENGINE=opentofu
 PK3S_INFRA_SCENARIO=multipass
+PK3S_INFRA_CATEGORY=local
+PK3S_INFRA_SCENARIO_PATH=scenarios/local/multipass
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 TF_VAR_cluster_name=demo
 TF_VAR_image=ubuntu-24.04
 TF_VAR_base_domain=k3s.lab.internal
@@ -143,6 +183,14 @@ EOF
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_ENGINE=opentofu
 PK3S_INFRA_SCENARIO=multipass
+PK3S_INFRA_CATEGORY=local
+PK3S_INFRA_SCENARIO_PATH=scenarios/local/multipass
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 TF_VAR_cluster_name=demo
 TF_VAR_image=ubuntu-24.04
 TF_VAR_base_domain=k3s.lab.internal

@@ -12,7 +12,7 @@ Describe 'productive-k3s-infra cli top-level error paths'
     When run bash -lc '"$1" help' bash "$SCRIPT"
     The status should equal 0
     The output should include 'Profile-driven commands:'
-    The output should include 'Legacy compatibility:'
+    The output should include 'profile install --tgz <file>'
   End
 
   It 'renders version as bundle info json when requested'

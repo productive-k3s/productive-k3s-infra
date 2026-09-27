@@ -62,6 +62,14 @@ EOF
 PK3S_INFRA_PROFILE_NAME=onprem
 PK3S_INFRA_ENGINE=ansible
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
 ONPREM_SSH_KEY_PATH=/tmp/id_ed25519
@@ -98,10 +106,14 @@ metadata:
 spec:
   scenario:
     type: demo
+    path: scenario
   engine:
     type: shell
   execution:
     installScript: scenario/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scenario/install.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -148,10 +160,14 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: terraform
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -175,6 +191,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=ansible
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
@@ -203,10 +227,14 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: ansible
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<EOF
 #!/usr/bin/env bash
@@ -233,6 +261,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=ansible
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
@@ -253,10 +289,14 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: ansible
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<EOF
 #!/usr/bin/env bash
@@ -298,6 +338,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=ansible
 ONPREM_SERVER_IP=10.0.0.10
 EOF
@@ -313,10 +361,14 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: ansible
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<EOF
 #!/usr/bin/env bash
@@ -343,6 +395,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=ansible
 ONPREM_SERVER_IP=10.0.0.10
 EOF
@@ -358,10 +418,14 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: ansible
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<EOF
 #!/usr/bin/env bash
@@ -387,6 +451,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=ansible
 ONPREM_SERVER_IP=10.0.0.10
 EOF
@@ -399,6 +471,7 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: ansible
   inputs:
@@ -409,6 +482,9 @@ spec:
       description: Server host or IP for the on-prem cluster
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<EOF
 #!/usr/bin/env bash
@@ -431,6 +507,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=aws-single-node
+PK3S_INFRA_CATEGORY=cloud
+PK3S_INFRA_SCENARIO_PATH=scenarios/cloud/aws-single-node
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=AWS_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=true
 PK3S_INFRA_ENGINE=opentofu
 AWS_REGION=us-east-1
 AWS_KEY_PAIR_NAME=your-existing-keypair
@@ -445,6 +529,7 @@ metadata:
 spec:
   scenario:
     type: aws-single-node
+    path: scenarios/cloud/aws-single-node
   engine:
     type: opentofu
   inputs:
@@ -460,6 +545,9 @@ spec:
       description: Local absolute path to the matching private key
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -485,6 +573,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=aws-single-node
+PK3S_INFRA_CATEGORY=cloud
+PK3S_INFRA_SCENARIO_PATH=scenarios/cloud/aws-single-node
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=AWS_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=true
 PK3S_INFRA_ENGINE=opentofu
 AWS_REGION=us-east-1
 AWS_KEY_PAIR_NAME=your-existing-keypair
@@ -503,6 +599,7 @@ metadata:
 spec:
   scenario:
     type: aws-single-node
+    path: scenarios/cloud/aws-single-node
   engine:
     type: opentofu
   inputs:
@@ -518,6 +615,9 @@ spec:
       description: Local absolute path to the matching private key
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<EOF
 #!/usr/bin/env bash
@@ -540,6 +640,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=ansible
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
@@ -554,10 +662,14 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: ansible
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<EOF
 #!/usr/bin/env bash
@@ -586,10 +698,14 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: ansible
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -611,6 +727,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=ansible
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
@@ -625,10 +749,14 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: ansible
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -650,6 +778,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=ansible
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
@@ -664,10 +800,14 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: ansible
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     tar -czf "${archive}" -C "${pkg_dir}" .
 
@@ -686,6 +826,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=ansible
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
@@ -700,10 +848,14 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: ansible
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -752,6 +904,7 @@ spec:
   execution:
     installScript: scripts/install.sh
     targets:
+      apply: create
       status: inspect
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
@@ -789,6 +942,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=multipass
+PK3S_INFRA_CATEGORY=local
+PK3S_INFRA_SCENARIO_PATH=scenarios/local/multipass
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=opentofu
 TF_VAR_cluster_name=demo
 TF_VAR_image=ubuntu-24.04
@@ -810,10 +971,14 @@ metadata:
 spec:
   scenario:
     type: multipass
+    path: scenarios/local/multipass
   engine:
     type: opentofu
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -857,6 +1022,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=multipass
+PK3S_INFRA_CATEGORY=local
+PK3S_INFRA_SCENARIO_PATH=scenarios/local/multipass
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=opentofu
 TF_VAR_cluster_name=demo
 TF_VAR_image=ubuntu-24.04
@@ -878,10 +1051,14 @@ metadata:
 spec:
   scenario:
     type: multipass
+    path: scenarios/local/multipass
   engine:
     type: opentofu
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -914,6 +1091,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=ansible
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
@@ -928,10 +1113,14 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: ansible
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -962,6 +1151,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=ansible
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
@@ -976,10 +1173,14 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: ansible
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -999,6 +1200,14 @@ EOF
 PK3S_INFRA_PROFILE_NAME=onprem
 PK3S_INFRA_ENGINE=ansible
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
 ONPREM_SSH_KEY_PATH=/tmp/id_ed25519
@@ -1009,12 +1218,20 @@ EOF
     The output should include 'Profile validation passed'
   End
 
-  It 'blocks onprem destroy without --yes'
+  It 'rejects source destroy when the profile does not declare a destroy target'
     profile="$(mktemp)"
     cat >"${profile}" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=onprem
 PK3S_INFRA_ENGINE=ansible
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/onprem-basic
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
 ONPREM_SSH_KEY_PATH=/tmp/id_ed25519
@@ -1022,7 +1239,7 @@ EOF
 
     When run bash -lc '"$1" destroy --profile "$2"' bash "$SCRIPT" "$profile"
     The status should equal 2
-    The stderr should include "unsupported command 'destroy' for scenario 'onprem-basic'"
+    The stderr should include "source profile 'onprem' does not declare a target for 'destroy'"
   End
 
   It 'dispatches aws apply through make with AWS_ENV_FILE'
@@ -1035,6 +1252,14 @@ EOF
 PK3S_INFRA_PROFILE_NAME=aws
 PK3S_INFRA_ENGINE=opentofu
 PK3S_INFRA_SCENARIO=aws-single-node
+PK3S_INFRA_CATEGORY=cloud
+PK3S_INFRA_SCENARIO_PATH=scenarios/cloud/aws-single-node
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=AWS_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=true
 AWS_REGION=us-east-1
 AWS_CLUSTER_NAME=demo
 AWS_INSTANCE_TYPE=t3.large
@@ -1069,6 +1294,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=aws-single-node-basic
 PK3S_INFRA_SCENARIO=aws-single-node
+PK3S_INFRA_CATEGORY=cloud
+PK3S_INFRA_SCENARIO_PATH=scenarios/cloud/aws-single-node
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=AWS_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=true
 PK3S_INFRA_ENGINE=opentofu
 AWS_REGION=
 AWS_CLUSTER_NAME=
@@ -1094,10 +1327,14 @@ metadata:
 spec:
   scenario:
     type: aws-single-node
+    path: scenarios/cloud/aws-single-node
   engine:
     type: opentofu
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
   inputs:
     - name: AWS_REGION
       required: true
@@ -1163,6 +1400,14 @@ EOF
     cat >"${pkg_dir}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=demo
 PK3S_INFRA_SCENARIO=multipass
+PK3S_INFRA_CATEGORY=local
+PK3S_INFRA_SCENARIO_PATH=scenarios/local/multipass
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=opentofu
 TF_VAR_cluster_name=demo
 TF_VAR_image=24.04
@@ -1184,10 +1429,14 @@ metadata:
 spec:
   scenario:
     type: multipass
+    path: scenarios/local/multipass
   engine:
     type: opentofu
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
     cat >"${pkg_dir}/scripts/install.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -1223,6 +1472,14 @@ EOF
     cat >"${profile_env}" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=multipass-demo
 PK3S_INFRA_SCENARIO=multipass
+PK3S_INFRA_CATEGORY=local
+PK3S_INFRA_SCENARIO_PATH=scenarios/local/multipass
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 PK3S_INFRA_ENGINE=opentofu
 TF_VAR_cluster_name=demo
 TF_VAR_image=24.04
@@ -1278,6 +1535,14 @@ EOF
 PK3S_INFRA_PROFILE_NAME=aws-single-node-basic
 PK3S_INFRA_ENGINE=opentofu
 PK3S_INFRA_SCENARIO=aws-single-node
+PK3S_INFRA_CATEGORY=cloud
+PK3S_INFRA_SCENARIO_PATH=scenarios/cloud/aws-single-node
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=down
+PK3S_INFRA_ENV_FILE_VARIABLE=AWS_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=true
 AWS_REGION=us-east-1
 AWS_CLUSTER_NAME=demo
 AWS_INSTANCE_TYPE=t3.large

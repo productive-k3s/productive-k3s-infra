@@ -68,10 +68,14 @@ metadata:
 spec:
   scenario:
     type: multipass
+    path: scenarios/local/multipass
   engine:
     type: opentofu
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
 cat > "${PACKAGE_DIR}/profile.env" <<'EOF'
 PK3S_INFRA_PROFILE_NAME=telemetry-profile
