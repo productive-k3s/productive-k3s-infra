@@ -55,6 +55,11 @@ case "${1:-}" in
     exit 0
     ;;
   list)
+    if [[ ! -f "${TEST_MULTIPASS_STATE_DIR}/inventory-recovered" ]]; then
+      : > "${TEST_MULTIPASS_STATE_DIR}/inventory-recovered"
+      : > "${TEST_MULTIPASS_STATE_DIR}/deleted"
+      sleep 10
+    fi
     if [[ -f "${TEST_MULTIPASS_STATE_DIR}/deleted" ]]; then
       cat <<JSON
 {"list":[]}
@@ -100,6 +105,7 @@ TEST_MULTIPASS_STATE_DIR="${TMP_DIR}" \
 SCENARIO_CLEANUP_TIMEOUT_SECONDS=1 \
 MULTIPASS_INSTANCE_REMOVAL_TIMEOUT_SECONDS=1 \
 MULTIPASS_INSTANCE_REMOVAL_POLL_SECONDS=0 \
+MULTIPASS_COMMAND_TIMEOUT_SECONDS=1 \
 timeout 5 bash "${TARGET_SCRIPT}" >"${STDOUT_LOG}" 2>"${STDERR_LOG}"
 rc=$?
 set -e

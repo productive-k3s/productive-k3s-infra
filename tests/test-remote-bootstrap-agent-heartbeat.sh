@@ -6,6 +6,7 @@ TARGET_SCRIPT="${ROOT_DIR}/ansible/roles/remote_cluster/files/run_remote_bootstr
 
 python3 - <<'PY' "${TARGET_SCRIPT}"
 import importlib.util
+import os
 import types
 import pathlib
 import sys
@@ -15,10 +16,34 @@ spec = importlib.util.spec_from_file_location("run_remote_bootstrap_session", mo
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
+read_fd, write_fd = os.pipe()
+try:
+    prompt_chunk = b"k3s agent was not detected. Install it now? [required]"
+    os.write(write_fd, prompt_chunk)
+    stream = types.SimpleNamespace(fileno=lambda: read_fd)
+    assert module.read_ready_output(stream) == prompt_chunk.decode(), (
+        "ready output must be drained as a chunk so select does not lose text to a wrapper buffer"
+    )
+finally:
+    os.close(read_fd)
+    os.close(write_fd)
+
+assert not module.mode_allows_proactive_prompt_answer(
+    "agent",
+    "k3s agent was not detected. Install it now? [required]",
+), "agent mode must not guess between mutually exclusive prompts before state detection"
+
 assert module.mode_allows_proactive_prompt_answer(
     "agent",
     "k3s agent was not detected. Install it now? [required]",
-), "agent mode should proactively answer the real install prompt once conflicting prompts are pruned"
+    {"k3s": "missing"},
+), "agent mode should proactively answer the real install prompt after state detection"
+
+assert not module.mode_allows_proactive_prompt_answer(
+    "agent",
+    "Existing k3s agent installation detected. Continue using it without changes? [required]",
+    {"k3s": "missing"},
+), "agent mode must reject proactive answers that conflict with detected state"
 
 pruned = module.prune_conflicting_prompts(
     [

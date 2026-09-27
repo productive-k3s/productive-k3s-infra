@@ -36,9 +36,13 @@ warn() {
 
 cleanup() {
   if ! run_cleanup_make down TOFU_BIN="${TOFU_BIN}"; then
-    force_delete_instances_by_prefix "${MULTIPASS_SCENARIO_PREFIX}"
+    force_delete_instances_by_prefix "${MULTIPASS_SCENARIO_PREFIX}" || \
+      warn "direct multipass cleanup could not start; waiting for inventory recovery"
   fi
-  wait_for_instance_removal "${MULTIPASS_SCENARIO_PREFIX}"
+  if ! wait_for_instance_removal "${MULTIPASS_SCENARIO_PREFIX}"; then
+    force_delete_instances_by_prefix "${MULTIPASS_SCENARIO_PREFIX}" || true
+    wait_for_instance_removal "${MULTIPASS_SCENARIO_PREFIX}" || return 1
+  fi
   run_cleanup_make clean || true
 }
 

@@ -38,6 +38,10 @@ def sanitize_prompt_buffer(value: str) -> str:
     return value
 
 
+def read_ready_output(stream) -> str:
+    return os.read(stream.fileno(), 4096).decode("utf-8", errors="replace")
+
+
 def telemetry_env_prefix():
     assignments = []
     for key in TELEMETRY_ENV_KEYS:
@@ -152,7 +156,22 @@ def prune_conflicting_prompts(pending: list[tuple[str, str]], detected_state: di
     return kept
 
 
-def prompt_is_safe_for_proactive_answer(prompt_text: str) -> bool:
+def prompt_state_requirement(prompt_text: str) -> tuple[str, str] | None:
+    stateful_prefixes = {
+        "Existing k3s installation detected. Continue using it without changes?": ("k3s", "present"),
+        "k3s was not detected. Install it now?": ("k3s", "missing"),
+        "Existing k3s agent installation detected. Continue using it without changes?": ("k3s", "present"),
+        "k3s agent was not detected. Install it now?": ("k3s", "missing"),
+        "Helm is already installed. Continue using it without changes?": ("helm", "present"),
+        "Helm was not detected. Install it now?": ("helm", "missing"),
+    }
+    for prefix, requirement in stateful_prefixes.items():
+        if prompt_text.startswith(prefix):
+            return requirement
+    return None
+
+
+def prompt_is_safe_for_proactive_answer(prompt_text: str, detected_state: dict[str, str]) -> bool:
     safe_prefixes = [
         "Existing k3s installation detected. Continue using it without changes?",
         "k3s was not detected. Install it now?",
@@ -162,13 +181,19 @@ def prompt_is_safe_for_proactive_answer(prompt_text: str) -> bool:
         "k3s agent was not detected. Install it now?",
         "Proceed with this plan?",
     ]
-    return any(prompt_text.startswith(prefix) for prefix in safe_prefixes)
+    if not any(prompt_text.startswith(prefix) for prefix in safe_prefixes):
+        return False
+    requirement = prompt_state_requirement(prompt_text)
+    if requirement is None:
+        return True
+    component, expected_state = requirement
+    return detected_state.get(component) == expected_state
 
 
-def mode_allows_proactive_prompt_answer(mode: str, prompt_text: str) -> bool:
+def mode_allows_proactive_prompt_answer(mode: str, prompt_text: str, detected_state: dict[str, str] | None = None) -> bool:
     if mode == "stack":
         return False
-    return prompt_is_safe_for_proactive_answer(prompt_text)
+    return prompt_is_safe_for_proactive_answer(prompt_text, detected_state or {})
 
 
 def select_timeout_seconds(mode: str) -> int:
@@ -354,7 +379,7 @@ def main():
                     )
                     if first_output_seen:
                         matched_prompt, matched_answer = pending[0]
-                        if not mode_allows_proactive_prompt_answer(args.mode, matched_prompt):
+                        if not mode_allows_proactive_prompt_answer(args.mode, matched_prompt, detected_state):
                             if prompt_uses_ordered_detail_fallback(args.mode, matched_prompt):
                                 required_heartbeats = ordered_detail_fallback_idle_threshold(args.mode, matched_prompt)
                                 if idle_heartbeat_count < required_heartbeats:
@@ -400,22 +425,22 @@ def main():
                     emit_info("remote bootstrap heartbeat: waiting for output; no pending prompts", log_handle)
                 continue
 
-            ch = proc.stdout.read(1)
-            if ch == "" and proc.poll() is not None:
+            chunk = read_ready_output(proc.stdout)
+            if chunk == "" and proc.poll() is not None:
                 break
-            if ch == "":
+            if chunk == "":
                 continue
             if not first_output_seen:
                 emit_info("remote bootstrap session produced first output byte", log_handle)
                 first_output_seen = True
             idle_heartbeat_count = 0
-            sys.stdout.write(ch)
+            sys.stdout.write(chunk)
             sys.stdout.flush()
             if log_handle:
-                log_handle.write(ch)
+                log_handle.write(chunk)
                 log_handle.flush()
-            prompt_buffer = (prompt_buffer + ch)[-6000:]
-            state_buffer = (state_buffer + ch)[-50000:]
+            prompt_buffer = (prompt_buffer + chunk)[-6000:]
+            state_buffer = (state_buffer + chunk)[-50000:]
             normalized_prompt_buffer = sanitize_prompt_buffer(prompt_buffer)
             normalized_state_buffer = sanitize_prompt_buffer(state_buffer)
             update_detected_state(detected_state, normalized_state_buffer)

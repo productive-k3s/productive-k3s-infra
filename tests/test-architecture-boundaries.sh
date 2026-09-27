@@ -26,4 +26,9 @@ if rg -n -i 'rancher' "${runtime_paths[@]}" \
   exit 1
 fi
 
+if rg -n 'productive-k3s-addons\.tgz' "${ROOT_DIR}/ansible/roles/remote_cluster/files"; then
+  printf '[FAIL] Infra remote runtime must not transfer an Addons source checkout\n' >&2
+  exit 1
+fi
+
 printf '[PASS] Infra runtime boundaries remain profile- and stack-agnostic\n'
