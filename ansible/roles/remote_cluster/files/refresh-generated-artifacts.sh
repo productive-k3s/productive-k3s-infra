@@ -13,8 +13,6 @@ if [[ -f "${CLUSTER_JSON}" ]]; then
   REMOTE_AGENT_IPS="${REMOTE_AGENT_IPS:-$(jq -r '.agents[].ipv4' "${CLUSTER_JSON}" | tr '\n' ' ')}"
   REMOTE_CLUSTER_NAME="${REMOTE_CLUSTER_NAME:-$(jq -r '.cluster_name // empty' "${CLUSTER_JSON}")}"
   BASE_DOMAIN="${BASE_DOMAIN:-$(jq -r '.base_domain // empty' "${CLUSTER_JSON}")}"
-  RANCHER_HOST="${RANCHER_HOST:-$(jq -r '.rancher_host // empty' "${CLUSTER_JSON}")}"
-  REGISTRY_HOST="${REGISTRY_HOST:-$(jq -r '.registry_host // empty' "${CLUSTER_JSON}")}"
   if [[ -z "${PRODUCTIVE_K3S_VERSION}" ]]; then
     PRODUCTIVE_K3S_VERSION="$(jq -r '.productive_k3s.version // empty' "${CLUSTER_JSON}")"
   fi
@@ -90,8 +88,6 @@ tmp_json="$(mktemp)"
   printf '    "user_agent": %s\n' "$(jq -Rn --arg v "${resolved_telemetry_user_agent}" '$v')"
   printf '  },\n'
   printf '  "server_url": %s,\n' "$(jq -Rn --arg v "https://${REMOTE_SERVER_IP}:6443" '$v')"
-  printf '  "rancher_host": %s,\n' "$(jq -Rn --arg v "${RANCHER_HOST}" '$v')"
-  printf '  "registry_host": %s,\n' "$(jq -Rn --arg v "${REGISTRY_HOST}" '$v')"
   printf '  "server": {\n'
   printf '    "name": "server",\n'
   printf '    "ipv4": %s\n' "$(jq -Rn --arg v "${REMOTE_SERVER_IP}" '$v')"
@@ -143,8 +139,6 @@ mv "${tmp_json}" "${CLUSTER_JSON}"
   printf '    productive_k3s_remote_dir: %s\n' "${REMOTE_DIR_OVERRIDE}"
   printf '    productive_k3s_server_url: %s\n' "https://${REMOTE_SERVER_IP}:6443"
   printf '    productive_k3s_base_domain: %s\n' "${BASE_DOMAIN}"
-  printf '    productive_k3s_rancher_host: %s\n' "${RANCHER_HOST}"
-  printf '    productive_k3s_registry_host: %s\n' "${REGISTRY_HOST}"
   printf '  children:\n'
   printf '    servers:\n'
   printf '      hosts:\n'
@@ -179,8 +173,6 @@ mv "${tmp_json}" "${CLUSTER_JSON}"
   printf 'SERVER_NAME=%q\n' "server"
   printf 'SERVER_IP=%q\n' "${REMOTE_SERVER_IP}"
   printf 'SERVER_URL=%q\n' "https://${REMOTE_SERVER_IP}:6443"
-  printf 'RANCHER_HOST=%q\n' "${RANCHER_HOST}"
-  printf 'REGISTRY_HOST=%q\n' "${REGISTRY_HOST}"
   printf 'AGENT_IPS=%q\n' "${AGENT_IPS_ARRAY[*]}"
 } > "${NODES_ENV}"
 

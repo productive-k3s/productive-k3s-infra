@@ -34,4 +34,4 @@ for i in "${!ALL_NODE_IPS[@]}"; do
   fi
 done
 
-log "On-prem preflight passed"
+log "Remote cluster preflight passed"

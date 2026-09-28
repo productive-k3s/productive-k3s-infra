@@ -14,4 +14,15 @@ Describe 'remote-cluster telemetry defaults'
     The status should equal 0
     The output should equal 'true'
   End
+
+  It 'normalizes non-interactive yes/no prompts'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" '
+      printf "maybe\n" | {
+        prompt_yesno answer "y" "Continue?"
+        printf "answer=%s\n" "${answer}"
+      }'
+    The status should equal 0
+    The output should include 'Continue? [y] (y/n): answer=y'
+    The stderr should include 'Invalid input, using default: y'
+  End
 End

@@ -113,8 +113,6 @@ case_var_first() {
 
 REMOTE_CLUSTER_NAME="$(trim "$(case_var CLUSTER_NAME productive-k3s-remote)")"
 BASE_DOMAIN="$(trim "$(case_var BASE_DOMAIN k3s.lab.internal)")"
-RANCHER_HOST="$(trim "$(case_var RANCHER_HOST "rancher.${BASE_DOMAIN}")")"
-REGISTRY_HOST="$(trim "$(case_var REGISTRY_HOST "registry.${BASE_DOMAIN}")")"
 REMOTE_SERVER_IP="$(trim "$(case_var SERVER_IP "")")"
 REMOTE_AGENT_IPS="$(trim "$(case_var AGENT_IPS "")")"
 SSH_USER="$(trim "$(case_var SSH_USER ubuntu)")"
@@ -167,9 +165,10 @@ productive_k3s_remote_join_token_cmd() {
 
 json_escape() {
   printf '%s' "$1" | sed \
+    -e ':a;N;$!ba' \
     -e 's/\\/\\\\/g' \
     -e 's/"/\\"/g' \
-    -e ':a;N;$!ba;s/\n/\\n/g' \
+    -e 's/\n/\\n/g' \
     -e 's/\r/\\r/g' \
     -e 's/\t/\\t/g'
 }
@@ -414,21 +413,21 @@ require_node_inputs() {
 }
 
 ssh_base_args() {
-  local args=(
-    -o BatchMode=yes
-    -o StrictHostKeyChecking=accept-new
-    -o ConnectTimeout=10
-    -p "${SSH_PORT}"
-  )
+  local args=(-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -p "${SSH_PORT}")
+  append_ssh_optional_args args
+  printf '%s\0' "${args[@]}"
+}
+
+append_ssh_optional_args() {
+  local -n __args_ref="$1"
   if [[ -n "${SSH_KEY_PATH}" ]]; then
-    args+=(-i "${SSH_KEY_PATH}")
+    __args_ref+=(-i "${SSH_KEY_PATH}")
   fi
   if [[ -n "${SSH_EXTRA_OPTS}" ]]; then
     local extra=()
     read -r -a extra <<< "${SSH_EXTRA_OPTS}"
-    args+=("${extra[@]}")
+    __args_ref+=("${extra[@]}")
   fi
-  printf '%s\0' "${args[@]}"
 }
 
 ssh_args_array() {
@@ -464,20 +463,8 @@ scp_to() {
   local source="$1"
   local ip="$2"
   local destination="$3"
-  local scp_args=(
-    -o BatchMode=yes
-    -o StrictHostKeyChecking=accept-new
-    -o ConnectTimeout=10
-    -P "${SSH_PORT}"
-  )
-  if [[ -n "${SSH_KEY_PATH}" ]]; then
-    scp_args+=(-i "${SSH_KEY_PATH}")
-  fi
-  if [[ -n "${SSH_EXTRA_OPTS}" ]]; then
-    local extra=()
-    read -r -a extra <<< "${SSH_EXTRA_OPTS}"
-    scp_args+=("${extra[@]}")
-  fi
+  local scp_args=(-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -P "${SSH_PORT}")
+  append_ssh_optional_args scp_args
   scp "${scp_args[@]}" "${source}" "$(ssh_target "${ip}"):${destination}"
 }
 
@@ -652,8 +639,6 @@ load_cluster_metadata() {
   SERVER_IP="$(jq -r '.server.ipv4' "${CLUSTER_JSON}")"
   SERVER_URL="$(jq -r '.server_url' "${CLUSTER_JSON}")"
   BASE_DOMAIN="$(jq -r '.base_domain' "${CLUSTER_JSON}")"
-  RANCHER_HOST="$(jq -r '.rancher_host' "${CLUSTER_JSON}")"
-  REGISTRY_HOST="$(jq -r '.registry_host' "${CLUSTER_JSON}")"
   REMOTE_DIR="$(jq -r '.remote_dir' "${CLUSTER_JSON}")"
   PRODUCTIVE_K3S_SOURCE_RESOLVED="$(jq -r '.productive_k3s.source' "${CLUSTER_JSON}")"
   PRODUCTIVE_K3S_VERSION_RESOLVED="$(jq -r '.productive_k3s.version' "${CLUSTER_JSON}")"
@@ -707,18 +692,13 @@ export_resolved_cluster_config_env() {
 write_hosts_entry_on_node() {
   local node_ip="$1"
   local server_ip="$2"
-  local rancher_host="$3"
-  local registry_host="$4"
+  shift 2
+  local hosts=("$@")
+  ((${#hosts[@]} > 0)) || return 0
   local escaped_line
-  escaped_line="${server_ip} ${rancher_host} ${registry_host}"
+  escaped_line="${server_ip} ${hosts[*]}"
   remote_exec "${node_ip}" "
     set -euo pipefail
-    if grep -qE '[[:space:]]${rancher_host}([[:space:]]|\$)' /etc/hosts 2>/dev/null; then
-      sudo sed -i '/[[:space:]]${rancher_host}\([[:space:]]\|\$\)/d' /etc/hosts
-    fi
-    if grep -qE '[[:space:]]${registry_host}([[:space:]]|\$)' /etc/hosts 2>/dev/null; then
-      sudo sed -i '/[[:space:]]${registry_host}\([[:space:]]\|\$\)/d' /etc/hosts
-    fi
     printf '%s\n' '${escaped_line}' | sudo tee -a /etc/hosts >/dev/null
   "
 }

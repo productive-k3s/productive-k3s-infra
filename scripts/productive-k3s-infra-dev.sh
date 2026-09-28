@@ -313,6 +313,7 @@ run_prepared_scenario_test() {
 
 run_local_bash_suite() {
   bash "${TESTS_DIR}/test-artifact-tools.sh"
+  bash "${TESTS_DIR}/test-architecture-boundaries.sh"
   bash "${TESTS_DIR}/test-matrix-artifacts.sh"
   bash "${TESTS_DIR}/test-k3s-engine-artifacts.sh"
   bash "${TESTS_DIR}/test-scenario-test-artifacts.sh"
@@ -333,14 +334,13 @@ run_local_bash_suite() {
   bash "${TESTS_DIR}/test-multipass-telemetry-consent.sh"
   bash "${TESTS_DIR}/test-multipass-telemetry-propagation.sh"
   bash "${TESTS_DIR}/test-multipass-cluster-up-preserves-telemetry.sh"
-  bash "${TESTS_DIR}/test-multipass-bootstrap-stack-registry-convergence.sh"
   bash "${TESTS_DIR}/test-multipass-infra-command-telemetry.sh"
   bash "${TESTS_DIR}/test-cli-telemetry-scope.sh"
+  bash "${TESTS_DIR}/test-packaged-profile-runtime-overrides.sh"
   bash "${TESTS_DIR}/test-remote-telemetry-consent.sh"
   bash "${TESTS_DIR}/test-remote-cluster-up-preserves-telemetry.sh"
   bash "${TESTS_DIR}/test-remote-bootstrap-agent-heartbeat.sh"
   bash "${TESTS_DIR}/test-remote-productive-k3s-core-preflight.sh"
-  bash "${TESTS_DIR}/test-remote-longhorn-single-default.sh"
   bash "${TESTS_DIR}/test-remote-sync-hosts-resolves-server-hostname.sh"
   bash "${TESTS_DIR}/test-productive-k3s-infra-cli.sh"
   bash "${TESTS_DIR}/test-release-bundle.sh"

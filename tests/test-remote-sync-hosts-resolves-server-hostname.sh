@@ -38,8 +38,6 @@ cat > "${GENERATED_DIR}/cluster.json" <<'EOF'
     "user_agent": "productive-k3s-infra/test"
   },
   "server_url": "https://rp5.local:6443",
-  "rancher_host": "rancher.k3s.lab.internal",
-  "registry_host": "registry.k3s.lab.internal",
   "server": {
     "name": "server",
     "ipv4": "rp5.local"
@@ -84,16 +82,18 @@ remote_exec() {
 }
 
 load_cluster_metadata
+PRODUCTIVE_K3S_HOST_ALIASES="console.k3s.lab.internal artifacts.k3s.lab.internal"
+read -r -a PRODUCTIVE_K3S_HOST_ALIASES_ARRAY <<< "${PRODUCTIVE_K3S_HOST_ALIASES}"
 
 resolved_server_ip="$(resolve_hosts_entry_ip "${SERVER_IP}")"
 for node_ip in "${ALL_NODE_IPS[@]}"; do
-  write_hosts_entry_on_node "${node_ip}" "${resolved_server_ip}" "${RANCHER_HOST}" "${REGISTRY_HOST}"
+  write_hosts_entry_on_node "${node_ip}" "${resolved_server_ip}" "${PRODUCTIVE_K3S_HOST_ALIASES_ARRAY[@]}"
 done
 
-expected_line="192.168.0.110 rancher.k3s.lab.internal registry.k3s.lab.internal"
+expected_line="192.168.0.110 console.k3s.lab.internal artifacts.k3s.lab.internal"
 grep -F "${expected_line}" "${REMOTE_CAPTURE}" >/dev/null || fail "sync-hosts did not write the resolved server IP"
 
-if grep -F "rp5.local rancher.k3s.lab.internal registry.k3s.lab.internal" "${REMOTE_CAPTURE}" >/dev/null; then
+if grep -F "rp5.local console.k3s.lab.internal artifacts.k3s.lab.internal" "${REMOTE_CAPTURE}" >/dev/null; then
   fail "sync-hosts wrote the unresolved server hostname into /etc/hosts"
 fi
 

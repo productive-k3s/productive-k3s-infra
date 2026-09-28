@@ -69,6 +69,14 @@ EOF
 PK3S_INFRA_PROFILE_NAME=onprem
 PK3S_INFRA_ENGINE=ansible
 PK3S_INFRA_SCENARIO=onprem-basic
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/future
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
 ONPREM_SSH_KEY_PATH=/tmp/id_ed25519
@@ -88,6 +96,14 @@ EOF
 PK3S_INFRA_PROFILE_NAME=onprem
 PK3S_INFRA_ENGINE=shell
 PK3S_INFRA_SCENARIO=onprem-basic-arm
+PK3S_INFRA_CATEGORY=edge
+PK3S_INFRA_SCENARIO_PATH=scenarios/edge/future-arm
+PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+PK3S_INFRA_APPLY_TARGET=up
+PK3S_INFRA_STATUS_TARGET=status
+PK3S_INFRA_DESTROY_TARGET=
+PK3S_INFRA_ENV_FILE_VARIABLE=ONPREM_ENV_FILE
+PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
 ONPREM_SERVER_IP=10.0.0.10
 ONPREM_SSH_USER=ubuntu
 ONPREM_SSH_PRIVATE_KEY_PATH=/tmp/id_ed25519
@@ -100,28 +116,4 @@ EOF
     The output should include 'Profile validation passed'
   End
 
-  It 'dispatches legacy commands with telemetry context and extra args'
-    When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
-      repo_dir="$(mktemp -d)"
-      mock_bin="$(mktemp -d)"
-      cat >"${mock_bin}/make" <<'\''EOF'\''
-#!/usr/bin/env bash
-printf "%s\n" "$*"
-EOF
-      chmod +x "${mock_bin}/make"
-      mkdir -p "${repo_dir}/profiles" "${repo_dir}/scenarios/local/multipass"
-      export PATH="${mock_bin}:${PATH}"
-      MAKE_BIN=make
-      PRODUCTIVE_K3S_PROFILES_REPO_DIR="${repo_dir}"
-      PROFILES_SOURCE_REPO_DIR="${repo_dir}"
-      TELEMETRY_RUN_ID=run-123
-      legacy_dispatch multipass down --foo
-      printf "\n__CTX__%s|%s|%s" "$TELEMETRY_PARENT_RUN_ID" "$TELEMETRY_RUN_ID" "$TELEMETRY_COMPONENT"'
-    The status should equal 0
-    The output should include '-C '
-    The output should include 'scenarios/local/multipass'
-    The output should include 'down'
-    The output should include '--foo'
-    The output should include '__CTX__run-123||infra'
-  End
 End

@@ -110,11 +110,11 @@ Semantics:
 
 Latest local `make test-coverage` run:
 
-- total ShellSpec coverage: `75.14%`
-- `ansible/roles/remote_cluster/files/common.sh`: `77.60%`
-- `scripts/productive-k3s-infra.sh`: `75.89%`
+- total ShellSpec coverage: `76.08%`
+- `ansible/roles/remote_cluster/files/common.sh`: `75.54%`
+- `scripts/productive-k3s-infra.sh`: `74.80%`
 - `scripts/release-versioning.sh`: `64.29%`
-- `scenarios/cloud/aws-single-node/scripts/refresh-generated-artifacts.sh`: `67.92%`
+- `scripts/export-runtime.sh`: `90.16%`
 - `scripts/create-release-tag.sh`: `59.09%`
 
 Treat this as a maintainer baseline for new changes, not as a hard CI gate.

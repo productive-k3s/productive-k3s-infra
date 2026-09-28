@@ -3,38 +3,69 @@ Describe 'productive-k3s-infra cli helper functions'
   SCRIPT="$SHELLSPEC_PROJECT_ROOT/scripts/productive-k3s-infra.sh"
   RUNNER="$SHELLSPEC_PROJECT_ROOT/tests/helpers/run-infra-cli-lib.sh"
 
-  It 'resolves supported scenario aliases'
+  It 'maps declared source profile commands to declared targets'
     When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
-      printf "%s|" "$(resolve_scenario multipass)"
-      printf "%s|" "$(resolve_scenario onprem-arm)"
-      printf "%s|" "$(resolve_scenario on-prem)"
-      printf "%s" "$(resolve_scenario aws-single-node)"'
+      PK3S_INFRA_APPLY_TARGET=create
+      PK3S_INFRA_STATUS_TARGET=inspect
+      PK3S_INFRA_DESTROY_TARGET=remove
+      printf "%s|" "$(source_profile_target validate)"
+      printf "%s|" "$(source_profile_target apply)"
+      printf "%s|" "$(source_profile_target status)"
+      printf "%s" "$(source_profile_target destroy)"'
     The status should equal 0
-    The output should equal 'multipass|onprem-basic-arm|onprem-basic|aws-single-node'
+    The output should equal 'validate|create|inspect|remove'
   End
 
-  It 'maps profile env variables per scenario'
+  It 'rejects source destroy when the profile does not declare a target'
     When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
-      printf "%s|" "$(profile_env_var_name onprem-basic)"
-      printf "%s|" "$(profile_env_var_name aws-single-node)"
-      printf "%s" "$(profile_env_var_name multipass)"'
-    The status should equal 0
-    The output should equal 'ONPREM_ENV_FILE|AWS_ENV_FILE|'
-  End
-
-  It 'maps profile commands to scenario targets'
-    When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
-      printf "%s|" "$(command_to_target validate multipass)"
-      printf "%s|" "$(command_to_target apply multipass)"
-      printf "%s|" "$(command_to_target destroy aws-single-node)"
-      printf "%s" "$(command_to_target status onprem-basic)"'
-    The status should equal 0
-    The output should equal 'validate|up|down|status'
-  End
-
-  It 'rejects unsupported destroy mappings for onprem scenarios'
-    When run /usr/bin/bash "$RUNNER" "$SCRIPT" 'command_to_target destroy onprem-basic'
+      PK3S_INFRA_DESTROY_TARGET=
+      source_profile_target destroy'
     The status should equal 1
+  End
+
+  It 'blocks source-only helpers on package-only runtime surfaces'
+    When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
+      RUNTIME_SURFACE=package-only
+      require_source_surface list-profiles'
+    The status should equal 2
+    The stderr should include "the 'list-profiles' command is not available in the package-only release surface"
+  End
+
+  It 'resolves source scenario directories from a profiles checkout'
+    When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
+      repo="$(mktemp -d)"
+      mkdir -p "${repo}/scenarios/cloud/future-profile"
+      PROFILES_SOURCE_REPO_DIR="${repo}"
+      COMMAND=validate
+      printf "%s|" "$(resolve_source_repo_dir)"
+      printf "%s" "$(resolve_source_scenario_dir scenarios/cloud/future-profile)"'
+    The status should equal 0
+    The output should include '/scenarios/cloud/future-profile'
+  End
+
+  It 'rejects missing source scenario directories'
+    When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
+      repo="$(mktemp -d)"
+      mkdir -p "${repo}/scenarios/cloud"
+      PROFILES_SOURCE_REPO_DIR="${repo}"
+      COMMAND=validate
+      resolve_source_scenario_dir scenarios/cloud/missing-profile'
+    The status should equal 1
+    The stderr should include 'scenario directory not found in productive-k3s-profiles checkout'
+  End
+
+  It 'formats operation names and completion events'
+    When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
+      GLOBAL_EVENTS_FORMAT=ndjson
+      printf "%s|" "$(operation_name_for_args profile apply)"
+      printf "%s|" "$(operation_name_for_args dev profile destroy)"
+      printf "%s|" "$(operation_name_for_args status)"
+      printf "%s\n" "$(operation_name_for_args doctor)"
+      emit_operation_completed_event infra.apply 7 demo-subject'
+    The status should equal 0
+    The output should include 'profile.apply|profile.destroy|infra.status|infra.doctor'
+    The output should include '"status":"failed"'
+    The output should include '"subject":"demo-subject"'
   End
 
   It 'prefers an explicit tofu binary override'
@@ -67,57 +98,71 @@ EOF
     The status should equal 1
   End
 
-  It 'validates onprem shell profiles with alternate ssh key variable'
+  It 'validates a fully declared generic shell profile'
     When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
-      PK3S_INFRA_PROFILE_NAME=onprem
+      PK3S_INFRA_PROFILE_NAME=future-edge
       PK3S_INFRA_ENGINE=shell
-      PK3S_INFRA_SCENARIO=onprem
-      ONPREM_SERVER_IP=10.0.0.10
-      ONPREM_SSH_USER=ubuntu
-      ONPREM_SSH_PRIVATE_KEY_PATH=/tmp/id_ed25519
+      PK3S_INFRA_SCENARIO=future-edge
+      PK3S_INFRA_CATEGORY=edge
+      PK3S_INFRA_SCENARIO_PATH=scenarios/edge/future-edge
+      PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+      PK3S_INFRA_APPLY_TARGET=create
+      PK3S_INFRA_STATUS_TARGET=inspect
+      PK3S_INFRA_DESTROY_TARGET=
+      PK3S_INFRA_ENV_FILE_VARIABLE=FUTURE_ENV_FILE
+      PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
       validate_profile
       printf "%s|%s" "$PK3S_INFRA_SCENARIO" "$PK3S_INFRA_ENGINE"'
     The status should equal 0
-    The output should equal 'onprem-basic|shell'
+    The output should equal 'future-edge|shell'
   End
 
   It 'rejects unsupported profile engines'
     When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
       PK3S_INFRA_PROFILE_NAME=demo
       PK3S_INFRA_ENGINE=nomad
-      PK3S_INFRA_SCENARIO=multipass
+      PK3S_INFRA_SCENARIO=future
+      PK3S_INFRA_CATEGORY=local
+      PK3S_INFRA_SCENARIO_PATH=scenarios/local/future
+      PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+      PK3S_INFRA_APPLY_TARGET=create
+      PK3S_INFRA_STATUS_TARGET=inspect
+      PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
       validate_profile'
     The status should equal 4
     The stderr should include 'unsupported PK3S_INFRA_ENGINE'
   End
 
-  It 'rejects onprem profiles without a key path'
+  It 'rejects profiles with unsafe declared scenario paths'
     When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
-      PK3S_INFRA_PROFILE_NAME=onprem
-      PK3S_INFRA_ENGINE=ansible
-      PK3S_INFRA_SCENARIO=onprem-basic
-      ONPREM_SERVER_IP=10.0.0.10
-      ONPREM_SSH_USER=ubuntu
+      PK3S_INFRA_PROFILE_NAME=demo
+      PK3S_INFRA_ENGINE=shell
+      PK3S_INFRA_SCENARIO=future
+      PK3S_INFRA_CATEGORY=edge
+      PK3S_INFRA_SCENARIO_PATH=../outside
+      PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+      PK3S_INFRA_APPLY_TARGET=create
+      PK3S_INFRA_STATUS_TARGET=inspect
+      PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=false
       validate_profile'
     The status should equal 4
-    The stderr should include 'ONPREM_SSH_KEY_PATH'
+    The stderr should include 'must not contain'
   End
 
-  It 'validates aws single node profiles'
+  It 'rejects invalid remote runtime declarations'
     When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
-      PK3S_INFRA_PROFILE_NAME=aws
+      PK3S_INFRA_PROFILE_NAME=demo
       PK3S_INFRA_ENGINE=opentofu
-      PK3S_INFRA_SCENARIO=aws-single-node
-      AWS_REGION=us-east-1
-      AWS_CLUSTER_NAME=demo
-      AWS_INSTANCE_TYPE=t3.large
-      AWS_SSH_USER=ubuntu
-      AWS_SSH_KEY_PATH=/tmp/id_ed25519
-      AWS_ROOT_VOLUME_SIZE_GB=50
-      validate_profile
-      printf "%s" "$PK3S_INFRA_SCENARIO"'
-    The status should equal 0
-    The output should equal 'aws-single-node'
+      PK3S_INFRA_SCENARIO=future
+      PK3S_INFRA_CATEGORY=cloud
+      PK3S_INFRA_SCENARIO_PATH=scenarios/cloud/future
+      PK3S_INFRA_INSTALL_SCRIPT=scripts/install.sh
+      PK3S_INFRA_APPLY_TARGET=create
+      PK3S_INFRA_STATUS_TARGET=inspect
+      PK3S_INFRA_INCLUDE_REMOTE_CLUSTER_RUNTIME=maybe
+      validate_profile'
+    The status should equal 4
+    The stderr should include 'must be true or false'
   End
 
   It 'enforces release-bound productive-k3s versions'

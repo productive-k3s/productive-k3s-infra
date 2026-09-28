@@ -26,13 +26,8 @@ begin_infra_command_telemetry "${COMMAND_NAME}"
 
 "${SCRIPT_DIR}/sync-hosts.sh"
 
-replica_count=1
-if (( ${#ALL_NODE_IPS[@]} > 1 )); then
-  replica_count=2
-fi
-
 stack_tgz_arg=()
-if [[ "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" == "remote" ]]; then
+if [[ -n "${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}" ]]; then
   stack_artifact_local_tgz="$(mktemp "${GENERATED_DIR}/stack-artifact.XXXXXX.tgz")"
   log "Downloading published stack artifact on controller from ${PRODUCTIVE_K3S_STACK_TGZ_URL_RESOLVED}"
   log "Controller download started at $(date -Iseconds)"
@@ -60,6 +55,9 @@ if [[ "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" == "remote" ]]; then
   rm -f "${stack_artifact_local_tgz}"
   stack_artifact_local_tgz=""
   stack_tgz_arg=(--stack-tgz "${PRODUCTIVE_K3S_STACK_REMOTE_PATH_RESOLVED}")
+elif [[ "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" == "remote" ]]; then
+  err "remote source requires productive_k3s.stack_tgz_url in ${CLUSTER_JSON}"
+  exit 1
 fi
 
 log "Starting remote stack bootstrap session"
@@ -73,15 +71,7 @@ python3 "${SCRIPT_DIR}/run_remote_bootstrap_session.py" \
   --remote-dir "${REMOTE_DIR}" \
   "${stack_tgz_arg[@]}" \
   --base-domain "${BASE_DOMAIN}" \
-  --rancher-host "${RANCHER_HOST}" \
-  --registry-host "${REGISTRY_HOST}" \
-  --rancher-password "admin" \
-  --registry-size "20Gi" \
-  --longhorn-data-path "/data" \
-  --longhorn-replica-count "${replica_count}" \
   --log-file "${LOG_DIR}/bootstrap-stack.log"
 log "Remote stack bootstrap session completed"
-
-"${SCRIPT_DIR}/reconcile-cluster-defaults.sh"
 
 log "Stack bootstrap completed"

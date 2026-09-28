@@ -62,10 +62,14 @@ metadata:
 spec:
   scenario:
     type: onprem-basic
+    path: scenarios/edge/onprem-basic
   engine:
     type: ansible
   execution:
     installScript: scripts/install.sh
+    targets:
+      apply: up
+      status: status
 EOF
 
 cat > "${pkg_dir}/scripts/install.sh" <<'EOF'
@@ -74,9 +78,11 @@ set -euo pipefail
 PACKAGE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCENARIO_DIR="${PACKAGE_ROOT}/scenarios/edge/onprem-basic"
 PROFILE_ENV="${PACKAGE_ROOT}/profile.env"
-set -a
-source "${PROFILE_ENV}"
-set +a
+if [[ "${PK3S_PROFILE_ENV_ALREADY_LOADED:-false}" != "true" ]]; then
+  set -a
+  source "${PROFILE_ENV}"
+  set +a
+fi
 cd "${PACKAGE_ROOT}"
 export REPO_ROOT="${PACKAGE_ROOT}"
 export PRODUCTIVE_K3S_REPO="${PK3S_PROFILE_PACKAGE_PRODUCTIVE_K3S_REPO:-${PACKAGE_ROOT}}"

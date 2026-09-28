@@ -27,7 +27,7 @@ TELEMETRY_ENV_KEYS = [
 ]
 
 ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
-DETECTED_STATE_RE = re.compile(r"-\s+(k3s|helm|Longhorn|Rancher|Registry):\s+(present|missing)")
+DETECTED_STATE_RE = re.compile(r"-\s+(k3s|helm):\s+(present|missing)")
 
 
 def sanitize_prompt_buffer(value: str) -> str:
@@ -36,6 +36,10 @@ def sanitize_prompt_buffer(value: str) -> str:
     while "\b" in value:
         value = re.sub(r".\b", "", value, count=1)
     return value
+
+
+def read_ready_output(stream) -> str:
+    return os.read(stream.fileno(), 4096).decode("utf-8", errors="replace")
 
 
 def telemetry_env_prefix():
@@ -78,7 +82,7 @@ def write_prompt_answer(proc, prompt_text: str, answer: str, log_handle=None, re
 
 
 def maybe_chain_ordered_prompt_answer(mode: str, answered_prompt: str, pending: list[tuple[str, str]], proc, log_handle=None) -> None:
-    if mode != "stack" or not pending:
+    if mode != "agent" or not pending:
         return
 
     def chain_next(expected_prefixes: list[str], response_kind: str) -> None:
@@ -101,33 +105,8 @@ def maybe_chain_ordered_prompt_answer(mode: str, answered_prompt: str, pending: 
                 return
             expected_prefixes.pop(0)
 
-    if answered_prompt.startswith("Longhorn default replica count (1 for single-node)"):
-        chain_next(
-            [
-                "Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)",
-                "Make Longhorn the default StorageClass?",
-            ],
-            "chained ordered detail auto-response",
-        )
-        return
-
-    if answered_prompt.startswith("Rancher hostname (DNS name)"):
-        chain_next(
-            [
-                "Rancher bootstrap password",
-            ],
-            "chained ordered detail auto-response",
-        )
-        return
-
-    if answered_prompt.startswith("Registry hostname (DNS name)"):
-        chain_next(
-            [
-                "Registry PVC size",
-                "Registry StorageClass (blank uses cluster default)",
-            ],
-            "chained ordered detail auto-response",
-        )
+    if answered_prompt.startswith("Agent server URL"):
+        chain_next(["Agent cluster token"], "chained ordered detail auto-response")
         return
 
 
@@ -160,12 +139,6 @@ def prompt_conflicts_with_detected_state(prompt_text: str, detected_state: dict[
         ("k3s agent was not detected. Install it now? [required]", "k3s", "present"),
         ("Helm is already installed. Continue using it without changes? [required]", "helm", "missing"),
         ("Helm was not detected. Install it now? [required]", "helm", "present"),
-        ("Longhorn is already present. Leave it unchanged and continue? [optional]", "Longhorn", "missing"),
-        ("Longhorn is missing. Install it now? [optional]", "Longhorn", "present"),
-        ("Rancher is already present. Leave it unchanged and continue? [optional]", "Rancher", "missing"),
-        ("Rancher is missing. Install it now? [optional]", "Rancher", "present"),
-        ("The in-cluster registry is already present. Leave it unchanged and continue? [optional]", "Registry", "missing"),
-        ("The in-cluster registry is missing. Install it now? [optional]", "Registry", "present"),
     ]
     for prompt_prefix, component, conflict_state in checks:
         if prompt_text == prompt_prefix and detected_state.get(component) == conflict_state:
@@ -183,7 +156,22 @@ def prune_conflicting_prompts(pending: list[tuple[str, str]], detected_state: di
     return kept
 
 
-def prompt_is_safe_for_proactive_answer(prompt_text: str) -> bool:
+def prompt_state_requirement(prompt_text: str) -> tuple[str, str] | None:
+    stateful_prefixes = {
+        "Existing k3s installation detected. Continue using it without changes?": ("k3s", "present"),
+        "k3s was not detected. Install it now?": ("k3s", "missing"),
+        "Existing k3s agent installation detected. Continue using it without changes?": ("k3s", "present"),
+        "k3s agent was not detected. Install it now?": ("k3s", "missing"),
+        "Helm is already installed. Continue using it without changes?": ("helm", "present"),
+        "Helm was not detected. Install it now?": ("helm", "missing"),
+    }
+    for prefix, requirement in stateful_prefixes.items():
+        if prompt_text.startswith(prefix):
+            return requirement
+    return None
+
+
+def prompt_is_safe_for_proactive_answer(prompt_text: str, detected_state: dict[str, str]) -> bool:
     safe_prefixes = [
         "Existing k3s installation detected. Continue using it without changes?",
         "k3s was not detected. Install it now?",
@@ -191,39 +179,21 @@ def prompt_is_safe_for_proactive_answer(prompt_text: str) -> bool:
         "Helm was not detected. Install it now?",
         "Existing k3s agent installation detected. Continue using it without changes?",
         "k3s agent was not detected. Install it now?",
-        "Longhorn is already present. Leave it unchanged and continue?",
-        "Longhorn is missing. Install it now?",
-        "Rancher is already present. Leave it unchanged and continue?",
-        "Rancher is missing. Install it now?",
-        "The in-cluster registry is already present. Leave it unchanged and continue?",
-        "The in-cluster registry is missing. Install it now?",
-        "cert-manager is missing. Install it now?",
-        "Do you want to enable basic auth on the in-cluster registry?",
-        "ClusterIssuer 'selfsigned' is missing. Create it now?",
-        "Longhorn preflight found warnings. Continue anyway?",
-        "Install the missing packages for Longhorn?",
-        "Enable and start 'iscsid' now?",
-        "Make Longhorn the default StorageClass?",
         "Proceed with this plan?",
     ]
-    return any(prompt_text.startswith(prefix) for prefix in safe_prefixes)
+    if not any(prompt_text.startswith(prefix) for prefix in safe_prefixes):
+        return False
+    requirement = prompt_state_requirement(prompt_text)
+    if requirement is None:
+        return True
+    component, expected_state = requirement
+    return detected_state.get(component) == expected_state
 
 
-def mode_allows_proactive_prompt_answer(mode: str, prompt_text: str) -> bool:
+def mode_allows_proactive_prompt_answer(mode: str, prompt_text: str, detected_state: dict[str, str] | None = None) -> bool:
     if mode == "stack":
-        stack_safe_prefixes = [
-            "Helm is already installed. Continue using it without changes?",
-            "Helm was not detected. Install it now?",
-            "Longhorn is missing. Install it now?",
-            "Rancher is missing. Install it now?",
-            "The in-cluster registry is missing. Install it now?",
-            "cert-manager is missing. Install it now?",
-            "Make Longhorn the default StorageClass?",
-            "Do you want to enable basic auth on the in-cluster registry?",
-            "Proceed with this plan?",
-        ]
-        return any(prompt_text.startswith(prefix) for prefix in stack_safe_prefixes)
-    return prompt_is_safe_for_proactive_answer(prompt_text)
+        return False
+    return prompt_is_safe_for_proactive_answer(prompt_text, detected_state or {})
 
 
 def select_timeout_seconds(mode: str) -> int:
@@ -233,18 +203,6 @@ def select_timeout_seconds(mode: str) -> int:
 
 
 def ordered_detail_fallback_idle_threshold(mode: str, prompt_text: str) -> int:
-    if mode == "stack":
-        if prompt_text.startswith("Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)"):
-            return 5
-        delayed_stack_prefixes = [
-            "Rancher hostname (DNS name)",
-            "Rancher bootstrap password",
-            "Registry hostname (DNS name)",
-            "Registry PVC size",
-            "Registry StorageClass (blank uses cluster default)",
-        ]
-        if any(prompt_text.startswith(prefix) for prefix in delayed_stack_prefixes):
-            return 3
     return 1
 
 
@@ -253,24 +211,6 @@ def prompt_uses_ordered_detail_fallback(mode: str, prompt_text: str) -> bool:
         ordered_detail_prefixes = [
             "Agent server URL",
             "Agent cluster token",
-        ]
-        return any(prompt_text.startswith(prefix) for prefix in ordered_detail_prefixes)
-
-    if mode == "stack":
-        # These early stack questions can be rendered without a stable prompt
-        # boundary when the remote TUI refreshes. Later prompts are visible
-        # enough to wait for an explicit output match.
-        ordered_detail_prefixes = [
-            "Base domain (used to build hostnames)",
-            "Choose TLS mode (1/2)",
-            "Longhorn data mount path",
-            "Longhorn default replica count (1 for single-node)",
-            "Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)",
-            "Rancher hostname (DNS name)",
-            "Rancher bootstrap password",
-            "Registry hostname (DNS name)",
-            "Registry PVC size",
-            "Registry StorageClass (blank uses cluster default)",
         ]
         return any(prompt_text.startswith(prefix) for prefix in ordered_detail_prefixes)
 
@@ -296,52 +236,7 @@ def build_prompt_map(args):
             ("Proceed with this plan?", "y"),
         ]
     if args.mode == "stack":
-        rancher_host_answer = args.rancher_host
-        if args.rancher_host == f"rancher.{args.base_domain}":
-            rancher_host_answer = ""
-        registry_host_answer = args.registry_host
-        if args.registry_host == f"registry.{args.base_domain}":
-            registry_host_answer = ""
-        rancher_password_answer = args.rancher_password
-        if args.rancher_password == "admin":
-            rancher_password_answer = ""
-        registry_size_answer = args.registry_size
-        if args.registry_size == "20Gi":
-            registry_size_answer = ""
-        prompts = [
-            ("Helm is already installed. Continue using it without changes? [required]", "y"),
-            ("Helm was not detected. Install it now? [required]", "y"),
-            ("Longhorn is already present. Leave it unchanged and continue? [optional]", "y"),
-            ("Longhorn is missing. Install it now? [optional]", "y"),
-            ("Rancher is already present. Leave it unchanged and continue? [optional]", "y"),
-            ("Rancher is missing. Install it now? [optional]", "y"),
-            ("The in-cluster registry is already present. Leave it unchanged and continue? [optional]", "y"),
-            ("The in-cluster registry is missing. Install it now? [optional]", "y"),
-            ("cert-manager is missing. Install it now? [required for TLS-dependent installs]", "y"),
-            ("Base domain (used to build hostnames)", args.base_domain),
-            ("Choose TLS mode (1/2)", ""),
-            ("Longhorn data mount path", "" if args.longhorn_data_path == "/data" else args.longhorn_data_path),
-            ("Longhorn default replica count (1 for single-node)", str(args.longhorn_replica_count)),
-            ("Longhorn storage minimal available percentage (10 is recommended for single-node dev/lab)", "10"),
-            ("Make Longhorn the default StorageClass?", "y"),
-            ("Rancher hostname (DNS name)", rancher_host_answer),
-            ("Rancher bootstrap password", rancher_password_answer),
-            ("Registry hostname (DNS name)", registry_host_answer),
-            ("Registry PVC size", registry_size_answer),
-            ("Registry StorageClass (blank uses cluster default)", ""),
-            ("Do you want to enable basic auth on the in-cluster registry?", "n"),
-            ("Longhorn preflight found warnings. Continue anyway?", "y"),
-            ("Install the missing packages for Longhorn?", "y"),
-            ("Enable and start 'iscsid' now?", "y"),
-            ("Proceed with this plan?", "y"),
-        ]
-        if getattr(args, "stack_tgz", None):
-            prompts = [
-                (prompt, answer)
-                for prompt, answer in prompts
-                if not prompt.startswith("Longhorn preflight found warnings. Continue anyway?")
-            ]
-        return prompts
+        raise ValueError("stack mode requires --stack-tgz")
     raise ValueError(f"unsupported mode: {args.mode}")
 
 
@@ -356,26 +251,13 @@ def select_prompt_map(args):
 
 
 def build_stack_artifact_answers(args) -> str:
-    # Keep this sequence aligned with core's stack artifact VM tests. Blank
-    # lines intentionally accept Core defaults for artifact-safe settings.
+    # Keep this sequence aligned with the generic core stack artifact flow.
     return "\n".join(
         [
             "y",
             "y",
             "y",
             "y",
-            args.base_domain,
-            "2",
-            "",
-            "",
-            "",
-            "y",
-            "",
-            args.rancher_password,
-            "",
-            "",
-            "",
-            "",
             "y",
         ]
     ) + "\n"
@@ -441,18 +323,14 @@ def main():
     parser.add_argument("--server-url")
     parser.add_argument("--cluster-token")
     parser.add_argument("--base-domain", default="k3s.lab.internal")
-    parser.add_argument("--rancher-host", default="rancher.k3s.lab.internal")
-    parser.add_argument("--registry-host", default="registry.k3s.lab.internal")
-    parser.add_argument("--rancher-password", default="admin")
-    parser.add_argument("--registry-size", default="20Gi")
-    parser.add_argument("--longhorn-data-path", default="/data")
-    parser.add_argument("--longhorn-replica-count", type=int, default=2)
     parser.add_argument("--stack-tgz")
     parser.add_argument("--log-file")
     args = parser.parse_args()
 
     if args.mode == "agent" and (not args.server_url or not args.cluster_token):
         parser.error("--server-url and --cluster-token are required for agent mode")
+    if args.mode == "stack" and not args.stack_tgz:
+        parser.error("--stack-tgz is required for stack mode")
 
     prompt_map = select_prompt_map(args)
     pending = list(prompt_map)
@@ -501,7 +379,7 @@ def main():
                     )
                     if first_output_seen:
                         matched_prompt, matched_answer = pending[0]
-                        if not mode_allows_proactive_prompt_answer(args.mode, matched_prompt):
+                        if not mode_allows_proactive_prompt_answer(args.mode, matched_prompt, detected_state):
                             if prompt_uses_ordered_detail_fallback(args.mode, matched_prompt):
                                 required_heartbeats = ordered_detail_fallback_idle_threshold(args.mode, matched_prompt)
                                 if idle_heartbeat_count < required_heartbeats:
@@ -547,22 +425,22 @@ def main():
                     emit_info("remote bootstrap heartbeat: waiting for output; no pending prompts", log_handle)
                 continue
 
-            ch = proc.stdout.read(1)
-            if ch == "" and proc.poll() is not None:
+            chunk = read_ready_output(proc.stdout)
+            if chunk == "" and proc.poll() is not None:
                 break
-            if ch == "":
+            if chunk == "":
                 continue
             if not first_output_seen:
                 emit_info("remote bootstrap session produced first output byte", log_handle)
                 first_output_seen = True
             idle_heartbeat_count = 0
-            sys.stdout.write(ch)
+            sys.stdout.write(chunk)
             sys.stdout.flush()
             if log_handle:
-                log_handle.write(ch)
+                log_handle.write(chunk)
                 log_handle.flush()
-            prompt_buffer = (prompt_buffer + ch)[-6000:]
-            state_buffer = (state_buffer + ch)[-50000:]
+            prompt_buffer = (prompt_buffer + chunk)[-6000:]
+            state_buffer = (state_buffer + chunk)[-50000:]
             normalized_prompt_buffer = sanitize_prompt_buffer(prompt_buffer)
             normalized_state_buffer = sanitize_prompt_buffer(state_buffer)
             update_detected_state(detected_state, normalized_state_buffer)
