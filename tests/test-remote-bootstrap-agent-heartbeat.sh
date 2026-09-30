@@ -128,6 +128,46 @@ pending = [("Agent cluster token", "secret-token")]
 module.maybe_chain_ordered_prompt_answer("agent", "Agent server URL", pending, proc)
 assert proc.stdin.writes == ["secret-token\n"], "agent server URL should chain the token prompt when it is next"
 assert pending == [], "agent ordered detail chaining should consume the token prompt"
+
+redactor = module.SensitiveOutputRedactor(["secret-token"])
+redacted_output = redactor.feed("before secret-token after")
+assert redacted_output == "before [REDACTED] after", "cluster tokens must be redacted from retained output"
+assert "secret-token" not in redacted_output, "cluster token must never reach retained logs"
+
+class AgentArgs:
+    host = "127.0.0.1"
+    user = "ubuntu"
+    port = "22"
+    key_path = ""
+    extra_opts = ""
+    mode = "agent"
+    remote_dir = "/home/ubuntu/productive-k3s"
+    server_url = "https://10.0.0.10:6443"
+    cluster_token = "secret-token"
+    base_domain = "k3s.lab.internal"
+    stack_tgz = None
+
+
+agent_remote_script = module.build_remote_script(AgentArgs())
+assert "stty -echo" in agent_remote_script, "interactive bootstrap must disable TTY echo before secrets are sent"
+
+previous_idle_timeout = os.environ.get("PRODUCTIVE_K3S_REMOTE_BOOTSTRAP_IDLE_TIMEOUT_SECONDS")
+previous_total_timeout = os.environ.get("PRODUCTIVE_K3S_REMOTE_BOOTSTRAP_TOTAL_TIMEOUT_SECONDS")
+try:
+    os.environ["PRODUCTIVE_K3S_REMOTE_BOOTSTRAP_IDLE_TIMEOUT_SECONDS"] = "30"
+    os.environ["PRODUCTIVE_K3S_REMOTE_BOOTSTRAP_TOTAL_TIMEOUT_SECONDS"] = "120"
+    assert module.session_timeout_reason("agent", 0, 80, 100) is None
+    assert module.session_timeout_reason("agent", 0, 60, 100) == "no remote output for 30s"
+    assert module.session_timeout_reason("agent", 0, 100, 120) == "total runtime exceeded 120s"
+finally:
+    if previous_idle_timeout is None:
+        os.environ.pop("PRODUCTIVE_K3S_REMOTE_BOOTSTRAP_IDLE_TIMEOUT_SECONDS", None)
+    else:
+        os.environ["PRODUCTIVE_K3S_REMOTE_BOOTSTRAP_IDLE_TIMEOUT_SECONDS"] = previous_idle_timeout
+    if previous_total_timeout is None:
+        os.environ.pop("PRODUCTIVE_K3S_REMOTE_BOOTSTRAP_TOTAL_TIMEOUT_SECONDS", None)
+    else:
+        os.environ["PRODUCTIVE_K3S_REMOTE_BOOTSTRAP_TOTAL_TIMEOUT_SECONDS"] = previous_total_timeout
 PY
 
 printf '[PASS] remote bootstrap runner keeps stack artifact-only and preserves agent prompts\n'

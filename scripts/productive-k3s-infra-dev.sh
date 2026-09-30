@@ -232,17 +232,25 @@ prepare_profiles_repo_checkout() {
         printf 'failed to clone productive-k3s-profiles from local checkout %s\n' "${source_repo}" >&2
         exit 1
       }
-      (
-        cd "${source_repo}"
-        tar --exclude=.git -cf - .
-      ) | (
-        cd "${target_repo}"
-        tar -xf -
-      )
     else
       mkdir -p "${target_repo}"
-      cp -a "${source_repo}/." "${target_repo}/"
     fi
+
+    (
+      cd "${source_repo}"
+      tar \
+        --exclude=.git \
+        --exclude=.terraform \
+        --exclude=.venv \
+        --exclude=site \
+        --exclude=test-artifacts \
+        --exclude=runs \
+        --exclude='__pycache__' \
+        -cf - .
+    ) | (
+      cd "${target_repo}"
+      tar -xf -
+    )
   }
 
   if [[ -n "${PRODUCTIVE_K3S_PROFILES_REPO_DIR:-}" ]]; then
@@ -308,7 +316,7 @@ run_prepared_scenario_test() {
 
   scenario_name="$(basename "${scenario_dir}")"
   target="scenario-test-${level}"
-  exec bash "${TESTS_DIR}/run-scenario-test.sh" "${level}" "${scenario_name}" "${scenario_dir}" "${target}"
+  bash "${TESTS_DIR}/run-scenario-test.sh" "${level}" "${scenario_name}" "${scenario_dir}" "${target}"
 }
 
 run_local_bash_suite() {
@@ -350,7 +358,9 @@ run_local_bash_suite() {
   bash "${TESTS_DIR}/test-live-onprem-basic-noninteractive.sh"
   bash "${TESTS_DIR}/test-live-onprem-basic-launch-timeout.sh"
   bash "${TESTS_DIR}/test-live-onprem-basic-cleanup-timeout.sh"
+  bash "${TESTS_DIR}/test-live-onprem-basic-failure-diagnostics.sh"
   bash "${TESTS_DIR}/test-live-onprem-basic-launch-recovery-hints.sh"
+  bash "${TESTS_DIR}/test-dev-runner-temp-checkout-cleanup.sh"
   bash -n "${TESTS_DIR}/live-onprem-basic-github-host.sh"
   bash -n "${TESTS_DIR}/live-onprem-remote-github-host.sh"
 }
@@ -437,7 +447,7 @@ case "$COMMAND" in
   test-static)
     default_test_telemetry_disabled
     prepare_profiles_repo_checkout
-    exec "${TESTS_DIR}/run-matrix.sh" static ${SCENARIOS}
+    "${TESTS_DIR}/run-matrix.sh" static ${SCENARIOS}
     ;;
   test-static-scenario)
     default_test_telemetry_disabled
@@ -447,7 +457,7 @@ case "$COMMAND" in
   test-contract)
     default_test_telemetry_disabled
     prepare_profiles_repo_checkout
-    exec "${TESTS_DIR}/run-matrix.sh" contract ${SCENARIOS}
+    "${TESTS_DIR}/run-matrix.sh" contract ${SCENARIOS}
     ;;
   test-contract-scenario)
     default_test_telemetry_disabled
@@ -458,12 +468,12 @@ case "$COMMAND" in
     prepare_profiles_repo_checkout
     bash "${TESTS_DIR}/test-multipass-telemetry-propagation.sh"
     bash "${TESTS_DIR}/test-multipass-infra-command-telemetry.sh"
-    exec bash "${TESTS_DIR}/test-remote-cluster-up-preserves-telemetry.sh"
+    bash "${TESTS_DIR}/test-remote-cluster-up-preserves-telemetry.sh"
     ;;
   test-live)
     default_test_telemetry_disabled
     prepare_profiles_repo_checkout
-    exec "${TESTS_DIR}/run-matrix.sh" live ${SCENARIOS}
+    "${TESTS_DIR}/run-matrix.sh" live ${SCENARIOS}
     ;;
   test-live-scenario)
     default_test_telemetry_disabled
@@ -474,21 +484,21 @@ case "$COMMAND" in
     default_test_telemetry_disabled
     prepare_profiles_repo_checkout
     export SCENARIO_DIR="${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/scenarios/edge/onprem-basic"
-    exec "${TESTS_DIR}/live-onprem-basic.sh" "$@"
+    "${TESTS_DIR}/live-onprem-basic.sh" "$@"
     ;;
   test-live-onprem-basic-arm)
     default_test_telemetry_disabled
     prepare_profiles_repo_checkout
     export SCENARIO_DIR="${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/scenarios/edge/onprem-basic-arm"
-    exec "${TESTS_DIR}/live-onprem-basic.sh" "$@"
+    "${TESTS_DIR}/live-onprem-basic.sh" "$@"
     ;;
   test-live-gha-onprem-bootstrap)
     prepare_profiles_repo_checkout
-    exec "${TESTS_DIR}/live-onprem-basic-github-host.sh" "$@"
+    "${TESTS_DIR}/live-onprem-basic-github-host.sh" "$@"
     ;;
   test-live-gha-onprem)
     prepare_profiles_repo_checkout
-    exec "${TESTS_DIR}/live-onprem-remote-github-host.sh" "$@"
+    "${TESTS_DIR}/live-onprem-remote-github-host.sh" "$@"
     ;;
   test-k3s-engine-propagation)
     exec bash "${TESTS_DIR}/test-k3s-engine-propagation.sh" "$@"

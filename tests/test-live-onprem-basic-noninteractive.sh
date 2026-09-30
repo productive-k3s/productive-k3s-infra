@@ -99,6 +99,16 @@ grep -F 'TELEMETRY_ENABLED=false' "${LOG_FILE}" >/dev/null || {
   exit 1
 }
 
+grep -F 'timeout --foreground --kill-after=30s "${LIVE_ONPREM_SCENARIO_TIMEOUT_SECONDS}s"' "${TARGET_SCRIPT}" >/dev/null || {
+  printf '[FAIL] live-onprem-basic.sh does not bound cluster-up runtime\n' >&2
+  exit 1
+}
+
+grep -F 'capture_failure_diagnostics' "${TARGET_SCRIPT}" >/dev/null || {
+  printf '[FAIL] live-onprem-basic.sh does not capture diagnostics before failed cleanup\n' >&2
+  exit 1
+}
+
 launch_count="$(grep -c '^launch ' "${MULTIPASS_LOG}")"
 if [[ "${launch_count}" != "3" ]]; then
   printf '[FAIL] expected multipass launch retry flow to attempt 3 launches, got %s\n' "${launch_count}" >&2
