@@ -6,6 +6,7 @@ import select
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -28,6 +29,26 @@ TELEMETRY_ENV_KEYS = [
 
 ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 DETECTED_STATE_RE = re.compile(r"-\s+(k3s|helm):\s+(present|missing)")
+IDLE_TIMEOUT_DEFAULTS = {
+    "server": 600,
+    "agent": 300,
+    "stack": 1200,
+}
+TOTAL_TIMEOUT_DEFAULTS = {
+    "server": 1800,
+    "agent": 1200,
+    "stack": 3600,
+}
+
+
+class SensitiveOutputRedactor:
+    def __init__(self, secrets: list[str]):
+        self.secrets = [secret for secret in secrets if secret]
+
+    def feed(self, value: str, final: bool = False) -> str:
+        for secret in self.secrets:
+            value = value.replace(secret, "[REDACTED]")
+        return value
 
 
 def sanitize_prompt_buffer(value: str) -> str:
@@ -59,6 +80,64 @@ def emit_info(message: str, log_handle=None) -> None:
     if log_handle:
         log_handle.write(line)
         log_handle.flush()
+
+
+def emit_output(value: str, log_handle=None) -> None:
+    if not value:
+        return
+    sys.stdout.write(value)
+    sys.stdout.flush()
+    if log_handle:
+        log_handle.write(value)
+        log_handle.flush()
+
+
+def timeout_from_env(name: str, default: int) -> int:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer number of seconds") from exc
+    if value <= 0:
+        raise ValueError(f"{name} must be greater than zero")
+    return value
+
+
+def idle_timeout_seconds(mode: str) -> int:
+    return timeout_from_env(
+        "PRODUCTIVE_K3S_REMOTE_BOOTSTRAP_IDLE_TIMEOUT_SECONDS",
+        IDLE_TIMEOUT_DEFAULTS[mode],
+    )
+
+
+def total_timeout_seconds(mode: str) -> int:
+    return timeout_from_env(
+        "PRODUCTIVE_K3S_REMOTE_BOOTSTRAP_TOTAL_TIMEOUT_SECONDS",
+        TOTAL_TIMEOUT_DEFAULTS[mode],
+    )
+
+
+def session_timeout_reason(mode: str, started_at: float, last_output_at: float, now: float) -> str | None:
+    total_elapsed = now - started_at
+    if total_elapsed >= total_timeout_seconds(mode):
+        return f"total runtime exceeded {total_timeout_seconds(mode)}s"
+    idle_elapsed = now - last_output_at
+    if idle_elapsed >= idle_timeout_seconds(mode):
+        return f"no remote output for {idle_timeout_seconds(mode)}s"
+    return None
+
+
+def terminate_process(proc, grace_seconds: int = 5) -> None:
+    if proc.poll() is not None:
+        return
+    proc.terminate()
+    try:
+        proc.wait(timeout=grace_seconds)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
 
 
 def write_prompt_answer(proc, prompt_text: str, answer: str, log_handle=None, response_kind: str = "auto-response") -> bool:
@@ -266,9 +345,9 @@ def build_stack_artifact_answers(args) -> str:
 def build_remote_script(args) -> str:
     remote_script = f"cd {shlex.quote(args.remote_dir)} && "
     telemetry_prefix = telemetry_env_prefix()
-    if telemetry_prefix:
-        remote_script += f"{telemetry_prefix} "
     if uses_stack_artifact_stdin(args):
+        if telemetry_prefix:
+            remote_script += f"{telemetry_prefix} "
         answers = shlex.quote(build_stack_artifact_answers(args))
         remote_script += (
             "bootstrap_answers_file=\"$(mktemp)\" && "
@@ -279,7 +358,10 @@ def build_remote_script(args) -> str:
             "stack_rc=$?; rm -f \"${bootstrap_answers_file}\"; exit \"${stack_rc}\""
         )
     else:
-        remote_script += f"./scripts/apply.sh --mode {shlex.quote(args.mode)}"
+        remote_script += "{ stty -echo 2>/dev/null || true; "
+        if telemetry_prefix:
+            remote_script += f"{telemetry_prefix} "
+        remote_script += f"./scripts/apply.sh --mode {shlex.quote(args.mode)}; }}"
     return remote_script
 
 
@@ -353,6 +435,10 @@ def main():
     first_output_seen = False
     idle_heartbeat_count = 0
     detected_state: dict[str, str] = {}
+    output_redactor = SensitiveOutputRedactor([args.cluster_token or ""])
+    started_at = time.monotonic()
+    last_output_at = started_at
+    timed_out = False
 
     rc = 1
     try:
@@ -362,6 +448,13 @@ def main():
         )
         emit_info(f"ssh pid={proc.pid}", log_handle)
         while True:
+            timeout_reason = session_timeout_reason(args.mode, started_at, last_output_at, time.monotonic())
+            if timeout_reason:
+                emit_info(f"remote bootstrap session timed out: {timeout_reason}", log_handle)
+                terminate_process(proc)
+                timed_out = True
+                rc = 124
+                break
             ready, _, _ = select.select([proc.stdout], [], [], select_timeout_seconds(args.mode))
             if not ready:
                 if proc.poll() is not None:
@@ -433,12 +526,9 @@ def main():
             if not first_output_seen:
                 emit_info("remote bootstrap session produced first output byte", log_handle)
                 first_output_seen = True
+            last_output_at = time.monotonic()
             idle_heartbeat_count = 0
-            sys.stdout.write(chunk)
-            sys.stdout.flush()
-            if log_handle:
-                log_handle.write(chunk)
-                log_handle.flush()
+            emit_output(output_redactor.feed(chunk), log_handle)
             prompt_buffer = (prompt_buffer + chunk)[-6000:]
             state_buffer = (state_buffer + chunk)[-50000:]
             normalized_prompt_buffer = sanitize_prompt_buffer(prompt_buffer)
@@ -484,9 +574,12 @@ def main():
                         log_handle,
                     )
                     prompt_buffer = ""
-        rc = proc.wait()
+        if not timed_out:
+            rc = proc.wait()
+        emit_output(output_redactor.feed("", final=True), log_handle)
         emit_info(f"remote bootstrap session exited with code {rc}", log_handle)
     finally:
+        terminate_process(proc)
         if log_handle:
             log_handle.close()
 

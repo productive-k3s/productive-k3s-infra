@@ -29,6 +29,7 @@ PROFILE ?=
 	test-local-all \
 	test-matrix-all \
 	test-logs-clean \
+	test-temp-clean \
 	infra-help \
 	infra-doctor \
 	infra-list-profiles \
@@ -106,6 +107,9 @@ test-matrix-all:
 
 test-logs-clean:
 	$(MAKE) -C $(TESTS_DIR) test-logs-clean
+
+test-temp-clean:
+	bash $(ROOT_DIR)/scripts/clean-test-temp.sh
 
 infra-help:
 	$(PUBLIC_CLI) help

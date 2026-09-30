@@ -21,6 +21,8 @@ MULTIPASS_LAUNCH_TIMEOUT_SECONDS="${MULTIPASS_LAUNCH_TIMEOUT_SECONDS:-180}"
 MULTIPASS_DELETE_TIMEOUT_SECONDS="${MULTIPASS_DELETE_TIMEOUT_SECONDS:-120}"
 ASYNC_MULTIPASS_CLEANUP_LOG_DIR="${ASYNC_MULTIPASS_CLEANUP_LOG_DIR:-/tmp}"
 MULTIPASS_LIST_TIMEOUT_SECONDS="${MULTIPASS_LIST_TIMEOUT_SECONDS:-15}"
+LIVE_ONPREM_SCENARIO_TIMEOUT_SECONDS="${LIVE_ONPREM_SCENARIO_TIMEOUT_SECONDS:-3600}"
+LIVE_ONPREM_DIAGNOSTIC_TIMEOUT_SECONDS="${LIVE_ONPREM_DIAGNOSTIC_TIMEOUT_SECONDS:-30}"
 
 is_transient_multipass_remote_error() {
   local stderr_file="$1"
@@ -88,6 +90,9 @@ pick_ssh_key() {
 
 cleanup() {
   local rc=$?
+  if [[ "${rc}" != "0" ]]; then
+    capture_failure_diagnostics
+  fi
   if ! cleanup_instances "${SERVER_NAME}" "${AGENT_NAME}"; then
     schedule_multipass_cleanup "${SERVER_NAME}" "${AGENT_NAME}"
   fi
@@ -97,6 +102,25 @@ cleanup() {
     warn "Preserving failed live-onprem workdir for inspection: ${WORK_DIR}"
   fi
   make -C "${SCENARIO_DIR}" clean >/dev/null 2>&1 || true
+}
+
+capture_instance_diagnostics() {
+  local name="$1"
+  local output_file="${WORK_DIR}/diagnostics-${name}.log"
+  local diagnostic_command='printf "=== systemctl ===\n"; sudo systemctl --no-pager --full status k3s k3s-agent 2>&1 || true; printf "\n=== journal ===\n"; sudo journalctl --no-pager -n 120 -u k3s -u k3s-agent 2>&1 || true; printf "\n=== network ===\n"; ip address 2>&1 || true; ip route 2>&1 || true'
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --kill-after=5s "${LIVE_ONPREM_DIAGNOSTIC_TIMEOUT_SECONDS}s" \
+      multipass exec "${name}" -- bash -lc "${diagnostic_command}" >"${output_file}" 2>&1 || true
+  else
+    multipass exec "${name}" -- bash -lc "${diagnostic_command}" >"${output_file}" 2>&1 || true
+  fi
+}
+
+capture_failure_diagnostics() {
+  warn "capturing on-prem VM diagnostics before cleanup"
+  capture_instance_diagnostics "${SERVER_NAME}"
+  capture_instance_diagnostics "${AGENT_NAME}"
 }
 
 schedule_multipass_cleanup() {
@@ -297,7 +321,12 @@ ONPREM_REGISTRY_HOST=registry.k3s.lab.internal
 PRODUCTIVE_K3S_SOURCE=$(resolve_productive_k3s_source)
 EOF
 
-make -C "${SCENARIO_DIR}" ONPREM_ENV_FILE="${ENV_FILE}" TELEMETRY_ENABLED=false up
+if command -v timeout >/dev/null 2>&1; then
+  timeout --foreground --kill-after=30s "${LIVE_ONPREM_SCENARIO_TIMEOUT_SECONDS}s" \
+    make -C "${SCENARIO_DIR}" ONPREM_ENV_FILE="${ENV_FILE}" TELEMETRY_ENABLED=false up
+else
+  make -C "${SCENARIO_DIR}" ONPREM_ENV_FILE="${ENV_FILE}" TELEMETRY_ENABLED=false up
+fi
 make -C "${SCENARIO_DIR}" ONPREM_ENV_FILE="${ENV_FILE}" TELEMETRY_ENABLED=false validate
 
 printf '[%s] [PASS] onprem-basic live test completed\n' "$(now_local)"
