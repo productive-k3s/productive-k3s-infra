@@ -8,6 +8,7 @@ SCENARIOS="multipass onprem-basic onprem-basic-arm aws-single-node"
 TEMP_PROFILES_CLONE_DIR=""
 TEMP_CORE_CLONE_DIR=""
 TEMP_ADDONS_CLONE_DIR=""
+TEMP_CHECKOUT_MARKER=".productive-k3s-infra-test-temp"
 
 # shellcheck disable=SC1091
 source "${REPO_DIR}/scripts/release-config.sh"
@@ -52,6 +53,16 @@ fi
 
 default_test_telemetry_disabled() {
   export TELEMETRY_ENABLED="false"
+}
+
+create_test_temp_dir() {
+  local kind="$1"
+  local temp_root="${TMPDIR:-/tmp}"
+  local temp_dir
+
+  temp_dir="$(mktemp -d "${temp_root%/}/productive-k3s-infra-${kind}.XXXXXXXXXX")"
+  : > "${temp_dir}/${TEMP_CHECKOUT_MARKER}"
+  printf '%s\n' "${temp_dir}"
 }
 
 cleanup_temp_profiles_clone() {
@@ -141,7 +152,7 @@ prepare_core_repo_checkout() {
   if [[ -n "${PRODUCTIVE_K3S_CORE_REPO_URL:-}" || -n "${PRODUCTIVE_K3S_CORE_REPO_REF:-}" ]]; then
     repo_url="${PRODUCTIVE_K3S_CORE_REPO_URL:-${PRODUCTIVE_K3S_CORE_GIT_REMOTE_URL_DEFAULT}}"
     repo_ref="$(resolve_default_core_ref)"
-    TEMP_CORE_CLONE_DIR="$(mktemp -d)"
+    TEMP_CORE_CLONE_DIR="$(create_test_temp_dir core)"
     clone_target="${TEMP_CORE_CLONE_DIR}/productive-k3s-core"
     log "Cloning productive-k3s-core from URL override: ${repo_url} (ref: ${repo_ref})"
     git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "${clone_target}" >/dev/null 2>&1 || {
@@ -162,7 +173,7 @@ prepare_core_repo_checkout() {
 
   repo_url="${PRODUCTIVE_K3S_CORE_REPO_URL:-${PRODUCTIVE_K3S_CORE_GIT_REMOTE_URL_DEFAULT}}"
   repo_ref="$(resolve_default_core_ref)"
-  TEMP_CORE_CLONE_DIR="$(mktemp -d)"
+  TEMP_CORE_CLONE_DIR="$(create_test_temp_dir core)"
   clone_target="${TEMP_CORE_CLONE_DIR}/productive-k3s-core"
   log "Cloning productive-k3s-core from URL: ${repo_url} (ref: ${repo_ref})"
   git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "${clone_target}" >/dev/null 2>&1 || {
@@ -189,7 +200,7 @@ prepare_addons_repo_checkout() {
   if [[ -n "${PRODUCTIVE_K3S_ADDONS_REPO_URL:-}" || -n "${PRODUCTIVE_K3S_ADDONS_REPO_REF:-}" ]]; then
     repo_url="${PRODUCTIVE_K3S_ADDONS_REPO_URL:-${PRODUCTIVE_K3S_ADDONS_GIT_REMOTE_URL_DEFAULT}}"
     repo_ref="$(resolve_default_addons_ref)"
-    TEMP_ADDONS_CLONE_DIR="$(mktemp -d)"
+    TEMP_ADDONS_CLONE_DIR="$(create_test_temp_dir addons)"
     clone_target="${TEMP_ADDONS_CLONE_DIR}/productive-k3s-addons"
     log "Cloning productive-k3s-addons from URL override: ${repo_url} (ref: ${repo_ref})"
     git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "${clone_target}" >/dev/null 2>&1 || {
@@ -208,7 +219,7 @@ prepare_addons_repo_checkout() {
 
   repo_url="${PRODUCTIVE_K3S_ADDONS_REPO_URL:-${PRODUCTIVE_K3S_ADDONS_GIT_REMOTE_URL_DEFAULT}}"
   repo_ref="$(resolve_default_addons_ref)"
-  TEMP_ADDONS_CLONE_DIR="$(mktemp -d)"
+  TEMP_ADDONS_CLONE_DIR="$(create_test_temp_dir addons)"
   clone_target="${TEMP_ADDONS_CLONE_DIR}/productive-k3s-addons"
   log "Cloning productive-k3s-addons from URL: ${repo_url} (ref: ${repo_ref})"
   git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "${clone_target}" >/dev/null 2>&1 || {
@@ -221,7 +232,7 @@ prepare_addons_repo_checkout() {
 prepare_profiles_repo_checkout() {
   local sibling_repo="${REPO_DIR}/../productive-k3s-profiles"
   local clone_target repo_url repo_ref source_repo
-  TEMP_PROFILES_CLONE_DIR="$(mktemp -d)"
+  TEMP_PROFILES_CLONE_DIR="$(create_test_temp_dir profiles)"
   trap cleanup_temp_profiles_clone EXIT
 
   clone_local_profiles_repo() {
@@ -361,6 +372,7 @@ run_local_bash_suite() {
   bash "${TESTS_DIR}/test-live-onprem-basic-failure-diagnostics.sh"
   bash "${TESTS_DIR}/test-live-onprem-basic-launch-recovery-hints.sh"
   bash "${TESTS_DIR}/test-dev-runner-temp-checkout-cleanup.sh"
+  bash "${TESTS_DIR}/test-clean-test-temp.sh"
   bash -n "${TESTS_DIR}/live-onprem-basic-github-host.sh"
   bash -n "${TESTS_DIR}/live-onprem-remote-github-host.sh"
 }

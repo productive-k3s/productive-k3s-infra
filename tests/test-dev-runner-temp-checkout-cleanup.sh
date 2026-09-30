@@ -36,6 +36,11 @@ cat > "${FAKE_INFRA}/tests/run-matrix.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 test -f "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/profiles/keep.txt"
+test -f "$(dirname "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}")/.productive-k3s-infra-test-temp"
+case "$(basename "$(dirname "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}")")" in
+  productive-k3s-infra-profiles.*) ;;
+  *) exit 1 ;;
+esac
 test ! -e "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/scenarios/local/multipass/.terraform"
 test ! -e "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/docs/.venv"
 test ! -e "${PRODUCTIVE_K3S_PROFILES_REPO_DIR}/docs/site"
