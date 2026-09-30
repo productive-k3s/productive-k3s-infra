@@ -72,7 +72,7 @@ case "${1:-}" in
     ;;
   transfer)
     printf '%s\n' "$2" >> "${MULTIPASS_TRANSFER_SOURCE_FILE}"
-    if [[ "$2" != "${HOME}/pk3s-productive-k3s-bundle-"* && "$2" != "${HOME}/pk3s-productive-k3s-addons-"* ]]; then
+    if [[ "$2" != "${HOME}/pk3s-productive-k3s-bundle-"* ]]; then
       printf 'archive should be staged under HOME, got %s\n' "$2" >&2
       exit 1
     fi
@@ -105,10 +105,17 @@ grep -F "${HOME}/pk3s-productive-k3s-bundle-" "${MULTIPASS_TRANSFER_SOURCE_FILE}
   exit 1
 }
 
-grep -F "${HOME}/pk3s-productive-k3s-addons-" "${MULTIPASS_TRANSFER_SOURCE_FILE}" >/dev/null || {
-  echo "[FAIL] addons transfer source was not staged under HOME" >&2
+transfer_count="$(wc -l < "${MULTIPASS_TRANSFER_SOURCE_FILE}")"
+if [[ "${transfer_count}" != "2" ]]; then
+  echo "[FAIL] expected one Core archive transfer per node, got ${transfer_count}" >&2
   cat "${MULTIPASS_TRANSFER_SOURCE_FILE}" >&2
   exit 1
-}
+fi
 
-echo "[PASS] multipass push helper stages transfer archive under HOME"
+if grep -F "productive-k3s-addons" "${MULTIPASS_TRANSFER_SOURCE_FILE}" >/dev/null; then
+  echo "[FAIL] Addons checkout must not be transferred with the Core runtime" >&2
+  cat "${MULTIPASS_TRANSFER_SOURCE_FILE}" >&2
+  exit 1
+fi
+
+echo "[PASS] multipass push helper stages only the Core archive under HOME"
