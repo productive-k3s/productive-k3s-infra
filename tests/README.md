@@ -110,11 +110,12 @@ Semantics:
 
 Latest local `make test-coverage` run:
 
-- total ShellSpec coverage: `76.08%`
-- `ansible/roles/remote_cluster/files/common.sh`: `75.54%`
-- `scripts/productive-k3s-infra.sh`: `74.80%`
-- `scripts/release-versioning.sh`: `64.29%`
+- total ShellSpec coverage: `85.11%` (`1652/1941` executable lines)
+- `ansible/roles/remote_cluster/files/common.sh`: `85.05%`
+- `scripts/productive-k3s-infra.sh`: `83.65%`
+- `scripts/release-versioning.sh`: `96.43%`
 - `scripts/export-runtime.sh`: `90.16%`
-- `scripts/create-release-tag.sh`: `59.09%`
+- `scripts/create-release-tag.sh`: `93.18%`
 
-Treat this as a maintainer baseline for new changes, not as a hard CI gate.
+The target enforces an `80%` repository floor. Maintainers can raise it for a
+focused run with `PK3S_COVERAGE_MIN=85 make -C tests test-coverage`.

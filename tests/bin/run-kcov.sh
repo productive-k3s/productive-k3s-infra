@@ -22,13 +22,29 @@ kcov \
 rc=$?
 set -e
 
-if [[ ${rc} -eq 0 ]]; then
-  exit 0
-fi
-
 if [[ ${rc} -eq 101 && -f "${COVERAGE_DIR}/shellspec/index.html" ]]; then
   printf 'kcov returned 101 but coverage artifacts were generated successfully.\n' >&2
-  exit 0
+elif [[ ${rc} -ne 0 ]]; then
+  exit "${rc}"
 fi
 
-exit "${rc}"
+coverage_json="$(find "${COVERAGE_DIR}/shellspec" -mindepth 2 -maxdepth 2 -name coverage.json -print -quit)"
+if [[ -z "${coverage_json}" ]]; then
+  printf 'Coverage report not found under %s\n' "${COVERAGE_DIR}/shellspec" >&2
+  exit 1
+fi
+
+python3 - "${coverage_json}" "${PK3S_COVERAGE_MIN:-80}" <<'PY'
+import json
+import sys
+
+report_path, minimum_text = sys.argv[1:]
+report = json.load(open(report_path, encoding="utf-8"))
+coverage = float(report["percent_covered"])
+minimum = float(minimum_text)
+covered = int(report["covered_lines"])
+total = int(report["total_lines"])
+print(f"Coverage: {coverage:.2f}% ({covered}/{total} executable lines); required: {minimum:.2f}%")
+if coverage < minimum:
+    raise SystemExit(f"Coverage {coverage:.2f}% is below required {minimum:.2f}%")
+PY
