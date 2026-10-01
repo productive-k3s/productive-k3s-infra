@@ -500,8 +500,7 @@ render_bom_json() {
       {"name": "mktemp", "min_version": "8.32", "reason": "temporary package and merge workspaces"}
     ],
     "optional_commands": [
-      {"name": "tofu", "min_version": "1.8.0", "reason": "preferred OpenTofu engine for local and cloud scenarios"},
-      {"name": "terraform", "min_version": "1.8.0", "reason": "fallback CLI when OpenTofu is unavailable"},
+      {"name": "tofu", "version": "1.12.6", "reason": "pinned OpenTofu engine for local and cloud profiles"},
       {"name": "jq", "min_version": "1.6", "reason": "JSON inspection and generated artifact helpers"},
       {"name": "ansible-playbook", "min_version": "2.15", "reason": "optional remote scenario orchestration"},
       {"name": "curl", "min_version": "7.81", "reason": "release artifact and helper downloads"}

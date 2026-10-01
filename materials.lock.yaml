@@ -1,0 +1,15 @@
+apiVersion: materials.productive-k3s.io/v1alpha1
+kind: MaterialsLock
+metadata:
+  owner: productive-k3s-infra
+  package: productive-k3s-infra
+  version: 0.9.64-0.9.5
+spec:
+  materials:
+    - {id: productive-k3s-core, type: product-artifact, name: productive-k3s-core, version: 0.9.5, source: "https://github.com/productive-k3s/productive-k3s-core", pinPolicy: exact, required: true}
+  requirements:
+    - {id: bash, type: binary, name: bash, version: "5.1", pinPolicy: minimum-supported, required: true}
+    - {id: make, type: binary, name: make, version: "4.3", pinPolicy: minimum-supported, required: true}
+    - {id: opentofu, type: binary, name: opentofu, version: "1.12.6", source: "https://github.com/opentofu/opentofu", pinPolicy: exact-when-profile-requires, required: false}
+    - {id: multipass, type: binary, name: multipass, version: "1.14", pinPolicy: minimum-supported, required: false}
+    - {id: ansible-core, type: binary, name: ansible-core, version: "2.15", pinPolicy: minimum-supported, required: false}

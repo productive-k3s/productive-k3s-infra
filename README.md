@@ -156,6 +156,12 @@ Repository and implementation guidance:
 - [CI/CD flow](https://infra.productive-k3s.io/en/developer-docs/guides/github-actions-and-cicd/)
 - [Documentation workflow](https://infra.productive-k3s.io/en/developer-docs/guides/documentation-workflow/)
 
+## Software Materials
+
+`materials.lock.yaml` declares Infra's bound Core release and orchestration
+requirements. Profile-specific providers and infrastructure images remain
+owned by each packaged Profile BOM.
+
 ## License
 
 Apache License 2.0. See [LICENSE](./LICENSE).
