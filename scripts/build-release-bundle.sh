@@ -50,6 +50,7 @@ cp "${REPO_ROOT}/scripts/productive-k3s-infra.sh" "${STAGE_DIR}/${PREFIX}/script
 cp "${REPO_ROOT}/scripts/release-config.sh" "${STAGE_DIR}/${PREFIX}/scripts/"
 cp "${REPO_ROOT}/scripts/send-telemetry-event.sh" "${STAGE_DIR}/${PREFIX}/scripts/"
 cp "${REPO_ROOT}/scripts/export-runtime.sh" "${STAGE_DIR}/${PREFIX}/scripts/"
+cp "${REPO_ROOT}/scripts/compatibility-runtime.sh" "${STAGE_DIR}/${PREFIX}/scripts/"
 mkdir -p "${STAGE_DIR}/${PREFIX}/scripts/export-templates"
 cp -R "${REPO_ROOT}/scripts/export-templates/profile" "${STAGE_DIR}/${PREFIX}/scripts/export-templates/"
 cat > "${STAGE_DIR}/${PREFIX}/scripts/release.env" <<EOF

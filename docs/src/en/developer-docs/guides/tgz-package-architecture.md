@@ -147,8 +147,19 @@ kind: Addon
 metadata:
   name: longhorn
   version: 1.0.0
+  sourceRevision: 0123456789abcdef0123456789abcdef01234567
   category: storage
 spec:
+  compatibility:
+    requires:
+      core:
+        contract: artifact/v1
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
+      kubernetes:
+        distros:
+          - k3s
+          - rke2
   type: helm
   chart:
     path: charts/longhorn
@@ -156,12 +167,6 @@ spec:
     script: scripts/install.sh
   dependencies:
     - cert-manager
-  compatibility:
-    architectures:
-      - amd64
-      - arm64
-    k3s:
-      minVersion: "1.31"
 ```
 
 ## Add-on install flow
@@ -173,7 +178,9 @@ spec:
 5. Core runs the installer
 6. Helm/scripts/hooks perform the installation
 
-The CLI should never implement Helm installation logic.
+The CLI should never implement Helm installation logic. It may reject an
+incompatible catalog entry early, but Core remains authoritative for Addon and
+Stack compatibility. Infra is authoritative for Profile compatibility.
 
 ## Profile/Infra TGZ format
 
@@ -199,8 +206,18 @@ kind: Profile
 metadata:
   name: aws-single-node-basic
   version: 1.0.0
+  sourceRevision: 0123456789abcdef0123456789abcdef01234567
   category: cloud
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: aws-single-node
     path: scenarios/cloud/aws-single-node

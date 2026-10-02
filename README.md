@@ -25,6 +25,12 @@ The repository now exposes two distinct surfaces:
 
 Published release bundles now ship only the packaged runtime surface. They do not carry the public `profiles/` or `scenarios/` trees; those live in `productive-k3s-profiles` and in the generated `profile.tgz` artifacts instead.
 
+Packaged profiles must declare the `profile/v1` compatibility contract, an
+Infra engine version window, a bound Core version window, and an immutable
+source revision. Infra parses composite releases as separate Infra and Core
+versions and rejects incompatible packages before executing any scenario
+target.
+
 Public runtime examples:
 
 ```bash

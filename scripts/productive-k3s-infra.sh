@@ -16,6 +16,10 @@ if [[ -f "${RELEASE_ENV_FILE}" ]]; then
   source "${RELEASE_ENV_FILE}"
   set +a
 fi
+: "${PRODUCTIVE_K3S_INFRA_ENGINE_VERSION:=0.9.65}"
+: "${PRODUCTIVE_K3S_CORE_VERSION:=0.9.6}"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/compatibility-runtime.sh"
 MAKE_BIN="${PRODUCTIVE_K3S_INFRA_MAKE_BIN:-make}"
 TOFU_BIN="${PRODUCTIVE_K3S_INFRA_TOFU_BIN:-}"
 VERSION="${PRODUCTIVE_K3S_INFRA_VERSION:-${PK3S_INFRA_RELEASE_TAG:-dev}}"
@@ -807,6 +811,7 @@ profile_yaml_get() {
     esac
     if [[ "${section}" == "metadata" && "${key}" == "metadata.name" && "${line}" == "  name:"* ]]; then printf '%s\n' "${line}"; return 0; fi
     if [[ "${section}" == "metadata" && "${key}" == "metadata.version" && "${line}" == "  version:"* ]]; then printf '%s\n' "${line}"; return 0; fi
+    if [[ "${section}" == "metadata" && "${key}" == "metadata.sourceRevision" && "${line}" == "  sourceRevision:"* ]]; then printf '%s\n' "${line}"; return 0; fi
     [[ "${section}" == "spec" ]] || continue
     case "${line}" in
       "  scenario:") subsection="scenario"; nested=""; continue ;;
@@ -1220,8 +1225,10 @@ resolve_profile_manifest() {
 
 validate_profile_package() {
   local manifest="$1"
-  local profile_name scenario_type scenario_path engine_type install_script apply_target status_target destroy_target
+  local profile_name profile_version source_revision scenario_type scenario_path engine_type install_script apply_target status_target destroy_target
   profile_name="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "metadata.name")")"
+  profile_version="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "metadata.version")")"
+  source_revision="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "metadata.sourceRevision")")"
   scenario_type="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "spec.scenario.type")")"
   scenario_path="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "spec.scenario.path")")"
   engine_type="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "spec.engine.type")")"
@@ -1231,6 +1238,9 @@ validate_profile_package() {
   destroy_target="$(trim_yaml_value "$(profile_yaml_get "${manifest}" "spec.execution.targets.destroy")")"
 
   [[ -n "${profile_name}" ]] || die 4 "profile package metadata.name is required"
+  [[ -n "${profile_version}" ]] || die 4 "profile package metadata.version is required"
+  [[ -n "${source_revision}" ]] || die 4 "profile package metadata.sourceRevision is required"
+  [[ "${source_revision}" =~ ^[0-9a-f]{40}$ ]] || die 4 "profile package metadata.sourceRevision must be an immutable Git SHA"
   [[ -n "${scenario_type}" ]] || die 4 "profile package spec.scenario.type is required"
   [[ -n "${scenario_path}" ]] || die 4 "profile package spec.scenario.path is required"
   [[ -n "${engine_type}" ]] || die 4 "profile package spec.engine.type is required"
@@ -1249,6 +1259,7 @@ validate_profile_package() {
   esac
 
   validate_profile_input_metadata "${manifest}"
+  pk3s_validate_profile_compatibility "${manifest}" "${profile_name}" "${profile_version}" || return $?
 
   printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "${profile_name}" "${scenario_type}" "${engine_type}" "${install_script}" "${scenario_path}" "${apply_target}" "${status_target}" "${destroy_target}"
 }

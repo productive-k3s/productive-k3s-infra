@@ -103,7 +103,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: demo
     path: scenario
@@ -157,7 +167,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -224,7 +244,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -286,7 +316,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -358,7 +398,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -415,7 +465,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -468,7 +528,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -526,7 +596,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: aws-single-node
     path: scenarios/cloud/aws-single-node
@@ -596,7 +676,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: aws-single-node
     path: scenarios/cloud/aws-single-node
@@ -659,7 +749,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -695,7 +795,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -746,7 +856,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -797,7 +917,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -845,7 +975,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -895,7 +1035,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: future-profile
     path: scenarios/custom/future-profile
@@ -968,7 +1118,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: multipass
     path: scenarios/local/multipass
@@ -1048,7 +1208,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: multipass
     path: scenarios/local/multipass
@@ -1110,7 +1280,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -1170,7 +1350,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -1324,7 +1514,17 @@ kind: Profile
 metadata:
   name: aws-single-node-basic
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: aws-single-node
     path: scenarios/cloud/aws-single-node
@@ -1426,7 +1626,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: multipass
     path: scenarios/local/multipass
@@ -1552,6 +1762,15 @@ AWS_ROOT_VOLUME_SIZE_GB=50
 EOF
     cat >"${profiles_repo}/profiles/cloud/aws-single-node/basic.package.yaml" <<'EOF'
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   inputs:
     - name: AWS_REGION
       required: true
