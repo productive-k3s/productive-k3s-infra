@@ -18,6 +18,7 @@ WORK_DIR="${TMP_DIR}/infra"
 mkdir -p "${WORK_DIR}/scripts" "${WORK_DIR}/profiles/local/test"
 cp "${ROOT_DIR}/scripts/productive-k3s-infra.sh" "${WORK_DIR}/scripts/"
 cp "${ROOT_DIR}/scripts/export-runtime.sh" "${WORK_DIR}/scripts/"
+cp "${ROOT_DIR}/scripts/compatibility-runtime.sh" "${WORK_DIR}/scripts/"
 
 SENDER_MARKER="${TMP_DIR}/sender-called"
 cat > "${WORK_DIR}/scripts/send-telemetry-event.sh" <<EOF
@@ -65,7 +66,17 @@ kind: Profile
 metadata:
   name: telemetry-profile
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: multipass
     path: scenarios/local/multipass
@@ -101,6 +112,7 @@ PROFILE_TGZ="${TMP_DIR}/telemetry-profile.tgz"
 tar -czf "${PROFILE_TGZ}" -C "${PACKAGE_DIR}" .
 
 rm -f "${SENDER_MARKER}"
-TELEMETRY_ENABLED=true PRODUCTIVE_K3S_INFRA_REPO_DIR="${WORK_DIR}" bash "${WORK_DIR}/scripts/productive-k3s-infra.sh" profile install --tgz "${PROFILE_TGZ}" >/dev/null
+TELEMETRY_ENABLED=true PRODUCTIVE_K3S_INFRA_VERSION=0.9.65-0.9.6 PRODUCTIVE_K3S_INFRA_REPO_DIR="${WORK_DIR}" \
+  bash "${WORK_DIR}/scripts/productive-k3s-infra.sh" profile install --tgz "${PROFILE_TGZ}" >/dev/null
 [[ -e "${SENDER_MARKER}" ]] || fail "telemetry sender was not called for profile install"
 pass "mutating infra profile install emits telemetry"
