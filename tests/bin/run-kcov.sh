@@ -6,7 +6,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/helpers/test-common.sh"
 need_cmd shellspec
 if ! command -v kcov >/dev/null 2>&1; then
   printf 'Missing required command: kcov\n' >&2
-  printf 'On Ubuntu, install it with: sudo apt-get install -y kcov libelf-dev libdw-dev\n' >&2
+  printf 'On Ubuntu, install the pinned test dependency with: bash tests/bin/install-kcov.sh\n' >&2
   exit 127
 fi
 

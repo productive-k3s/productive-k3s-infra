@@ -166,7 +166,10 @@ Repository and implementation guidance:
 
 `materials.lock.yaml` declares Infra's bound Core release and orchestration
 requirements. Profile-specific providers and infrastructure images remain
-owned by each packaged Profile BOM.
+owned by each packaged Profile BOM. The lock also inventories the exact Python
+and checksum-verified `kcov` versions used by CI with `scope: development` and
+`distribution: excluded`; these tools are not Infra runtime requirements and
+are not installed on provisioned hosts.
 
 ## License
 
