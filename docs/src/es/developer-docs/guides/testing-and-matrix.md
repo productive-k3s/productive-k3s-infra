@@ -31,6 +31,17 @@ make -C tests test-checkstatus
 make -C tests test-clean
 ```
 
+La cobertura usa el instalador de desarrollo de `kcov 43`, verificado por
+checksum:
+
+```bash
+bash tests/bin/install-kcov.sh
+```
+
+CI usa Python `3.11.17`; CMake y las bibliotecas firmadas de Ubuntu son
+prerrequisitos del runner. Estas herramientas no son requisitos del runtime de
+Infra ni se instalan en los hosts aprovisionados.
+
 ## Entry points principales de tests
 
 - `tests/check-test-status.sh`

@@ -25,6 +25,12 @@ The repository now exposes two distinct surfaces:
 
 Published release bundles now ship only the packaged runtime surface. They do not carry the public `profiles/` or `scenarios/` trees; those live in `productive-k3s-profiles` and in the generated `profile.tgz` artifacts instead.
 
+Packaged profiles must declare the `profile/v1` compatibility contract, an
+Infra engine version window, a bound Core version window, and an immutable
+source revision. Infra parses composite releases as separate Infra and Core
+versions and rejects incompatible packages before executing any scenario
+target.
+
 Public runtime examples:
 
 ```bash
@@ -155,6 +161,15 @@ Repository and implementation guidance:
 - [Testing and matrix](https://infra.productive-k3s.io/en/developer-docs/guides/testing-and-matrix/)
 - [CI/CD flow](https://infra.productive-k3s.io/en/developer-docs/guides/github-actions-and-cicd/)
 - [Documentation workflow](https://infra.productive-k3s.io/en/developer-docs/guides/documentation-workflow/)
+
+## Software Materials
+
+`materials.lock.yaml` declares Infra's bound Core release and orchestration
+requirements. Profile-specific providers and infrastructure images remain
+owned by each packaged Profile BOM. The lock also inventories the exact Python
+and checksum-verified `kcov` versions used by CI with `scope: development` and
+`distribution: excluded`; these tools are not Infra runtime requirements and
+are not installed on provisioned hosts.
 
 ## License
 

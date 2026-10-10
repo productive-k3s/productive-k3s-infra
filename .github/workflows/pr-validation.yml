@@ -43,13 +43,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.11.17"
 
       - name: Install shell test tooling
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.local/bin" "$HOME/.local/share"
+
+          bash productive-k3s-infra/tests/bin/install-kcov.sh
 
           curl -fsSLO https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz
           echo "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198  shellcheck-v0.11.0.linux.x86_64.tar.xz" | sha256sum -c -
@@ -80,6 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           PRODUCTIVE_K3S_PROFILES_REPO_DIR="${GITHUB_WORKSPACE}/productive-k3s-profiles" make test-unit
+          make test-coverage
           make test-lint
           make test-format
           make test-spell
@@ -117,6 +120,7 @@ jobs:
       - name: Set up OpenTofu
         uses: opentofu/setup-opentofu@9d84900f3238fab8cd84ce47d658d25dd008be2f # opentofu/setup-opentofu@v1
         with:
+          tofu_version: 1.12.6
           tofu_wrapper: false
 
       - name: Install Multipass
@@ -195,6 +199,7 @@ jobs:
       - name: Set up OpenTofu
         uses: opentofu/setup-opentofu@9d84900f3238fab8cd84ce47d658d25dd008be2f # opentofu/setup-opentofu@v1
         with:
+          tofu_version: 1.12.6
           tofu_wrapper: false
 
       - name: Start LocalStack

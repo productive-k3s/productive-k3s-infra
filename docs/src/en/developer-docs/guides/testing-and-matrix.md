@@ -31,6 +31,16 @@ make -C tests test-checkstatus
 make -C tests test-clean
 ```
 
+Coverage uses the development-only, checksum-verified `kcov 43` installer:
+
+```bash
+bash tests/bin/install-kcov.sh
+```
+
+CI uses Python `3.11.17`; CMake and signed Ubuntu build libraries are runner
+prerequisites. These tools are not required by Infra at runtime and are not
+installed on provisioned hosts.
+
 ## Main test entry points
 
 - `tests/check-test-status.sh`

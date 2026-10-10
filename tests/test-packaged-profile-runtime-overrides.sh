@@ -59,7 +59,17 @@ kind: Profile
 metadata:
   name: demo
   version: 0.1.0
+  sourceRevision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 spec:
+  compatibility:
+    requires:
+      infra:
+        contract: profile/v1
+        minEngineVersion: 0.9.65
+        maxEngineVersionExclusive: 0.10.0
+      core:
+        minVersion: 0.9.6
+        maxVersionExclusive: 0.10.0
   scenario:
     type: onprem-basic
     path: scenarios/edge/onprem-basic
@@ -95,6 +105,7 @@ tar -czf "${archive}" -C "${pkg_dir}" .
 
 PATH="${mock_bin}:$PATH" \
 MOCK_MAKE_LOG="${install_log}" \
+PRODUCTIVE_K3S_INFRA_VERSION=0.9.65-0.9.6 \
 PRODUCTIVE_K3S_SOURCE=remote \
 PRODUCTIVE_K3S_STACK_TGZ_URL=https://downloads.example/base-0.1.0.tgz \
 bash "${CLI}" profile install --tgz "${archive}" >/dev/null
@@ -104,6 +115,7 @@ assert_contains "${install_log}" 'PRODUCTIVE_K3S_STACK_TGZ_URL=https://downloads
 
 PATH="${mock_bin}:$PATH" \
 MOCK_MAKE_LOG="${status_log}" \
+PRODUCTIVE_K3S_INFRA_VERSION=0.9.65-0.9.6 \
 PRODUCTIVE_K3S_SOURCE=remote \
 PRODUCTIVE_K3S_STACK_TGZ_URL=https://downloads.example/base-0.1.0.tgz \
 bash "${CLI}" profile status --tgz "${archive}" >/dev/null
