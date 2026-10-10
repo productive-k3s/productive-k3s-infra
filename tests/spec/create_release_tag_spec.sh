@@ -20,7 +20,7 @@ case "$1" in
     fi
     ;;
   ls-remote)
-    printf 'abc123\trefs/tags/0.9.5\n'
+    printf 'abc123\trefs/tags/0.9.6\n'
     exit 0
     ;;
   config)
@@ -40,7 +40,7 @@ EOF
 
     When run bash -lc 'PATH="$1:$PATH" MOCK_GIT_LOG="$2" PRODUCTIVE_K3S_INFRA_REPO_DIR="$3" "$4" 1.2.3' bash "${mock_bin}" "${log_file}" "${repo_dir}" "${SCRIPT}"
     The status should equal 0
-    The output should include 'Created tag 1.2.3-0.9.5'
+    The output should include 'Created tag 1.2.3-0.9.6'
 
     rm -rf "${repo_dir}" "${mock_bin}"
     rm -f "${log_file}"
@@ -88,7 +88,7 @@ EOF
     mkdir -p "${config_dir}"
     cat >"${config_dir}/release-config.sh" <<'EOF'
 PRODUCTIVE_K3S_SOURCE_DEFAULT=local
-PRODUCTIVE_K3S_CORE_VERSION_DEFAULT=0.9.5
+PRODUCTIVE_K3S_CORE_VERSION_DEFAULT=0.9.6
 PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT=productive-k3s/productive-k3s-core
 EOF
     script_copy="${repo_dir}/scripts/create-release-tag.sh"
@@ -127,7 +127,7 @@ EOF
 
     When run bash -lc 'PATH="$1:$PATH" PRODUCTIVE_K3S_INFRA_REPO_DIR="$2" "$3" 1.2.3' bash "${mock_bin}" "${repo_dir}" "${SCRIPT}"
     The status should equal 1
-    The stderr should include 'tag already exists locally: 1.2.3-0.9.5'
+    The stderr should include 'tag already exists locally: 1.2.3-0.9.6'
     rm -rf "${repo_dir}" "${mock_bin}"
   End
 
@@ -161,7 +161,7 @@ EOF
 
     When run bash -lc 'PATH="$1:$PATH" PRODUCTIVE_K3S_INFRA_REPO_DIR="$2" "$3" 1.2.3' bash "${mock_bin}" "${repo_dir}" "${SCRIPT}"
     The status should equal 1
-    The stderr should include 'productive-k3s-core version 0.9.5 was not found'
+    The stderr should include 'productive-k3s-core version 0.9.6 was not found'
     rm -rf "${repo_dir}" "${mock_bin}"
   End
 
@@ -184,7 +184,7 @@ case "$1" in
     fi
     ;;
   ls-remote)
-    printf 'abc123\trefs/tags/v0.9.5\n'
+    printf 'abc123\trefs/tags/v0.9.6\n'
     exit 0
     ;;
   config)
@@ -208,8 +208,8 @@ EOF
 
     When run bash -lc 'PATH="$1:$PATH" MOCK_GIT_LOG="$2" PRODUCTIVE_K3S_INFRA_REPO_DIR="$3" "$4" 1.2.3; cat "$2"' bash "${mock_bin}" "${log_file}" "${repo_dir}" "${SCRIPT}"
     The status should equal 0
-    The output should include 'Created tag 1.2.3-0.9.5'
-    The output should include '-c user.name=Release Bot -c user.email=release@example.invalid tag -a 1.2.3-0.9.5'
+    The output should include 'Created tag 1.2.3-0.9.6'
+    The output should include '-c user.name=Release Bot -c user.email=release@example.invalid tag -a 1.2.3-0.9.6'
 
     rm -rf "${repo_dir}" "${mock_bin}"
     rm -f "${log_file}"

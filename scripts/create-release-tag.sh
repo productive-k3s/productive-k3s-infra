@@ -7,7 +7,7 @@ Usage:
   ./scripts/create-release-tag.sh <infra-version>
 
 Example:
-  ./scripts/create-release-tag.sh 0.9.5
+  ./scripts/create-release-tag.sh 0.9.6
 EOF
 }
 
