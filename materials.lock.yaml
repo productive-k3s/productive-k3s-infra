@@ -3,10 +3,10 @@ kind: MaterialsLock
 metadata:
   owner: productive-k3s-infra
   package: productive-k3s-infra
-  version: 0.9.64-0.9.5
+  version: 0.9.65-0.9.6
 spec:
   materials:
-    - {id: productive-k3s-core, type: product-artifact, name: productive-k3s-core, version: 0.9.5, source: "https://github.com/productive-k3s/productive-k3s-core", pinPolicy: exact, required: true}
+    - {id: productive-k3s-core, type: product-artifact, name: productive-k3s-core, version: 0.9.6, source: "https://github.com/productive-k3s/productive-k3s-core", pinPolicy: exact, required: true}
     - id: python-ci
       type: binary
       name: python

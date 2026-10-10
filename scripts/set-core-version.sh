@@ -49,6 +49,8 @@ if [[ ! "${CORE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   exit 1
 fi
 
+previous_core_version="${PRODUCTIVE_K3S_CORE_VERSION_DEFAULT}"
+
 core_remote_url="${PRODUCTIVE_K3S_CORE_GIT_REMOTE_URL:-https://github.com/${PRODUCTIVE_K3S_RELEASE_REPO_DEFAULT}.git}"
 remote_refs="$(git_ls_remote_safe "${core_remote_url}" "refs/tags/${CORE_VERSION}" "refs/tags/v${CORE_VERSION}" || true)"
 if [[ -z "${remote_refs}" ]]; then
@@ -76,6 +78,7 @@ files=(
   "tests/test-release-versioning.sh"
   "tests/test-productive-k3s-infra-cli.sh"
   "tests/spec/create_release_tag_spec.sh"
+  "materials.lock.yaml"
 )
 
 replace_in_file "${REPO_ROOT}/scripts/release-config.sh" 'PRODUCTIVE_K3S_CORE_VERSION_DEFAULT:=\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
@@ -91,6 +94,9 @@ replace_in_file "${REPO_ROOT}/tests/test-release-versioning.sh" '"\K[0-9]+\.[0-9
 replace_in_file "${REPO_ROOT}/tests/test-productive-k3s-infra-cli.sh" "'.productive_k3s.default_core_version' '\\K[0-9]+\\.[0-9]+\\.[0-9]+(?=')" "${CORE_VERSION}"
 replace_in_file "${REPO_ROOT}/tests/spec/create_release_tag_spec.sh" 'refs/tags/\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
 replace_in_file "${REPO_ROOT}/tests/spec/create_release_tag_spec.sh" 'Created tag 1\.2\.3-\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${REPO_ROOT}/tests/spec/create_release_tag_spec.sh" 'tag -a 1\.2\.3-\K[0-9]+\.[0-9]+\.[0-9]+' "${CORE_VERSION}"
+replace_in_file "${REPO_ROOT}/tests/spec/create_release_tag_spec.sh" "\\Q${previous_core_version}\\E" "${CORE_VERSION}"
+replace_in_file "${REPO_ROOT}/materials.lock.yaml" "\\Q${previous_core_version}\\E" "${CORE_VERSION}"
 
 printf 'Updated productive-k3s-core default version to %s in:\n' "${CORE_VERSION}"
 for path in "${files[@]}"; do
