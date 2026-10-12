@@ -54,6 +54,46 @@ EOF
     The output should include 'plan'
   End
 
+  It 'exports Make TF_VAR assignments as literal OpenTofu environment values'
+    When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
+      scenario_dir="$(mktemp -d)"
+      mkdir -p "${scenario_dir}/opentofu"
+      mock_bin="$(mktemp -d)"
+      log_file="$(mktemp)"
+      marker="${scenario_dir}/must-not-exist"
+      profile_env="${scenario_dir}/profile.env"
+      cat >"${profile_env}" <<'\''EOF'\''
+PK3S_TEST_PROFILE=true
+EOF
+      cat >"${scenario_dir}/Makefile" <<EOF
+.PHONY: all
+all:
+	@:
+TF_VAR_recursive = recursive value
+TF_VAR_immediate := immediate value
+TF_VAR_conditional ?= conditional value
+TF_VAR_shell_text = literal; touch ${marker}
+EOF
+      cat >"${mock_bin}/tofu" <<'\''EOF'\''
+#!/usr/bin/env bash
+if [[ "${*: -1}" == "plan" ]]; then
+  printf "%s|%s|%s|%s\n" \
+    "${TF_VAR_recursive:-}" \
+    "${TF_VAR_immediate:-}" \
+    "${TF_VAR_conditional:-}" \
+    "${TF_VAR_shell_text:-}" >>"${MOCK_TOFU_LOG}"
+fi
+EOF
+      chmod +x "${mock_bin}/tofu"
+      export PATH="${mock_bin}:${PATH}"
+      export MOCK_TOFU_LOG="${log_file}"
+      run_opentofu_plan "${scenario_dir}" "${profile_env}"
+      [[ ! -e "${marker}" ]]
+      cat "${log_file}"'
+    The status should equal 0
+    The output should include 'recursive value|immediate value|conditional value|literal; touch '
+  End
+
   It 'fails OpenTofu plan when the scenario has no opentofu directory'
     When run /usr/bin/bash "$RUNNER" "$SCRIPT" '
       scenario_dir="$(mktemp -d)"

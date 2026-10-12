@@ -593,12 +593,45 @@ validate_profile() {
   validate_profile_package_target "PK3S_INFRA_DESTROY_TARGET" "${PK3S_INFRA_DESTROY_TARGET:-}"
 }
 
+export_opentofu_make_vars() {
+  local scenario_dir="$1"
+  local make_bin="$2"
+  local make_database
+  local name
+  local value
+
+  make_database="$(mktemp)"
+  if ! (
+    cd "${scenario_dir}"
+    "${make_bin}" -pn
+  ) >"${make_database}"; then
+    rm -f "${make_database}"
+    die 1 "could not resolve OpenTofu variables from ${scenario_dir}/Makefile"
+  fi
+
+  while IFS=$'\t' read -r name value; do
+    [[ "${name}" =~ ^TF_VAR_[A-Za-z0-9_]+$ ]] \
+      || die 1 "invalid OpenTofu variable name emitted by Make: ${name}"
+    export "${name}=${value}"
+  done < <(
+    awk '
+      /^TF_VAR_[A-Za-z0-9_]+[[:space:]]*[:+?]?=/ {
+        name = $0
+        sub(/[[:space:]]*[:+?]?=.*/, "", name)
+        value = $0
+        sub(/^[^=]*=[[:space:]]*/, "", value)
+        printf "%s\t%s\n", name, value
+      }
+    ' "${make_database}"
+  )
+  rm -f "${make_database}"
+}
+
 run_opentofu_plan() {
   local scenario_dir="$1"
   local profile_env_path="${2:-}"
   local opentofu_dir="${scenario_dir}/opentofu"
   local resolved_tofu
-  local tf_env_file=""
   local make_bin="${PK3S_PROFILE_MAKE_BIN:-${MAKE_BIN}}"
 
   [[ -d "${opentofu_dir}" ]] || die 1 "opentofu directory not found: ${opentofu_dir}"
@@ -612,25 +645,11 @@ run_opentofu_plan() {
       set +a
 
       if [[ -f "${scenario_dir}/Makefile" ]]; then
-        tf_env_file="$(mktemp)"
-        (
-          cd "${scenario_dir}"
-          "${make_bin}" -pn \
-            | awk -F' := ' '/^TF_VAR_/ {print $1"="$2}'
-        ) > "${tf_env_file}"
-        if [[ -s "${tf_env_file}" ]]; then
-          set -a
-          # shellcheck disable=SC1090
-          source "${tf_env_file}"
-          set +a
-        fi
+        export_opentofu_make_vars "${scenario_dir}" "${make_bin}"
       fi
     fi
     "${resolved_tofu}" -chdir="${opentofu_dir}" init -backend=false
     "${resolved_tofu}" -chdir="${opentofu_dir}" plan
-    if [[ -n "${tf_env_file}" ]]; then
-      rm -f "${tf_env_file}"
-    fi
   )
 }
 
