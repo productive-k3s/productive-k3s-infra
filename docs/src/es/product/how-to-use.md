@@ -38,7 +38,7 @@ Los usuarios avanzados también pueden optar por:
 PRODUCTIVE_K3S_ENGINE=k3sup
 ```
 
-Eso está documentado intencionalmente como experimental.
+Eso está documentado intencionalmente como experimental. Cuando se selecciona, Infra acepta únicamente el binario `k3sup 0.13.13` verificado por checksum y declarado en `materials.lock.yaml`. Nunca ejecuta el instalador mutable `get.k3sup.dev`; un binario preexistente se reutiliza solo cuando coinciden tanto su checksum oficial como la versión informada.
 
 ## Usá los entrypoints públicos
 

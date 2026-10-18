@@ -7,6 +7,25 @@ metadata:
 spec:
   materials:
     - {id: productive-k3s-core, type: product-artifact, name: productive-k3s-core, version: 0.9.6, source: "https://github.com/productive-k3s/productive-k3s-core", pinPolicy: exact, required: true}
+    - id: k3sup
+      type: binary
+      name: k3sup
+      version: 0.13.13
+      source: https://github.com/alexellis/k3sup
+      pinPolicy: exact-checksum
+      required: false
+      scope: runtime-optional
+      checksums:
+        linux-amd64: sha256:7f2db0cf4c28d413bc094aa2e1a809bd772875486f385bd57dd2d7575e7c7509
+        linux-arm64: sha256:0d3d5894dda1013943cfbfc443580d973402972ebda36a42365cf8b67aa22ea5
+        linux-armhf: sha256:c4c5c27ac6c932d35788608e90c34948e5b8836d4391390fd3c19f6d26cf0fcc
+        darwin-amd64: sha256:b7120a217264b5a6465457733599bacb5d8dc55da08362c50c01efcf641d297a
+        darwin-arm64: sha256:e25fe8461b296d2f677e8ff1e5ca2380d59acbf75c25e571e1f60b7382262784
+      usedBy:
+        - ansible/roles/remote_cluster/files/common.sh
+      updateSource:
+        type: github-release
+        repository: alexellis/k3sup
     - id: python-ci
       type: binary
       name: python

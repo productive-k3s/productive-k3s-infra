@@ -25,6 +25,13 @@ fi
 : "${PRODUCTIVE_K3S_STACK_DOWNLOAD_MAX_RETRIES_DEFAULT:=4}"
 : "${PRODUCTIVE_K3S_STACK_DOWNLOAD_CONNECT_TIMEOUT_SECONDS_DEFAULT:=10}"
 : "${PRODUCTIVE_K3S_STACK_DOWNLOAD_REQUEST_TIMEOUT_SECONDS_DEFAULT:=180}"
+: "${K3SUP_VERSION:=0.13.13}"
+: "${K3SUP_RELEASE_BASE_URL:=https://github.com/alexellis/k3sup/releases/download}"
+: "${K3SUP_LINUX_AMD64_SHA256:=7f2db0cf4c28d413bc094aa2e1a809bd772875486f385bd57dd2d7575e7c7509}"
+: "${K3SUP_LINUX_ARM64_SHA256:=0d3d5894dda1013943cfbfc443580d973402972ebda36a42365cf8b67aa22ea5}"
+: "${K3SUP_LINUX_ARMHF_SHA256:=c4c5c27ac6c932d35788608e90c34948e5b8836d4391390fd3c19f6d26cf0fcc}"
+: "${K3SUP_DARWIN_AMD64_SHA256:=b7120a217264b5a6465457733599bacb5d8dc55da08362c50c01efcf641d297a}"
+: "${K3SUP_DARWIN_ARM64_SHA256:=e25fe8461b296d2f677e8ff1e5ca2380d59acbf75c25e571e1f60b7382262784}"
 resolve_default_productive_k3s_repo() {
   local candidate="${SCENARIO_DIR}/../../../../productive-k3s-core"
   if [[ -d "${candidate}" ]]; then
@@ -627,29 +634,104 @@ resolve_hosts_entry_ip() {
   exit 1
 }
 
+k3sup_binary_version() {
+  local binary="$1"
+  "${binary}" version 2>/dev/null | sed -n 's/^.*Version: *//p' | head -n 1
+}
+
+resolve_k3sup_release_asset() {
+  local platform
+  platform="$(uname -s):$(uname -m)"
+  case "${platform}" in
+    Linux:x86_64|Linux:amd64)
+      K3SUP_RELEASE_ASSET="k3sup"
+      K3SUP_RELEASE_SHA256="${K3SUP_LINUX_AMD64_SHA256}"
+      ;;
+    Linux:aarch64|Linux:arm64)
+      K3SUP_RELEASE_ASSET="k3sup-arm64"
+      K3SUP_RELEASE_SHA256="${K3SUP_LINUX_ARM64_SHA256}"
+      ;;
+    Linux:armv7l|Linux:armv6l|Linux:armhf)
+      K3SUP_RELEASE_ASSET="k3sup-armhf"
+      K3SUP_RELEASE_SHA256="${K3SUP_LINUX_ARMHF_SHA256}"
+      ;;
+    Darwin:x86_64|Darwin:amd64)
+      K3SUP_RELEASE_ASSET="k3sup-darwin"
+      K3SUP_RELEASE_SHA256="${K3SUP_DARWIN_AMD64_SHA256}"
+      ;;
+    Darwin:arm64|Darwin:aarch64)
+      K3SUP_RELEASE_ASSET="k3sup-darwin-arm64"
+      K3SUP_RELEASE_SHA256="${K3SUP_DARWIN_ARM64_SHA256}"
+      ;;
+    *)
+      err "unsupported controller platform for k3sup ${K3SUP_VERSION}: ${platform}"
+      return 1
+      ;;
+  esac
+}
+
+verify_k3sup_binary() {
+  local binary="$1"
+  local quiet="${2:-false}"
+  local actual_sha actual_version
+  actual_sha="$(sha256sum "${binary}" 2>/dev/null | awk '{print $1}')"
+  if [[ "${actual_sha}" != "${K3SUP_RELEASE_SHA256}" ]]; then
+    [[ "${quiet}" == "true" ]] || err "k3sup checksum mismatch for ${binary}"
+    return 1
+  fi
+  actual_version="$(k3sup_binary_version "${binary}")"
+  if [[ "${actual_version}" != "${K3SUP_VERSION}" ]]; then
+    [[ "${quiet}" == "true" ]] || err "k3sup version mismatch: expected ${K3SUP_VERSION}, got ${actual_version:-unknown}"
+    return 1
+  fi
+}
+
 ensure_local_k3sup() {
+  resolve_k3sup_release_asset
+  local existing_binary=""
   if command -v k3sup >/dev/null 2>&1; then
-    K3SUP_BIN="$(command -v k3sup)"
-    return 0
+    existing_binary="$(command -v k3sup)"
+    if verify_k3sup_binary "${existing_binary}" true; then
+      K3SUP_BIN="${existing_binary}"
+      return 0
+    fi
+    warn "Ignoring unpinned k3sup at ${existing_binary}; installing verified ${K3SUP_VERSION}"
   fi
 
-  local tmp_dir=""
+  local tmp_dir="" downloaded_binary=""
   tmp_dir="$(mktemp -d)"
-  log "Installing k3sup on the controller..."
-  (
-    cd "${tmp_dir}"
-    curl -sLS https://get.k3sup.dev | sh
-  )
+  downloaded_binary="${tmp_dir}/k3sup"
+  log "Installing verified k3sup ${K3SUP_VERSION} on the controller..."
+  if ! curl --proto '=https' --tlsv1.2 --fail --location --silent --show-error \
+    --retry 3 \
+    "${K3SUP_RELEASE_BASE_URL}/${K3SUP_VERSION}/${K3SUP_RELEASE_ASSET}" \
+    --output "${downloaded_binary}"; then
+    rm -rf "${tmp_dir}"
+    err "failed to download k3sup ${K3SUP_VERSION}"
+    return 1
+  fi
+  if ! printf '%s  %s\n' "${K3SUP_RELEASE_SHA256}" "${downloaded_binary}" | sha256sum -c - >/dev/null; then
+    rm -rf "${tmp_dir}"
+    err "k3sup checksum verification failed for ${K3SUP_RELEASE_ASSET}"
+    return 1
+  fi
+  chmod 0755 "${downloaded_binary}"
+  if ! verify_k3sup_binary "${downloaded_binary}"; then
+    rm -rf "${tmp_dir}"
+    return 1
+  fi
+
   if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
-    sudo install "${tmp_dir}/k3sup" /usr/local/bin/k3sup
+    sudo install -m 0755 "${downloaded_binary}" /usr/local/bin/k3sup
     K3SUP_BIN="/usr/local/bin/k3sup"
   else
     mkdir -p "${HOME}/.local/bin"
-    install "${tmp_dir}/k3sup" "${HOME}/.local/bin/k3sup"
+    install -m 0755 "${downloaded_binary}" "${HOME}/.local/bin/k3sup"
     export PATH="${HOME}/.local/bin:${PATH}"
     K3SUP_BIN="${HOME}/.local/bin/k3sup"
   fi
   rm -rf "${tmp_dir}"
+  verify_k3sup_binary "${K3SUP_BIN}"
 }
 
 k3sup_controller_join_agent() {
