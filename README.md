@@ -43,6 +43,8 @@ Public runtime examples:
 
 For packaged installs, the `profile.env` embedded in the TGZ is only the base/default contract of the package. `profile.yaml` now carries `spec.inputs` metadata that declares which values can come from package defaults and which values must be supplied locally. Using a packaged profile without local overrides only makes sense for self-contained targets such as local host-driven scenarios. Installation-specific values should be passed from the invoking machine through `--env-file`, especially for cloud and on-prem profiles.
 
+Infra parses profile and override env files as data-only `KEY=VALUE` records (optional `export` is accepted). Shell statements, command substitution, process substitution, and backticks are rejected rather than executed. Local overrides take precedence over package defaults; `$HOME` and `${HOME}` path prefixes are the only controlled expansions.
+
 `export` is an alternate output mode for the same resolved profile contract.
 Instead of executing immediately, Infra can emit an executable bundle that:
 

@@ -6,15 +6,18 @@ REQUESTED_PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="${PRODUCTIVE_K3S_INFRA_REPO_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
+ENV_FILE_RUNTIME="${SCRIPT_DIR}/env-file-runtime.sh"
+if [[ ! -f "${ENV_FILE_RUNTIME}" && -f "${REPO_DIR}/scripts/env-file-runtime.sh" ]]; then
+  ENV_FILE_RUNTIME="${REPO_DIR}/scripts/env-file-runtime.sh"
+fi
+# shellcheck disable=SC1090
+source "${ENV_FILE_RUNTIME}"
 RELEASE_ENV_FILE="${SCRIPT_DIR}/release.env"
 if [[ ! -f "${RELEASE_ENV_FILE}" && -f "${REPO_DIR}/scripts/release.env" ]]; then
   RELEASE_ENV_FILE="${REPO_DIR}/scripts/release.env"
 fi
 if [[ -f "${RELEASE_ENV_FILE}" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "${RELEASE_ENV_FILE}"
-  set +a
+  pk3s_env_load_file "${RELEASE_ENV_FILE}"
 fi
 : "${PRODUCTIVE_K3S_INFRA_ENGINE_VERSION:=0.9.65}"
 : "${PRODUCTIVE_K3S_CORE_VERSION:=0.9.6}"
@@ -553,10 +556,7 @@ source_profile_target() {
 source_profile() {
   local profile="$1"
   [[ -f "${profile}" ]] || die 3 "profile not found: ${profile}"
-  set -a
-  # shellcheck disable=SC1090
-  source "${profile}"
-  set +a
+  pk3s_env_load_file "${profile}"
 }
 
 require_env() {
@@ -639,10 +639,7 @@ run_opentofu_plan() {
   log "INFO" "Running OpenTofu plan in ${opentofu_dir}"
   (
     if [[ -n "${profile_env_path}" ]]; then
-      set -a
-      # shellcheck disable=SC1090
-      source "${profile_env_path}"
-      set +a
+      pk3s_env_load_file "${profile_env_path}"
 
       if [[ -f "${scenario_dir}/Makefile" ]]; then
         export_opentofu_make_vars "${scenario_dir}" "${make_bin}"
@@ -1187,10 +1184,7 @@ env_file_var_has_value() {
   local var_name="$2"
   [[ -n "${env_file}" && -f "${env_file}" ]] || return 1
   (
-    set -a
-    # shellcheck disable=SC1090
-    source "${env_file}"
-    set +a
+    pk3s_env_load_file "${env_file}"
     [[ -n "${!var_name:-}" ]]
   )
 }
@@ -1339,15 +1333,19 @@ merged_packaged_profile_env_file() {
   local override_env="${2:-}"
   local base_env merged_env
   base_env="$(packaged_profile_env_file "${package_root}")" || return $?
-  if [[ -z "${override_env}" ]]; then
-    printf '%s\n' "${base_env}"
-    return 0
-  fi
-  [[ -f "${override_env}" ]] || die 4 "override env file not found: ${override_env}"
   merged_env="$(mktemp)"
-  cat "${base_env}" > "${merged_env}"
-  printf '\n' >> "${merged_env}"
-  cat "${override_env}" >> "${merged_env}"
+  if [[ -n "${override_env}" ]]; then
+    [[ -f "${override_env}" ]] || die 4 "override env file not found: ${override_env}"
+    pk3s_env_normalize_files "${merged_env}" "${base_env}" "${override_env}" || {
+      rm -f "${merged_env}"
+      return 4
+    }
+  else
+    pk3s_env_normalize_files "${merged_env}" "${base_env}" || {
+      rm -f "${merged_env}"
+      return 4
+    }
+  fi
   printf '%s\n' "${merged_env}"
 }
 
@@ -1486,10 +1484,7 @@ capture_packaged_profile_runtime_overrides() {
 source_packaged_profile_env_with_runtime_overrides() {
   local profile_env="$1"
   local runtime_env="$2"
-  set -a
-  # shellcheck disable=SC1090
-  source "${profile_env}"
-  set +a
+  pk3s_env_load_file "${profile_env}"
   # shellcheck disable=SC1090
   source "${runtime_env}"
 }

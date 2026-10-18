@@ -53,6 +53,8 @@ pk3s infra install aws-single-node-basic --env-file ./aws.env
 
 El `profile.env` embebido en un `profile.tgz` público se trata como archivo base/default del paquete, no como la configuración final específica de la instalación. Para instalaciones reales, especialmente en cloud y on-prem, pasá overrides locales desde la máquina que invoca mediante `--env-file`.
 
+Infra interpreta los defaults del paquete y las entradas de `--env-file` como registros data-only `KEY=VALUE`; también acepta el prefijo opcional `export`. No evalúa código shell: rechaza sustitución de comandos, sustitución de procesos, backticks y sentencias shell independientes. Los overrides prevalecen sobre los defaults del paquete, y solamente los prefijos de ruta `$HOME` o `${HOME}` tienen expansión controlada.
+
 ## Usá los entrypoints de desarrollo
 
 Los profiles `.env` fuente siguen siendo válidos para desarrollo del repositorio y CI. En el modelo separado, esos archivos provienen de un clon temporal o checkout explícito de `productive-k3s-profiles`, expuesto al engine mediante `PRODUCTIVE_K3S_PROFILES_REPO_DIR`.

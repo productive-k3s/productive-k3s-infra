@@ -53,6 +53,8 @@ pk3s infra install aws-single-node-basic --env-file ./aws.env
 
 The `profile.env` embedded in a public `profile.tgz` is treated as the package base/default file, not as the final installation-specific configuration. For real installations, especially cloud and on-prem targets, provide local overrides from the invoking machine through `--env-file`.
 
+Infra parses package defaults and `--env-file` inputs as data-only `KEY=VALUE` records; optional `export` prefixes are accepted. It does not evaluate shell code: command substitution, process substitution, backticks, and standalone shell statements are rejected. Overrides win over package defaults, and only `$HOME` or `${HOME}` path prefixes receive controlled expansion.
+
 Infra can also export the same resolved installation as an executable bundle instead of running it immediately:
 
 ```bash
