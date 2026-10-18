@@ -55,6 +55,8 @@ El `profile.env` embebido en un `profile.tgz` público se trata como archivo bas
 
 Infra interpreta los defaults del paquete y las entradas de `--env-file` como registros data-only `KEY=VALUE`; también acepta el prefijo opcional `export`. No evalúa código shell: rechaza sustitución de comandos, sustitución de procesos, backticks y sentencias shell independientes. Los overrides prevalecen sobre los defaults del paquete, y solamente los prefijos de ruta `$HOME` o `${HOME}` tienen expansión controlada.
 
+Los profiles remotos aplican la misma política fail-closed a los datos de transporte SSH. El workspace remoto debe ser una ruta absoluta normalizada y anidada debajo de un directorio de primer nivel; se rechazan raíces protegidas, segmentos de punto, espacios y metacaracteres de shell antes de cualquier copia o borrado. Los argumentos SSH extra deben usar pares repetidos `-o Name=Value`. Opciones de transporte como `LogLevel`, `UserKnownHostsFile` y `ProxyJump` siguen siendo válidas, mientras que opciones capaces de ejecutar comandos o cargar configuración, como `ProxyCommand`, `LocalCommand`, `RemoteCommand`, `KnownHostsCommand`, `PermitLocalCommand` e `Include`, se rechazan.
+
 ## Usá los entrypoints de desarrollo
 
 Los profiles `.env` fuente siguen siendo válidos para desarrollo del repositorio y CI. En el modelo separado, esos archivos provienen de un clon temporal o checkout explícito de `productive-k3s-profiles`, expuesto al engine mediante `PRODUCTIVE_K3S_PROFILES_REPO_DIR`.

@@ -263,7 +263,7 @@ export ONPREM_AGENT_IPS="10.0.0.11"
 export ONPREM_SSH_USER="ops"
 export ONPREM_SSH_PORT="2222"
 export ONPREM_SSH_KEY_PATH="/tmp/test-key"
-export ONPREM_SSH_EXTRA_OPTS="-o ProxyCommand=none"
+export ONPREM_SSH_EXTRA_OPTS="-o ProxyJump=bastion.example"
 bash "${SCENARIO_DIR}/scripts/bootstrap-server.sh"
 assert_json_equals "${CAPTURE_FILE}" '
   .PRODUCTIVE_K3S_ENGINE == "k3sup" and
@@ -272,7 +272,7 @@ assert_json_equals "${CAPTURE_FILE}" '
   .PRODUCTIVE_K3S_SSH_USER == "ops" and
   .PRODUCTIVE_K3S_SSH_PORT == "2222" and
   .PRODUCTIVE_K3S_SSH_KEY_PATH == "/tmp/test-key" and
-  .PRODUCTIVE_K3S_SSH_EXTRA_OPTS == "-o ProxyCommand=none"
+  .PRODUCTIVE_K3S_SSH_EXTRA_OPTS == "-o ProxyJump=bastion.example"
 ' "onprem wrapper did not propagate k3sup engine context"
 pass "onprem wrapper propagates k3sup engine context"
 
@@ -287,6 +287,6 @@ assert_json_equals "${CAPTURE_FILE}" '
   .PRODUCTIVE_K3S_SSH_USER == "ops" and
   .PRODUCTIVE_K3S_SSH_PORT == "2222" and
   .PRODUCTIVE_K3S_SSH_KEY_PATH == "/tmp/test-key" and
-  .PRODUCTIVE_K3S_SSH_EXTRA_OPTS == "-o ProxyCommand=none"
+  .PRODUCTIVE_K3S_SSH_EXTRA_OPTS == "-o ProxyJump=bastion.example"
 ' "onprem agent wrapper did not propagate k3sup engine context"
 pass "onprem agent wrapper invokes controller-side k3sup join"

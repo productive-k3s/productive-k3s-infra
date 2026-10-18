@@ -27,4 +27,48 @@ EOF
 
     rm -f "${cluster_json}"
   End
+
+  It 'rejects unsafe remote workspace metadata before connecting'
+    tmpdir="$(mktemp -d)"
+    cluster_json="${tmpdir}/cluster.json"
+    cat >"${cluster_json}" <<'EOF'
+{
+  "server": {"name":"server-1","ipv4":"10.0.0.10"},
+  "server_url":"https://10.0.0.10:6443",
+  "base_domain":"k3s.lab.internal",
+  "remote_dir":"/var",
+  "productive_k3s":{"source":"remote","version":"0.9.1","release_repo":"productive-k3s/productive-k3s-core"},
+  "ssh":{"user":"ubuntu","port":"22","key_path":"","extra_opts":""},
+  "agents":[],
+  "nodes":[{"name":"server-1","ipv4":"10.0.0.10"}]
+}
+EOF
+
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'CLUSTER_JSON="'"${cluster_json}"'"; load_cluster_metadata'
+    The status should equal 1
+    The error should include 'protected top-level path'
+    rm -rf "${tmpdir}"
+  End
+
+  It 'rejects command-capable ssh options from cluster metadata'
+    tmpdir="$(mktemp -d)"
+    cluster_json="${tmpdir}/cluster.json"
+    cat >"${cluster_json}" <<'EOF'
+{
+  "server": {"name":"server-1","ipv4":"10.0.0.10"},
+  "server_url":"https://10.0.0.10:6443",
+  "base_domain":"k3s.lab.internal",
+  "remote_dir":"/srv/productive-k3s",
+  "productive_k3s":{"source":"remote","version":"0.9.1","release_repo":"productive-k3s/productive-k3s-core"},
+  "ssh":{"user":"ubuntu","port":"22","key_path":"","extra_opts":"-o ProxyCommand=sh"},
+  "agents":[],
+  "nodes":[{"name":"server-1","ipv4":"10.0.0.10"}]
+}
+EOF
+
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'CLUSTER_JSON="'"${cluster_json}"'"; load_cluster_metadata'
+    The status should equal 1
+    The error should include 'ProxyCommand is not in the allowed transport option set'
+    rm -rf "${tmpdir}"
+  End
 End

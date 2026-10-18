@@ -52,6 +52,7 @@ if [[ -z "${REMOTE_DIR_OVERRIDE}" ]]; then
   remote_home="$(remote_home_dir "${REMOTE_SERVER_IP}")"
   REMOTE_DIR_OVERRIDE="${remote_home}/productive-k3s"
 fi
+validate_remote_workspace_path "${REMOTE_DIR_OVERRIDE}"
 
 all_node_ips=("${REMOTE_SERVER_IP}" "${AGENT_IPS_ARRAY[@]}")
 all_node_names=("server")

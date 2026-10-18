@@ -106,6 +106,42 @@ Describe 'remote-cluster runtime helpers'
     The output should include 'UserKnownHostsFile=/tmp/known_hosts'
   End
 
+  It 'rejects command-capable ssh options'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'SSH_EXTRA_OPTS="-o ProxyCommand=sh"; ssh_base_args'
+    The status should equal 1
+    The error should include 'ProxyCommand is not in the allowed transport option set'
+  End
+
+  It 'rejects ssh option values with command metacharacters'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'SSH_EXTRA_OPTS="-o ProxyJump=\$(touch)"; ssh_base_args'
+    The status should equal 1
+    The error should include 'unsupported value characters'
+  End
+
+  It 'rejects malformed ssh option sequences'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'SSH_EXTRA_OPTS="-F /tmp/ssh-config"; ssh_base_args'
+    The status should equal 1
+    The error should include "repeated '-o Name=Value' pairs"
+  End
+
+  It 'accepts a nested normalized remote workspace'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'validate_remote_workspace_path /home/ubuntu/productive-k3s; printf ok'
+    The status should equal 0
+    The output should equal 'ok'
+  End
+
+  It 'rejects traversing remote workspaces'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'validate_remote_workspace_path /home/ubuntu/../root'
+    The status should equal 1
+    The error should include 'must not contain dot segments'
+  End
+
+  It 'rejects protected remote workspaces'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'validate_remote_workspace_path /var'
+    The status should equal 1
+    The error should include 'protected top-level path'
+  End
+
   It 'returns direct ip targets unchanged'
     When run /usr/bin/bash "$RUNNER" "$COMMON" 'resolve_hosts_entry_ip 10.10.10.10'
     The status should equal 0

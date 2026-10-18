@@ -55,6 +55,8 @@ The `profile.env` embedded in a public `profile.tgz` is treated as the package b
 
 Infra parses package defaults and `--env-file` inputs as data-only `KEY=VALUE` records; optional `export` prefixes are accepted. It does not evaluate shell code: command substitution, process substitution, backticks, and standalone shell statements are rejected. Overrides win over package defaults, and only `$HOME` or `${HOME}` path prefixes receive controlled expansion.
 
+Remote profiles apply the same fail-closed policy to SSH transport data. The remote workspace must be a normalized absolute path nested below a top-level directory; protected roots, dot segments, whitespace, and shell metacharacters are rejected before any copy or deletion. Extra SSH arguments must use repeated `-o Name=Value` pairs. Transport options such as `LogLevel`, `UserKnownHostsFile`, and `ProxyJump` remain valid, while command-capable or configuration-loading options such as `ProxyCommand`, `LocalCommand`, `RemoteCommand`, `KnownHostsCommand`, `PermitLocalCommand`, and `Include` are rejected.
+
 Infra can also export the same resolved installation as an executable bundle instead of running it immediately:
 
 ```bash

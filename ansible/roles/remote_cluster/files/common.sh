@@ -410,9 +410,116 @@ require_node_inputs() {
     fi
     seen+=" ${agent_ip}"
   done
+
+  validate_ssh_connection_config
+  validate_ssh_host "${REMOTE_SERVER_IP}"
+  for agent_ip in "${AGENT_IPS_ARRAY[@]}"; do
+    validate_ssh_host "${agent_ip}"
+  done
+}
+
+validate_ssh_user() {
+  local value="$1"
+  [[ "${value}" =~ ^[A-Za-z_][A-Za-z0-9._-]*$ ]] || {
+    err "SSH user contains unsupported characters: ${value}"
+    return 1
+  }
+}
+
+validate_ssh_port() {
+  local value="$1"
+  [[ "${value}" =~ ^[0-9]+$ ]] && ((10#${value} >= 1 && 10#${value} <= 65535)) || {
+    err "SSH port must be an integer between 1 and 65535: ${value}"
+    return 1
+  }
+}
+
+validate_ssh_host() {
+  local value="$1"
+  [[ "${value}" =~ ^[A-Za-z0-9][A-Za-z0-9._:%-]*$ ]] || {
+    err "SSH host contains unsupported characters: ${value}"
+    return 1
+  }
+}
+
+validate_ssh_key_path() {
+  local value="$1"
+  [[ -z "${value}" ]] && return 0
+  [[ "${value}" != -* && "${value}" != *$'\n'* && "${value}" != *$'\r'* ]] || {
+    err "SSH key path contains unsupported characters"
+    return 1
+  }
+}
+
+parse_safe_ssh_extra_opts() {
+  local -n __args_ref="$1"
+  local raw_opts="$2"
+  [[ -z "${raw_opts}" ]] && return 0
+
+  local tokens=()
+  read -r -a tokens <<< "${raw_opts}"
+  (( ${#tokens[@]} % 2 == 0 )) || {
+    err "SSH extra options must use repeated '-o Name=Value' pairs"
+    return 1
+  }
+
+  local index option assignment option_name
+  for ((index = 0; index < ${#tokens[@]}; index += 2)); do
+    option="${tokens[$index]}"
+    assignment="${tokens[$((index + 1))]}"
+    [[ "${option}" == "-o" && "${assignment}" =~ ^[A-Za-z][A-Za-z0-9]*=.+$ ]] || {
+      err "SSH extra options must use repeated '-o Name=Value' pairs"
+      return 1
+    }
+    option_name="${assignment%%=*}"
+    case "${option_name,,}" in
+      addressfamily|compression|connectionattempts|connecttimeout|globalknownhostsfile|hostkeyalgorithms|hostname|identitiesonly|ipqos|kexalgorithms|loglevel|macs|preferredauthentications|proxyjump|pubkeyacceptedalgorithms|serveralivecountmax|serveraliveinterval|userknownhostsfile)
+        ;;
+      *)
+        err "SSH option ${option_name} is not in the allowed transport option set"
+        return 1
+        ;;
+    esac
+    [[ "${assignment#*=}" =~ ^[A-Za-z0-9@%_.,:+/=-]+$ ]] || {
+      err "SSH option ${option_name} contains unsupported value characters"
+      return 1
+    }
+    __args_ref+=("${option}" "${assignment}")
+  done
+}
+
+validate_ssh_connection_config() {
+  validate_ssh_user "${SSH_USER}"
+  validate_ssh_port "${SSH_PORT}"
+  validate_ssh_key_path "${SSH_KEY_PATH}"
+  local validated_opts=()
+  parse_safe_ssh_extra_opts validated_opts "${SSH_EXTRA_OPTS}"
+}
+
+validate_remote_workspace_path() {
+  local value="$1"
+  [[ "${value}" =~ ^/[A-Za-z0-9._/-]+$ ]] || {
+    err "remote workspace must be an absolute path using only safe path characters: ${value}"
+    return 1
+  }
+  [[ "${value}" != */ && "${value}" != *//* && "${value}" != */./* && "${value}" != */../* && "${value}" != */. && "${value}" != */.. ]] || {
+    err "remote workspace must be normalized and must not contain dot segments: ${value}"
+    return 1
+  }
+  case "${value}" in
+    /|/bin|/boot|/dev|/etc|/home|/lib|/lib64|/media|/mnt|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var)
+      err "remote workspace cannot be a protected top-level path: ${value}"
+      return 1
+      ;;
+  esac
+  [[ "$(dirname "${value}")" != "/" ]] || {
+    err "remote workspace must be nested below a top-level directory: ${value}"
+    return 1
+  }
 }
 
 ssh_base_args() {
+  validate_ssh_connection_config
   local args=(-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -p "${SSH_PORT}")
   append_ssh_optional_args args
   printf '%s\0' "${args[@]}"
@@ -424,9 +531,7 @@ append_ssh_optional_args() {
     __args_ref+=(-i "${SSH_KEY_PATH}")
   fi
   if [[ -n "${SSH_EXTRA_OPTS}" ]]; then
-    local extra=()
-    read -r -a extra <<< "${SSH_EXTRA_OPTS}"
-    __args_ref+=("${extra[@]}")
+    parse_safe_ssh_extra_opts "$1" "${SSH_EXTRA_OPTS}"
   fi
 }
 
@@ -440,6 +545,8 @@ ssh_args_array() {
 
 ssh_target() {
   local ip="$1"
+  validate_ssh_user "${SSH_USER}"
+  validate_ssh_host "${ip}"
   printf '%s@%s' "${SSH_USER}" "${ip}"
 }
 
@@ -463,6 +570,12 @@ scp_to() {
   local source="$1"
   local ip="$2"
   local destination="$3"
+  validate_ssh_host "${ip}"
+  validate_ssh_connection_config
+  [[ "${destination}" =~ ^/[A-Za-z0-9._/-]+$ && "${destination}" != *//* && "${destination}" != */./* && "${destination}" != */../* && "${destination}" != */. && "${destination}" != */.. ]] || {
+    err "SCP destination must be a normalized absolute path using only safe path characters"
+    return 1
+  }
   local scp_args=(-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -P "${SSH_PORT}")
   append_ssh_optional_args scp_args
   scp "${scp_args[@]}" "${source}" "$(ssh_target "${ip}"):${destination}"
@@ -660,10 +773,17 @@ load_cluster_metadata() {
   SSH_PORT="${SSH_PORT_RESOLVED}"
   SSH_KEY_PATH="${SSH_KEY_PATH_RESOLVED}"
   SSH_EXTRA_OPTS="${SSH_EXTRA_OPTS_RESOLVED}"
+  validate_remote_workspace_path "${REMOTE_DIR}"
+  validate_ssh_connection_config
+  validate_ssh_host "${SERVER_IP}"
   mapfile -t AGENT_NAMES < <(jq -r '.agents[].name' "${CLUSTER_JSON}")
   mapfile -t AGENT_IPS < <(jq -r '.agents[].ipv4' "${CLUSTER_JSON}")
   mapfile -t ALL_NODE_NAMES < <(jq -r '.nodes[].name' "${CLUSTER_JSON}")
   mapfile -t ALL_NODE_IPS < <(jq -r '.nodes[].ipv4' "${CLUSTER_JSON}")
+  local node_ip
+  for node_ip in "${ALL_NODE_IPS[@]}"; do
+    validate_ssh_host "${node_ip}"
+  done
 }
 
 export_resolved_telemetry_env() {

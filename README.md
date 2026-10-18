@@ -45,6 +45,8 @@ For packaged installs, the `profile.env` embedded in the TGZ is only the base/de
 
 Infra parses profile and override env files as data-only `KEY=VALUE` records (optional `export` is accepted). Shell statements, command substitution, process substitution, and backticks are rejected rather than executed. Local overrides take precedence over package defaults; `$HOME` and `${HOME}` path prefixes are the only controlled expansions.
 
+Remote execution also validates SSH endpoints, normalized nested workspaces, and extra options before connecting. Extra options are limited to repeated `-o Name=Value` pairs; command-capable or configuration-loading options are rejected. Safe transport options, including `ProxyJump`, remain supported.
+
 `export` is an alternate output mode for the same resolved profile contract.
 Instead of executing immediately, Infra can emit an executable bundle that:
 
