@@ -68,6 +68,27 @@ prompt_yesno() {
   printf -v "$var" '%s' "$answer"
 }
 
+confirm_destructive_operation() {
+  local profile_name="$1"
+  local answer="n"
+
+  if [[ "${GLOBAL_YES}" -eq 1 ]]; then
+    log "INFO" "Destructive operation approved with --yes for profile: ${profile_name}"
+    return 0
+  fi
+
+  if ! can_use_tty; then
+    log "ERROR" "destroy for profile '${profile_name}' requires explicit confirmation; rerun with --yes" >&2
+    return 2
+  fi
+
+  prompt_yesno answer "n" "Destroy infrastructure managed by profile '${profile_name}'?"
+  if ! is_truthy "${answer}"; then
+    log "ERROR" "destroy cancelled for profile '${profile_name}'" >&2
+    return 2
+  fi
+}
+
 resolve_telemetry_enabled() {
   if [[ -n "${TELEMETRY_ENABLED:-}" ]]; then
     return 0
@@ -712,6 +733,30 @@ profile_command_dispatch() {
   if [[ "${command}" == "apply" && "${GLOBAL_DRY_RUN}" -eq 1 ]]; then
     log "INFO" "Dry-run requested; switching apply to plan"
     command="plan"
+  fi
+
+  if [[ "${command}" == "destroy" ]]; then
+    env_file_var="${PK3S_INFRA_ENV_FILE_VARIABLE:-}"
+    if [[ "${GLOBAL_DRY_RUN}" -eq 1 ]]; then
+      log "INFO" "Dry-run requested; previewing destroy target without executing it"
+      emit_operation_event "${operation}" "profile.destroy.preview" "running" "Previewing scenario destroy target" "${PK3S_INFRA_PROFILE_NAME}"
+      if [[ -n "${env_file_var}" ]]; then
+        env "${env_file_var}=${profile}" "${MAKE_BIN}" -n -C "${scenario_dir}" "${target}" || {
+          local rc=$?
+          emit_operation_event "${operation}" "profile.destroy.preview" "failed" "Scenario destroy target preview failed" "${PK3S_INFRA_PROFILE_NAME}"
+          return "${rc}"
+        }
+      else
+        "${MAKE_BIN}" -n -C "${scenario_dir}" "${target}" || {
+          local rc=$?
+          emit_operation_event "${operation}" "profile.destroy.preview" "failed" "Scenario destroy target preview failed" "${PK3S_INFRA_PROFILE_NAME}"
+          return "${rc}"
+        }
+      fi
+      emit_operation_event "${operation}" "profile.destroy.preview" "success" "Scenario destroy target previewed" "${PK3S_INFRA_PROFILE_NAME}"
+      return 0
+    fi
+    confirm_destructive_operation "${PK3S_INFRA_PROFILE_NAME}" || return $?
   fi
 
   if [[ "${command}" == "plan" ]]; then
@@ -1739,23 +1784,44 @@ run_install_profile_package() {
         rm -rf "${tmp_dir}"
         die 2 "unsupported packaged profile command '${action}' for scenario '${scenario_type}'"
       }
+      if [[ "${GLOBAL_DRY_RUN}" -ne 1 ]]; then
+        confirm_destructive_operation "${profile_name}" || {
+          local rc=$?
+          if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
+          rm -rf "${tmp_dir}"
+          return "${rc}"
+        }
+      fi
       emit_operation_event "${operation}" "profile.inputs.validate" "running" "Validating profile runtime inputs" "${profile_name}"
       validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
       emit_operation_event "${operation}" "profile.inputs.validate" "success" "Profile runtime inputs validated" "${profile_name}"
       warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${OVERRIDE_ENV_PATH}" "${manifest}"
-      log "INFO" "Executing packaged profile destroy via scenario target: ${target}"
-      emit_operation_event "${operation}" "profile.destroy.run" "running" "Executing packaged profile destroy" "${profile_name}"
-      run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "${target}" || {
-        local rc=$?
-        emit_operation_event "${operation}" "profile.destroy.run" "failed" "Packaged profile destroy failed" "${profile_name}"
-        if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
-        rm -rf "${tmp_dir}"
-        return "${rc}"
-      }
-      emit_operation_event "${operation}" "profile.destroy.run" "success" "Packaged profile destroy completed" "${profile_name}"
-      emit_operation_event "${operation}" "profile.state.remove" "running" "Removing profile state" "${profile_name}"
-      remove_profile_state "${profile_name}"
-      emit_operation_event "${operation}" "profile.state.remove" "success" "Profile state removed" "${profile_name}"
+      if [[ "${GLOBAL_DRY_RUN}" -eq 1 ]]; then
+        log "INFO" "Dry-run requested; previewing packaged profile destroy target without executing it"
+        emit_operation_event "${operation}" "profile.destroy.preview" "running" "Previewing packaged profile destroy" "${profile_name}"
+        run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "${target}" "dry-run" || {
+          local rc=$?
+          emit_operation_event "${operation}" "profile.destroy.preview" "failed" "Packaged profile destroy preview failed" "${profile_name}"
+          if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
+          rm -rf "${tmp_dir}"
+          return "${rc}"
+        }
+        emit_operation_event "${operation}" "profile.destroy.preview" "success" "Packaged profile destroy previewed" "${profile_name}"
+      else
+        log "INFO" "Executing packaged profile destroy via scenario target: ${target}"
+        emit_operation_event "${operation}" "profile.destroy.run" "running" "Executing packaged profile destroy" "${profile_name}"
+        run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "${target}" || {
+          local rc=$?
+          emit_operation_event "${operation}" "profile.destroy.run" "failed" "Packaged profile destroy failed" "${profile_name}"
+          if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
+          rm -rf "${tmp_dir}"
+          return "${rc}"
+        }
+        emit_operation_event "${operation}" "profile.destroy.run" "success" "Packaged profile destroy completed" "${profile_name}"
+        emit_operation_event "${operation}" "profile.state.remove" "running" "Removing profile state" "${profile_name}"
+        remove_profile_state "${profile_name}"
+        emit_operation_event "${operation}" "profile.state.remove" "success" "Profile state removed" "${profile_name}"
+      fi
       ;;
     plan)
       case "${engine_type}" in

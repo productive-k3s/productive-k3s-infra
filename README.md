@@ -49,6 +49,8 @@ Infra parses profile and override env files as data-only `KEY=VALUE` records (op
 
 Remote execution also validates SSH endpoints, normalized nested workspaces, and extra options before connecting. Extra options are limited to repeated `-o Name=Value` pairs; command-capable or configuration-loading options are rejected. Safe transport options, including `ProxyJump`, remain supported.
 
+Profile destruction is fail-closed. Interactive `destroy` commands require an explicit confirmation with a default of `no`, while non-interactive automation must pass `--yes`. Use `--dry-run` to preview the declared destroy target through `make -n`; previews neither execute the target nor remove persisted profile state.
+
 `export` is an alternate output mode for the same resolved profile contract.
 Instead of executing immediately, Infra can emit an executable bundle that:
 

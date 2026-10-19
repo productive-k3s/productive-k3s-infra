@@ -441,8 +441,14 @@ The public user-facing and development-facing runtime contracts are intentionall
 ./productive-k3s-infra.sh profile validate --tgz ./aws-single-node-basic.tgz
 ./productive-k3s-infra.sh profile plan --tgz ./aws-single-node-basic.tgz
 ./productive-k3s-infra.sh profile status --tgz ./aws-single-node-basic.tgz
-./productive-k3s-infra.sh profile destroy --tgz ./aws-single-node-basic.tgz
+./productive-k3s-infra.sh profile destroy --dry-run --tgz ./aws-single-node-basic.tgz
+./productive-k3s-infra.sh profile destroy --yes --tgz ./aws-single-node-basic.tgz
 ```
+
+`destroy` is fail-closed. Interactive runs ask for confirmation and default to
+`no`; non-interactive automation must pass `--yes`. `--dry-run` previews the
+declared destroy target through `make -n` without executing it or removing
+persisted profile state.
 
 ### Development source-oriented runtime examples
 
@@ -452,6 +458,7 @@ The public user-facing and development-facing runtime contracts are intentionall
 ./productive-k3s-infra.sh dev profile validate --profile-env ./profiles/cloud/aws-single-node/basic.env
 ./productive-k3s-infra.sh dev profile plan --profile-env ./profiles/cloud/aws-single-node/basic.env
 ./productive-k3s-infra.sh dev profile apply --profile-env ./profiles/cloud/aws-single-node/basic.env
+./productive-k3s-infra.sh dev profile destroy --yes --profile-env ./profiles/cloud/aws-single-node/basic.env
 ```
 
 The `dev` prefix is the explicit boundary that keeps source-oriented workflows available without making them part of the public installation contract.
