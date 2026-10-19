@@ -17,6 +17,7 @@ pass() {
 WORK_DIR="${TMP_DIR}/infra"
 mkdir -p "${WORK_DIR}/scripts" "${WORK_DIR}/profiles/local/test"
 cp "${ROOT_DIR}/scripts/productive-k3s-infra.sh" "${WORK_DIR}/scripts/"
+cp "${ROOT_DIR}/scripts/env-file-runtime.sh" "${WORK_DIR}/scripts/"
 cp "${ROOT_DIR}/scripts/export-runtime.sh" "${WORK_DIR}/scripts/"
 cp "${ROOT_DIR}/scripts/compatibility-runtime.sh" "${WORK_DIR}/scripts/"
 
