@@ -1792,6 +1792,7 @@ EOF
     : >"${infra_repo}/README.md"
     : >"${infra_repo}/productive-k3s-infra.sh"
     : >"${infra_repo}/scripts/productive-k3s-infra.sh"
+    cp "${SHELLSPEC_PROJECT_ROOT}/scripts/env-file-runtime.sh" "${infra_repo}/scripts/env-file-runtime.sh"
     : >"${infra_repo}/scripts/release-config.sh"
     : >"${infra_repo}/scripts/send-telemetry-event.sh"
     : >"${infra_repo}/scripts/export-runtime.sh"

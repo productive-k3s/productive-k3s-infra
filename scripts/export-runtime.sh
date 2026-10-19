@@ -131,6 +131,7 @@ LICENSE
 README.md
 productive-k3s-infra.sh
 scripts/productive-k3s-infra.sh
+scripts/env-file-runtime.sh
 scripts/release-config.sh
 scripts/send-telemetry-event.sh
 scripts/export-runtime.sh
@@ -178,10 +179,11 @@ export_runtime_write_profile_install_script() {
     printf '      ;;\n'
     printf '  esac\n'
     printf 'done\n\n'
+    printf '# Load editable configuration as data, never as shell code.\n'
+    printf 'source "${SCRIPT_DIR}/scripts/env-file-runtime.sh"\n'
     printf 'if [[ -f "${SCRIPT_DIR}/install-config.env" ]]; then\n'
     printf '  # Generated defaults captured at export time; edit this file for local overrides.\n'
-    printf '  # shellcheck disable=SC1091\n'
-    printf '  source "${SCRIPT_DIR}/install-config.env"\n'
+    printf '  pk3s_env_load_file "${SCRIPT_DIR}/install-config.env"\n'
     printf 'fi\n\n'
     printf 'if [[ "${RUN_PREFLIGHT}" == "1" ]]; then\n'
     printf '  # Keep this enabled for first runs so provider and bundle problems fail early.\n'

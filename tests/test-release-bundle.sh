@@ -17,6 +17,7 @@ trap cleanup EXIT
 
 git clone --quiet "${ROOT_DIR}" "${WORKTREE}"
 cp "${ROOT_DIR}/scripts/build-release-bundle.sh" "${WORKTREE}/scripts/build-release-bundle.sh"
+cp "${ROOT_DIR}/scripts/env-file-runtime.sh" "${WORKTREE}/scripts/env-file-runtime.sh"
 cp "${ROOT_DIR}/materials.lock.yaml" "${WORKTREE}/materials.lock.yaml"
 cleanup_tag
 git -C "${WORKTREE}" tag "${TAG_NAME}" HEAD
@@ -54,6 +55,7 @@ assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/LICENSE"
 assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/materials.lock.yaml"
 assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/productive-k3s-infra.sh"
 assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/scripts/productive-k3s-infra.sh"
+assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/scripts/env-file-runtime.sh"
 assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/scripts/release-config.sh"
 assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/scripts/release.env"
 assert_contains "${LISTING}" "productive-k3s-infra-1.2.3-4.5.6/scripts/send-telemetry-event.sh"

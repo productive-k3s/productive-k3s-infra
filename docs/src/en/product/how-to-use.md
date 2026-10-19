@@ -38,7 +38,7 @@ Advanced users can also opt into:
 PRODUCTIVE_K3S_ENGINE=k3sup
 ```
 
-This is intentionally documented as experimental.
+This is intentionally documented as experimental. When selected, Infra accepts only the checksum-verified `k3sup 0.13.13` binary declared in `materials.lock.yaml`. It never executes the mutable `get.k3sup.dev` installer; a pre-existing binary is reused only when both its release checksum and reported version match the lock.
 
 ## Use the public entry points
 
@@ -52,6 +52,10 @@ pk3s infra install aws-single-node-basic --env-file ./aws.env
 ```
 
 The `profile.env` embedded in a public `profile.tgz` is treated as the package base/default file, not as the final installation-specific configuration. For real installations, especially cloud and on-prem targets, provide local overrides from the invoking machine through `--env-file`.
+
+Infra parses package defaults and `--env-file` inputs as data-only `KEY=VALUE` records; optional `export` prefixes are accepted. It does not evaluate shell code: command substitution, process substitution, backticks, and standalone shell statements are rejected. Overrides win over package defaults, and only `$HOME` or `${HOME}` path prefixes receive controlled expansion.
+
+Remote profiles apply the same fail-closed policy to SSH transport data. The remote workspace must be a normalized absolute path nested below a top-level directory; protected roots, dot segments, whitespace, and shell metacharacters are rejected before any copy or deletion. Extra SSH arguments must use repeated `-o Name=Value` pairs. Transport options such as `LogLevel`, `UserKnownHostsFile`, and `ProxyJump` remain valid, while command-capable or configuration-loading options such as `ProxyCommand`, `LocalCommand`, `RemoteCommand`, `KnownHostsCommand`, `PermitLocalCommand`, and `Include` are rejected.
 
 Infra can also export the same resolved installation as an executable bundle instead of running it immediately:
 

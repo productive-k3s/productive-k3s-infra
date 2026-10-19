@@ -123,4 +123,18 @@ bash "${CLI}" profile status --tgz "${archive}" >/dev/null
 assert_contains "${status_log}" 'PRODUCTIVE_K3S_SOURCE=remote'
 assert_contains "${status_log}" 'PRODUCTIVE_K3S_STACK_TGZ_URL=https://downloads.example/base-0.1.0.tgz'
 
+marker="${work_dir}/must-not-exist"
+malicious_override="${work_dir}/malicious-override.env"
+printf "ATTACK=\$(touch %s)\\n" "${marker}" > "${malicious_override}"
+if PATH="${mock_bin}:$PATH" MOCK_MAKE_LOG="${work_dir}/malicious-override.log" PRODUCTIVE_K3S_INFRA_VERSION=0.9.65-0.9.6 bash "${CLI}" profile status --tgz "${archive}" --env-file "${malicious_override}" >/dev/null 2>&1; then
+  fail "malicious operator override unexpectedly succeeded"
+fi
+[[ ! -e "${marker}" ]] || fail "malicious operator override executed shell code"
+printf "ATTACK=\$(touch %s)\\n" "${marker}" >> "${pkg_dir}/profile.env"
+malicious_archive="${work_dir}/malicious-profile.tgz"
+tar -czf "${malicious_archive}" -C "${pkg_dir}" .
+if PATH="${mock_bin}:$PATH" MOCK_MAKE_LOG="${work_dir}/malicious-package.log" PRODUCTIVE_K3S_INFRA_VERSION=0.9.65-0.9.6 bash "${CLI}" profile status --tgz "${malicious_archive}" >/dev/null 2>&1; then
+  fail "malicious packaged profile env unexpectedly succeeded"
+fi
+[[ ! -e "${marker}" ]] || fail "malicious packaged profile env executed shell code"
 printf '[PASS] packaged profile runtime overrides win over embedded profile defaults for install/status\n'

@@ -23,6 +23,8 @@ The repository now exposes two distinct surfaces:
 - public runtime surface: packaged `profile.tgz`
 - development surface: orchestration development, testing, and sibling-checkout integration with `productive-k3s-profiles`
 
+The optional controller-side `k3sup` engine is pinned to version `0.13.13`. Infra downloads the platform-specific official release asset over HTTPS and verifies its SHA256 before execution; it does not run the mutable upstream installer script and does not trust a pre-existing binary without the same checksum and version.
+
 Published release bundles now ship only the packaged runtime surface. They do not carry the public `profiles/` or `scenarios/` trees; those live in `productive-k3s-profiles` and in the generated `profile.tgz` artifacts instead.
 
 Packaged profiles must declare the `profile/v1` compatibility contract, an
@@ -42,6 +44,14 @@ Public runtime examples:
 ```
 
 For packaged installs, the `profile.env` embedded in the TGZ is only the base/default contract of the package. `profile.yaml` now carries `spec.inputs` metadata that declares which values can come from package defaults and which values must be supplied locally. Using a packaged profile without local overrides only makes sense for self-contained targets such as local host-driven scenarios. Installation-specific values should be passed from the invoking machine through `--env-file`, especially for cloud and on-prem profiles.
+
+Infra parses profile and override env files as data-only `KEY=VALUE` records (optional `export` is accepted). Shell statements, command substitution, process substitution, and backticks are rejected rather than executed. Local overrides take precedence over package defaults; `$HOME` and `${HOME}` path prefixes are the only controlled expansions.
+
+Remote execution also validates SSH endpoints, normalized nested workspaces, and extra options before connecting. Extra options are limited to repeated `-o Name=Value` pairs; command-capable or configuration-loading options are rejected. Safe transport options, including `ProxyJump`, remain supported.
+
+Profile destruction is fail-closed. Interactive `destroy` commands require an explicit confirmation with a default of `no`, while non-interactive automation must pass `--yes`. Use `--dry-run` to preview the declared destroy target through `make -n`; previews neither execute the target nor remove persisted profile state.
+
+Profile TGZ extraction is also fail-closed. Infra snapshots and inspects each package before extraction, accepts only regular files and directories with safe relative paths, rejects duplicate entries and ambiguous `profile.yaml` manifests, and enforces limits of 64 MiB compressed, 512 MiB expanded, and 4096 entries. Operators may lower these ceilings with `PK3S_ARCHIVE_MAX_COMPRESSED_BYTES`, `PK3S_ARCHIVE_MAX_EXPANDED_BYTES`, and `PK3S_ARCHIVE_MAX_ENTRIES`.
 
 `export` is an alternate output mode for the same resolved profile contract.
 Instead of executing immediately, Infra can emit an executable bundle that:
@@ -166,7 +176,7 @@ Repository and implementation guidance:
 
 `materials.lock.yaml` declares Infra's bound Core release and orchestration
 requirements. Profile-specific providers and infrastructure images remain
-owned by each packaged Profile BOM. The lock also inventories the exact Python
+owned by each packaged Profile BOM. The optional runtime entry for `k3sup 0.13.13` records exact checksums for supported Linux and macOS controller architectures. The lock also inventories the exact Python
 and checksum-verified `kcov` versions used by CI with `scope: development` and
 `distribution: excluded`; these tools are not Infra runtime requirements and
 are not installed on provisioned hosts.

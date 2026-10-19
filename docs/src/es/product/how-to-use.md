@@ -38,7 +38,7 @@ Los usuarios avanzados también pueden optar por:
 PRODUCTIVE_K3S_ENGINE=k3sup
 ```
 
-Eso está documentado intencionalmente como experimental.
+Eso está documentado intencionalmente como experimental. Cuando se selecciona, Infra acepta únicamente el binario `k3sup 0.13.13` verificado por checksum y declarado en `materials.lock.yaml`. Nunca ejecuta el instalador mutable `get.k3sup.dev`; un binario preexistente se reutiliza solo cuando coinciden tanto su checksum oficial como la versión informada.
 
 ## Usá los entrypoints públicos
 
@@ -52,6 +52,10 @@ pk3s infra install aws-single-node-basic --env-file ./aws.env
 ```
 
 El `profile.env` embebido en un `profile.tgz` público se trata como archivo base/default del paquete, no como la configuración final específica de la instalación. Para instalaciones reales, especialmente en cloud y on-prem, pasá overrides locales desde la máquina que invoca mediante `--env-file`.
+
+Infra interpreta los defaults del paquete y las entradas de `--env-file` como registros data-only `KEY=VALUE`; también acepta el prefijo opcional `export`. No evalúa código shell: rechaza sustitución de comandos, sustitución de procesos, backticks y sentencias shell independientes. Los overrides prevalecen sobre los defaults del paquete, y solamente los prefijos de ruta `$HOME` o `${HOME}` tienen expansión controlada.
+
+Los profiles remotos aplican la misma política fail-closed a los datos de transporte SSH. El workspace remoto debe ser una ruta absoluta normalizada y anidada debajo de un directorio de primer nivel; se rechazan raíces protegidas, segmentos de punto, espacios y metacaracteres de shell antes de cualquier copia o borrado. Los argumentos SSH extra deben usar pares repetidos `-o Name=Value`. Opciones de transporte como `LogLevel`, `UserKnownHostsFile` y `ProxyJump` siguen siendo válidas, mientras que opciones capaces de ejecutar comandos o cargar configuración, como `ProxyCommand`, `LocalCommand`, `RemoteCommand`, `KnownHostsCommand`, `PermitLocalCommand` e `Include`, se rechazan.
 
 ## Usá los entrypoints de desarrollo
 

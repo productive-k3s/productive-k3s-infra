@@ -273,6 +273,14 @@ local-override` must be provided by the invoking machine with `--env-file`.
 5. Infra executes the referenced scenario
 6. OpenTofu/Ansible/scripts perform the implementation
 
+Before step 3, Infra snapshots and inspects the TGZ. Only regular files and
+directories with safe relative paths are accepted. Duplicate paths, links,
+special files, ambiguous `profile.yaml` manifests, and archives outside the
+default limits are rejected before extraction. The defaults are 64 MiB
+compressed, 512 MiB expanded, and 4096 entries. They can be lowered with
+`PK3S_ARCHIVE_MAX_COMPRESSED_BYTES`, `PK3S_ARCHIVE_MAX_EXPANDED_BYTES`, and
+`PK3S_ARCHIVE_MAX_ENTRIES`.
+
 ## Profile-oriented model
 
 Productive K3S Infra remains profile-oriented.
@@ -441,8 +449,14 @@ The public user-facing and development-facing runtime contracts are intentionall
 ./productive-k3s-infra.sh profile validate --tgz ./aws-single-node-basic.tgz
 ./productive-k3s-infra.sh profile plan --tgz ./aws-single-node-basic.tgz
 ./productive-k3s-infra.sh profile status --tgz ./aws-single-node-basic.tgz
-./productive-k3s-infra.sh profile destroy --tgz ./aws-single-node-basic.tgz
+./productive-k3s-infra.sh profile destroy --dry-run --tgz ./aws-single-node-basic.tgz
+./productive-k3s-infra.sh profile destroy --yes --tgz ./aws-single-node-basic.tgz
 ```
+
+`destroy` is fail-closed. Interactive runs ask for confirmation and default to
+`no`; non-interactive automation must pass `--yes`. `--dry-run` previews the
+declared destroy target through `make -n` without executing it or removing
+persisted profile state.
 
 ### Development source-oriented runtime examples
 
@@ -452,6 +466,7 @@ The public user-facing and development-facing runtime contracts are intentionall
 ./productive-k3s-infra.sh dev profile validate --profile-env ./profiles/cloud/aws-single-node/basic.env
 ./productive-k3s-infra.sh dev profile plan --profile-env ./profiles/cloud/aws-single-node/basic.env
 ./productive-k3s-infra.sh dev profile apply --profile-env ./profiles/cloud/aws-single-node/basic.env
+./productive-k3s-infra.sh dev profile destroy --yes --profile-env ./profiles/cloud/aws-single-node/basic.env
 ```
 
 The `dev` prefix is the explicit boundary that keeps source-oriented workflows available without making them part of the public installation contract.

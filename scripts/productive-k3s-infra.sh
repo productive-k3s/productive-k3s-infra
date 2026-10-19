@@ -6,15 +6,18 @@ REQUESTED_PRODUCTIVE_K3S_SOURCE="${PRODUCTIVE_K3S_SOURCE-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="${PRODUCTIVE_K3S_INFRA_REPO_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
+ENV_FILE_RUNTIME="${SCRIPT_DIR}/env-file-runtime.sh"
+if [[ ! -f "${ENV_FILE_RUNTIME}" && -f "${REPO_DIR}/scripts/env-file-runtime.sh" ]]; then
+  ENV_FILE_RUNTIME="${REPO_DIR}/scripts/env-file-runtime.sh"
+fi
+# shellcheck disable=SC1090
+source "${ENV_FILE_RUNTIME}"
 RELEASE_ENV_FILE="${SCRIPT_DIR}/release.env"
 if [[ ! -f "${RELEASE_ENV_FILE}" && -f "${REPO_DIR}/scripts/release.env" ]]; then
   RELEASE_ENV_FILE="${REPO_DIR}/scripts/release.env"
 fi
 if [[ -f "${RELEASE_ENV_FILE}" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "${RELEASE_ENV_FILE}"
-  set +a
+  pk3s_env_load_file "${RELEASE_ENV_FILE}"
 fi
 : "${PRODUCTIVE_K3S_INFRA_ENGINE_VERSION:=0.9.65}"
 : "${PRODUCTIVE_K3S_CORE_VERSION:=0.9.6}"
@@ -63,6 +66,27 @@ prompt_yesno() {
   fi
   answer="${answer:-$default}"
   printf -v "$var" '%s' "$answer"
+}
+
+confirm_destructive_operation() {
+  local profile_name="$1"
+  local answer="n"
+
+  if [[ "${GLOBAL_YES}" -eq 1 ]]; then
+    log "INFO" "Destructive operation approved with --yes for profile: ${profile_name}"
+    return 0
+  fi
+
+  if ! can_use_tty; then
+    log "ERROR" "destroy for profile '${profile_name}' requires explicit confirmation; rerun with --yes" >&2
+    return 2
+  fi
+
+  prompt_yesno answer "n" "Destroy infrastructure managed by profile '${profile_name}'?"
+  if ! is_truthy "${answer}"; then
+    log "ERROR" "destroy cancelled for profile '${profile_name}'" >&2
+    return 2
+  fi
 }
 
 resolve_telemetry_enabled() {
@@ -553,10 +577,7 @@ source_profile_target() {
 source_profile() {
   local profile="$1"
   [[ -f "${profile}" ]] || die 3 "profile not found: ${profile}"
-  set -a
-  # shellcheck disable=SC1090
-  source "${profile}"
-  set +a
+  pk3s_env_load_file "${profile}"
 }
 
 require_env() {
@@ -639,10 +660,7 @@ run_opentofu_plan() {
   log "INFO" "Running OpenTofu plan in ${opentofu_dir}"
   (
     if [[ -n "${profile_env_path}" ]]; then
-      set -a
-      # shellcheck disable=SC1090
-      source "${profile_env_path}"
-      set +a
+      pk3s_env_load_file "${profile_env_path}"
 
       if [[ -f "${scenario_dir}/Makefile" ]]; then
         export_opentofu_make_vars "${scenario_dir}" "${make_bin}"
@@ -715,6 +733,30 @@ profile_command_dispatch() {
   if [[ "${command}" == "apply" && "${GLOBAL_DRY_RUN}" -eq 1 ]]; then
     log "INFO" "Dry-run requested; switching apply to plan"
     command="plan"
+  fi
+
+  if [[ "${command}" == "destroy" ]]; then
+    env_file_var="${PK3S_INFRA_ENV_FILE_VARIABLE:-}"
+    if [[ "${GLOBAL_DRY_RUN}" -eq 1 ]]; then
+      log "INFO" "Dry-run requested; previewing destroy target without executing it"
+      emit_operation_event "${operation}" "profile.destroy.preview" "running" "Previewing scenario destroy target" "${PK3S_INFRA_PROFILE_NAME}"
+      if [[ -n "${env_file_var}" ]]; then
+        env "${env_file_var}=${profile}" "${MAKE_BIN}" -n -C "${scenario_dir}" "${target}" || {
+          local rc=$?
+          emit_operation_event "${operation}" "profile.destroy.preview" "failed" "Scenario destroy target preview failed" "${PK3S_INFRA_PROFILE_NAME}"
+          return "${rc}"
+        }
+      else
+        "${MAKE_BIN}" -n -C "${scenario_dir}" "${target}" || {
+          local rc=$?
+          emit_operation_event "${operation}" "profile.destroy.preview" "failed" "Scenario destroy target preview failed" "${PK3S_INFRA_PROFILE_NAME}"
+          return "${rc}"
+        }
+      fi
+      emit_operation_event "${operation}" "profile.destroy.preview" "success" "Scenario destroy target previewed" "${PK3S_INFRA_PROFILE_NAME}"
+      return 0
+    fi
+    confirm_destructive_operation "${PK3S_INFRA_PROFILE_NAME}" || return $?
   fi
 
   if [[ "${command}" == "plan" ]]; then
@@ -1187,10 +1229,7 @@ env_file_var_has_value() {
   local var_name="$2"
   [[ -n "${env_file}" && -f "${env_file}" ]] || return 1
   (
-    set -a
-    # shellcheck disable=SC1090
-    source "${env_file}"
-    set +a
+    pk3s_env_load_file "${env_file}"
     [[ -n "${!var_name:-}" ]]
   )
 }
@@ -1225,21 +1264,152 @@ validate_profile_runtime_inputs() {
   fi
 }
 
+validate_archive_limit() {
+  local name="$1" value="$2"
+  [[ "${value}" =~ ^[1-9][0-9]*$ ]] || {
+    printf 'invalid %s archive limit: %s\n' "${name}" "${value}" >&2
+    return 4
+  }
+}
+
+validate_tgz_archive() {
+  local archive="$1"
+  local archive_label="${2:-$1}"
+  local max_compressed_bytes="${PK3S_ARCHIVE_MAX_COMPRESSED_BYTES:-67108864}"
+  local max_expanded_bytes="${PK3S_ARCHIVE_MAX_EXPANDED_BYTES:-536870912}"
+  local max_entries="${PK3S_ARCHIVE_MAX_ENTRIES:-4096}"
+  local compressed_bytes expanded_bytes entry_count entry normalized type_line entry_type duplicate_entry
+  local inspection_dir listing types normalized_listing duplicates
+
+  validate_archive_limit compressed-bytes "${max_compressed_bytes}" || return $?
+  validate_archive_limit expanded-bytes "${max_expanded_bytes}" || return $?
+  validate_archive_limit entries "${max_entries}" || return $?
+
+  compressed_bytes="$(wc -c <"${archive}")" || return 4
+  if (( compressed_bytes > max_compressed_bytes )); then
+    printf 'tgz package exceeds compressed size limit (%s > %s bytes): %s\n' "${compressed_bytes}" "${max_compressed_bytes}" "${archive_label}" >&2
+    return 4
+  fi
+
+  inspection_dir="$(mktemp -d)"
+  listing="${inspection_dir}/entries"
+  types="${inspection_dir}/types"
+  normalized_listing="${inspection_dir}/normalized"
+  duplicates="${inspection_dir}/duplicates"
+  if ! LC_ALL=C tar -tzf "${archive}" --quoting-style=escape >"${listing}" 2>/dev/null ||
+    ! LC_ALL=C tar -tvzf "${archive}" --quoting-style=escape --numeric-owner >"${types}" 2>/dev/null; then
+    rm -rf "${inspection_dir}"
+    printf 'could not inspect tgz package: %s\n' "${archive_label}" >&2
+    return 4
+  fi
+
+  entry_count="$(wc -l <"${listing}")"
+  if (( entry_count == 0 || entry_count > max_entries )); then
+    rm -rf "${inspection_dir}"
+    printf 'tgz package entry count is outside the allowed range (1-%s): %s\n' "${max_entries}" "${archive_label}" >&2
+    return 4
+  fi
+
+  : >"${normalized_listing}"
+  while IFS= read -r entry || [[ -n "${entry}" ]]; do
+    [[ "${entry}" != *'\'* ]] || {
+      rm -rf "${inspection_dir}"
+      printf 'tgz package contains an escaped or unsupported path: %s\n' "${archive_label}" >&2
+      return 4
+    }
+    [[ "${entry}" != /* ]] || {
+      rm -rf "${inspection_dir}"
+      printf 'tgz package contains an absolute path: %s\n' "${archive_label}" >&2
+      return 4
+    }
+    normalized="${entry}"
+    while [[ "${normalized}" == ./* ]]; do
+      normalized="${normalized#./}"
+    done
+    [[ -n "${normalized}" ]] || continue
+    [[ "${normalized}" != '..' && "/${normalized}/" != *'/../'* && "/${normalized}/" != *'/./'* && "${normalized}" != *'//'* ]] || {
+      rm -rf "${inspection_dir}"
+      printf 'tgz package contains an unsafe path: %s\n' "${archive_label}" >&2
+      return 4
+    }
+    printf '%s\n' "${normalized}" >>"${normalized_listing}"
+  done <"${listing}"
+
+  LC_ALL=C sort "${normalized_listing}" | uniq -d >"${duplicates}"
+  if IFS= read -r duplicate_entry <"${duplicates}"; then
+    rm -rf "${inspection_dir}"
+    printf 'tgz package contains a duplicate path: %s\n' "${duplicate_entry}" >&2
+    return 4
+  fi
+
+  while IFS= read -r type_line || [[ -n "${type_line}" ]]; do
+    entry_type="${type_line:0:1}"
+    [[ "${entry_type}" == '-' || "${entry_type}" == 'd' ]] || {
+      rm -rf "${inspection_dir}"
+      printf 'tgz package contains a forbidden archive entry type: %s\n' "${entry_type}" >&2
+      return 4
+    }
+  done <"${types}"
+
+  expanded_bytes="$(LC_ALL=C tar -xOzf "${archive}" 2>/dev/null | wc -c)" || {
+    rm -rf "${inspection_dir}"
+    printf 'could not measure tgz package expansion: %s\n' "${archive_label}" >&2
+    return 4
+  }
+  rm -rf "${inspection_dir}"
+  if (( expanded_bytes > max_expanded_bytes )); then
+    printf 'tgz package exceeds expanded size limit (%s > %s bytes): %s\n' "${expanded_bytes}" "${max_expanded_bytes}" "${archive_label}" >&2
+    return 4
+  fi
+}
+
 extract_tgz_to_temp() {
   local archive="$1"
-  [[ -f "${archive}" ]] || die 3 "tgz package not found: ${archive}"
-  local tmp_dir
+  [[ -f "${archive}" ]] || {
+    printf 'tgz package not found: %s\n' "${archive}" >&2
+    return 3
+  }
+
+  local tmp_dir archive_copy rc
   tmp_dir="$(mktemp -d)"
-  tar -xzf "${archive}" -C "${tmp_dir}" || die 4 "could not extract tgz package: ${archive}"
+  archive_copy="$(mktemp)"
+  chmod 0700 "${tmp_dir}"
+  chmod 0600 "${archive_copy}"
+  cp -- "${archive}" "${archive_copy}" || {
+    rm -rf "${tmp_dir}"
+    rm -f "${archive_copy}"
+    printf 'could not snapshot tgz package: %s\n' "${archive}" >&2
+    return 4
+  }
+  validate_tgz_archive "${archive_copy}" "${archive}" || {
+    rc=$?
+    rm -rf "${tmp_dir}"
+    rm -f "${archive_copy}"
+    return "${rc}"
+  }
+  tar -xzf "${archive_copy}" --no-same-owner --no-same-permissions -C "${tmp_dir}" || {
+    rm -rf "${tmp_dir}"
+    rm -f "${archive_copy}"
+    printf 'could not extract tgz package: %s\n' "${archive}" >&2
+    return 4
+  }
+  rm -f "${archive_copy}"
   printf '%s\n' "${tmp_dir}"
 }
 
 resolve_profile_manifest() {
   local package_root="$1"
-  local manifest
-  manifest="$(find "${package_root}" -type f -name 'profile.yaml' | head -n1)"
-  [[ -n "${manifest}" ]] || die 4 "profile package is missing profile.yaml"
-  printf '%s\n' "${manifest}"
+  local manifests=()
+  mapfile -t manifests < <(find "${package_root}" -type f -name 'profile.yaml' -print | sort)
+  (( ${#manifests[@]} == 1 )) || {
+    if (( ${#manifests[@]} == 0 )); then
+      printf 'profile package is missing profile.yaml\n' >&2
+    else
+      printf 'profile package must contain exactly one profile.yaml\n' >&2
+    fi
+    return 4
+  }
+  printf '%s\n' "${manifests[0]}"
 }
 
 validate_profile_package() {
@@ -1339,15 +1509,19 @@ merged_packaged_profile_env_file() {
   local override_env="${2:-}"
   local base_env merged_env
   base_env="$(packaged_profile_env_file "${package_root}")" || return $?
-  if [[ -z "${override_env}" ]]; then
-    printf '%s\n' "${base_env}"
-    return 0
-  fi
-  [[ -f "${override_env}" ]] || die 4 "override env file not found: ${override_env}"
   merged_env="$(mktemp)"
-  cat "${base_env}" > "${merged_env}"
-  printf '\n' >> "${merged_env}"
-  cat "${override_env}" >> "${merged_env}"
+  if [[ -n "${override_env}" ]]; then
+    [[ -f "${override_env}" ]] || die 4 "override env file not found: ${override_env}"
+    pk3s_env_normalize_files "${merged_env}" "${base_env}" "${override_env}" || {
+      rm -f "${merged_env}"
+      return 4
+    }
+  else
+    pk3s_env_normalize_files "${merged_env}" "${base_env}" || {
+      rm -f "${merged_env}"
+      return 4
+    }
+  fi
   printf '%s\n' "${merged_env}"
 }
 
@@ -1486,10 +1660,7 @@ capture_packaged_profile_runtime_overrides() {
 source_packaged_profile_env_with_runtime_overrides() {
   local profile_env="$1"
   local runtime_env="$2"
-  set -a
-  # shellcheck disable=SC1090
-  source "${profile_env}"
-  set +a
+  pk3s_env_load_file "${profile_env}"
   # shellcheck disable=SC1090
   source "${runtime_env}"
 }
@@ -1744,23 +1915,44 @@ run_install_profile_package() {
         rm -rf "${tmp_dir}"
         die 2 "unsupported packaged profile command '${action}' for scenario '${scenario_type}'"
       }
+      if [[ "${GLOBAL_DRY_RUN}" -ne 1 ]]; then
+        confirm_destructive_operation "${profile_name}" || {
+          local rc=$?
+          if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
+          rm -rf "${tmp_dir}"
+          return "${rc}"
+        }
+      fi
       emit_operation_event "${operation}" "profile.inputs.validate" "running" "Validating profile runtime inputs" "${profile_name}"
       validate_profile_runtime_inputs "${manifest}" "${profile_env}" "${OVERRIDE_ENV_PATH}"
       emit_operation_event "${operation}" "profile.inputs.validate" "success" "Profile runtime inputs validated" "${profile_name}"
       warn_if_packaged_profile_uses_embedded_env_only "${profile_name}" "${OVERRIDE_ENV_PATH}" "${manifest}"
-      log "INFO" "Executing packaged profile destroy via scenario target: ${target}"
-      emit_operation_event "${operation}" "profile.destroy.run" "running" "Executing packaged profile destroy" "${profile_name}"
-      run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "${target}" || {
-        local rc=$?
-        emit_operation_event "${operation}" "profile.destroy.run" "failed" "Packaged profile destroy failed" "${profile_name}"
-        if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
-        rm -rf "${tmp_dir}"
-        return "${rc}"
-      }
-      emit_operation_event "${operation}" "profile.destroy.run" "success" "Packaged profile destroy completed" "${profile_name}"
-      emit_operation_event "${operation}" "profile.state.remove" "running" "Removing profile state" "${profile_name}"
-      remove_profile_state "${profile_name}"
-      emit_operation_event "${operation}" "profile.state.remove" "success" "Profile state removed" "${profile_name}"
+      if [[ "${GLOBAL_DRY_RUN}" -eq 1 ]]; then
+        log "INFO" "Dry-run requested; previewing packaged profile destroy target without executing it"
+        emit_operation_event "${operation}" "profile.destroy.preview" "running" "Previewing packaged profile destroy" "${profile_name}"
+        run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "${target}" "dry-run" || {
+          local rc=$?
+          emit_operation_event "${operation}" "profile.destroy.preview" "failed" "Packaged profile destroy preview failed" "${profile_name}"
+          if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
+          rm -rf "${tmp_dir}"
+          return "${rc}"
+        }
+        emit_operation_event "${operation}" "profile.destroy.preview" "success" "Packaged profile destroy previewed" "${profile_name}"
+      else
+        log "INFO" "Executing packaged profile destroy via scenario target: ${target}"
+        emit_operation_event "${operation}" "profile.destroy.run" "running" "Executing packaged profile destroy" "${profile_name}"
+        run_packaged_profile_make "${package_root}" "${profile_env}" "${scenario_dir}" "${target}" || {
+          local rc=$?
+          emit_operation_event "${operation}" "profile.destroy.run" "failed" "Packaged profile destroy failed" "${profile_name}"
+          if [[ "${cleanup_env}" -eq 1 ]]; then rm -f "${profile_env}"; fi
+          rm -rf "${tmp_dir}"
+          return "${rc}"
+        }
+        emit_operation_event "${operation}" "profile.destroy.run" "success" "Packaged profile destroy completed" "${profile_name}"
+        emit_operation_event "${operation}" "profile.state.remove" "running" "Removing profile state" "${profile_name}"
+        remove_profile_state "${profile_name}"
+        emit_operation_event "${operation}" "profile.state.remove" "success" "Profile state removed" "${profile_name}"
+      fi
       ;;
     plan)
       case "${engine_type}" in

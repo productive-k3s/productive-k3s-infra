@@ -276,6 +276,14 @@ ser provistos desde la máquina invocadora con `--env-file`.
 5. Infra ejecuta el scenario referenciado
 6. OpenTofu/Ansible/scripts realizan la implementación
 
+Antes del paso 3, Infra toma un snapshot e inspecciona el TGZ. Sólo acepta
+archivos regulares y directorios con paths relativos seguros. Rechaza paths
+duplicados, enlaces, archivos especiales, manifiestos `profile.yaml` ambiguos
+y archivos que superen los límites antes de extraerlos. Los valores
+predeterminados son 64 MiB comprimidos, 512 MiB expandidos y 4096 entradas. Se
+pueden reducir mediante `PK3S_ARCHIVE_MAX_COMPRESSED_BYTES`,
+`PK3S_ARCHIVE_MAX_EXPANDED_BYTES` y `PK3S_ARCHIVE_MAX_ENTRIES`.
+
 ## Modelo orientado a profile
 
 Productive K3S Infra sigue siendo profile-oriented.
@@ -444,8 +452,15 @@ Los contratos runtime user-facing y development-facing son intencionalmente dist
 ./productive-k3s-infra.sh profile validate --tgz ./aws-single-node-basic.tgz
 ./productive-k3s-infra.sh profile plan --tgz ./aws-single-node-basic.tgz
 ./productive-k3s-infra.sh profile status --tgz ./aws-single-node-basic.tgz
-./productive-k3s-infra.sh profile destroy --tgz ./aws-single-node-basic.tgz
+./productive-k3s-infra.sh profile destroy --dry-run --tgz ./aws-single-node-basic.tgz
+./productive-k3s-infra.sh profile destroy --yes --tgz ./aws-single-node-basic.tgz
 ```
+
+`destroy` falla de forma segura. Las ejecuciones interactivas solicitan
+confirmación y usan `no` como valor predeterminado; la automatización no
+interactiva debe pasar `--yes`. `--dry-run` previsualiza el target destructivo
+declarado mediante `make -n`, sin ejecutarlo ni eliminar el estado persistido
+del profile.
 
 ### Ejemplos de desarrollo orientados a source
 
@@ -455,6 +470,7 @@ Los contratos runtime user-facing y development-facing son intencionalmente dist
 ./productive-k3s-infra.sh dev profile validate --profile-env ./profiles/cloud/aws-single-node/basic.env
 ./productive-k3s-infra.sh dev profile plan --profile-env ./profiles/cloud/aws-single-node/basic.env
 ./productive-k3s-infra.sh dev profile apply --profile-env ./profiles/cloud/aws-single-node/basic.env
+./productive-k3s-infra.sh dev profile destroy --yes --profile-env ./profiles/cloud/aws-single-node/basic.env
 ```
 
 El prefijo `dev` es la frontera explícita que mantiene disponibles los workflows source-oriented sin convertirlos en parte del contrato público de instalación.

@@ -106,6 +106,42 @@ Describe 'remote-cluster runtime helpers'
     The output should include 'UserKnownHostsFile=/tmp/known_hosts'
   End
 
+  It 'rejects command-capable ssh options'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'SSH_EXTRA_OPTS="-o ProxyCommand=sh"; ssh_base_args'
+    The status should equal 1
+    The error should include 'ProxyCommand is not in the allowed transport option set'
+  End
+
+  It 'rejects ssh option values with command metacharacters'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'SSH_EXTRA_OPTS="-o ProxyJump=\$(touch)"; ssh_base_args'
+    The status should equal 1
+    The error should include 'unsupported value characters'
+  End
+
+  It 'rejects malformed ssh option sequences'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'SSH_EXTRA_OPTS="-F /tmp/ssh-config"; ssh_base_args'
+    The status should equal 1
+    The error should include "repeated '-o Name=Value' pairs"
+  End
+
+  It 'accepts a nested normalized remote workspace'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'validate_remote_workspace_path /home/ubuntu/productive-k3s; printf ok'
+    The status should equal 0
+    The output should equal 'ok'
+  End
+
+  It 'rejects traversing remote workspaces'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'validate_remote_workspace_path /home/ubuntu/../root'
+    The status should equal 1
+    The error should include 'must not contain dot segments'
+  End
+
+  It 'rejects protected remote workspaces'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" 'validate_remote_workspace_path /var'
+    The status should equal 1
+    The error should include 'protected top-level path'
+  End
+
   It 'returns direct ip targets unchanged'
     When run /usr/bin/bash "$RUNNER" "$COMMON" 'resolve_hosts_entry_ip 10.10.10.10'
     The status should equal 0
@@ -224,7 +260,7 @@ JSON
     The output should equal ''
   End
 
-  It 'installs k3sup into the user bin directory when sudo is unavailable'
+  It 'installs a pinned k3sup binary into the user bin directory'
     tmpdir="$(mktemp -d)"
     home_dir="${tmpdir}/home"
     mkdir -p "${home_dir}"
@@ -239,37 +275,103 @@ JSON
         fi
         builtin command "$@"
       }
+      uname() {
+        [[ "$1" == "-s" ]] && printf Linux || printf x86_64
+      }
       curl() {
-        cat <<'\''EOF'\''
-cat >k3sup <<'SCRIPT'
+        local output=""
+        while (( $# > 0 )); do
+          if [[ "$1" == "--output" ]]; then
+            output="$2"
+            break
+          fi
+          shift
+        done
+        cat >"${output}" <<'\''SCRIPT'\''
 #!/usr/bin/env bash
-printf "k3sup"
+if [[ "${1:-}" == "version" ]]; then
+  printf "Version: 0.13.13\\n"
+else
+  printf "k3sup"
+fi
 SCRIPT
-chmod +x k3sup
-EOF
+      }
+      sha256sum() {
+        if [[ "$1" == "-c" ]]; then
+          cat >/dev/null
+        else
+          printf "%s  %s\n" "${K3SUP_RELEASE_SHA256}" "$1"
+        fi
       }
       ensure_local_k3sup
       printf "%s|%s" "${K3SUP_BIN}" "$("${K3SUP_BIN}")"'
     The status should equal 0
-    The output should include 'Installing k3sup on the controller'
+    The output should include 'Installing verified k3sup 0.13.13 on the controller'
     The output should include "${home_dir}/.local/bin/k3sup|k3sup"
     rm -rf "${tmpdir}"
   End
 
-  It 'uses an existing k3sup binary when available'
+  It 'uses an existing k3sup binary only when its version matches'
     tmpdir="$(mktemp -d)"
     cat >"${tmpdir}/k3sup" <<'EOF'
 #!/usr/bin/env bash
-printf existing-k3sup
+if [[ "${1:-}" == "version" ]]; then
+  printf "Version: 0.13.13\\n"
+else
+  printf existing-k3sup
+fi
 EOF
     chmod +x "${tmpdir}/k3sup"
 
     When run /usr/bin/bash "$RUNNER" "$COMMON" '
       export PATH="'"${tmpdir}"':${PATH}"
+      uname() {
+        [[ "$1" == "-s" ]] && printf Linux || printf x86_64
+      }
+      K3SUP_LINUX_AMD64_SHA256="$(sha256sum "'"${tmpdir}"'/k3sup" | awk '"'"'{print $1}'"'"')"
       ensure_local_k3sup
       printf "%s|%s" "${K3SUP_BIN}" "$("${K3SUP_BIN}")"'
     The status should equal 0
     The output should equal "${tmpdir}/k3sup|existing-k3sup"
     rm -rf "${tmpdir}"
+  End
+
+  It 'rejects a downloaded k3sup binary with a bad checksum'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" '
+      command() {
+        [[ "$1" == "-v" && "$2" == "k3sup" ]] && return 1
+        builtin command "$@"
+      }
+      uname() {
+        [[ "$1" == "-s" ]] && printf Linux || printf x86_64
+      }
+      curl() {
+        while (( $# > 0 )); do
+          if [[ "$1" == "--output" ]]; then
+            printf invalid >"$2"
+            return
+          fi
+          shift
+        done
+      }
+      sha256sum() { return 1; }
+      ensure_local_k3sup'
+    The status should equal 1
+    The output should include 'Installing verified k3sup 0.13.13 on the controller'
+    The error should include 'k3sup checksum verification failed for k3sup'
+  End
+
+  It 'rejects unsupported k3sup controller platforms'
+    When run /usr/bin/bash "$RUNNER" "$COMMON" '
+      command() {
+        [[ "$1" == "-v" && "$2" == "k3sup" ]] && return 1
+        builtin command "$@"
+      }
+      uname() {
+        [[ "$1" == "-s" ]] && printf FreeBSD || printf riscv64
+      }
+      ensure_local_k3sup'
+    The status should equal 1
+    The error should include 'unsupported controller platform for k3sup 0.13.13'
   End
 End

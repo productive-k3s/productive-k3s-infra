@@ -112,6 +112,35 @@ assert "bootstrap_answers_file=\"$(mktemp)\"" in remote_script, "stack artifact 
 assert "PRODUCTIVE_K3S_AUTO_APPROVE_PREFLIGHT_WARNINGS=true" in remote_script, "stack artifact mode should preserve Core preflight auto-approval"
 assert "./productive-k3s-core.sh stack install --tgz /tmp/productive-k3s-base-stack.tgz < \"${bootstrap_answers_file}\"" in remote_script, "stack artifact mode should feed Core from the answers file"
 
+StackArgs.extra_opts = "-o LogLevel=ERROR -o ProxyJump=bastion.example"
+ssh_command = module.build_ssh_command(StackArgs())
+assert "ProxyJump=bastion.example" in ssh_command, "safe transport options should remain available"
+
+StackArgs.extra_opts = "-o ProxyCommand=sh"
+try:
+    module.build_ssh_command(StackArgs())
+except ValueError as exc:
+    assert "ProxyCommand is not in the allowed transport option set" in str(exc)
+else:
+    raise AssertionError("command-capable SSH options must be rejected")
+StackArgs.extra_opts = "-o ProxyJump=$(touch)"
+try:
+    module.build_ssh_command(StackArgs())
+except ValueError as exc:
+    assert "unsupported value characters" in str(exc)
+else:
+    raise AssertionError("SSH option values with command metacharacters must be rejected")
+StackArgs.extra_opts = ""
+
+StackArgs.remote_dir = "/"
+try:
+    module.build_remote_script(StackArgs())
+except ValueError as exc:
+    assert "remote workspace" in str(exc)
+else:
+    raise AssertionError("protected remote workspaces must be rejected")
+StackArgs.remote_dir = "/home/ubuntu/productive-k3s"
+
 class DummyStdin:
     def __init__(self):
         self.writes = []

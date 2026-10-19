@@ -50,39 +50,59 @@ Describe 'remote-cluster transfer and release helpers'
     The output should include 'ubuntu@10.0.0.12:/srv/bundle.tgz'
   End
 
-  It 'reuses an existing local k3sup binary'
+  It 'reuses an existing verified local k3sup binary'
     When run /usr/bin/bash "$RUNNER" "$COMMON" '
-      k3sup() { :; }
+      k3sup() {
+        [[ "${1:-}" == "version" ]] && printf "Version: 0.13.13\n"
+      }
+      sha256sum() {
+        printf "%s  %s\n" "${K3SUP_RELEASE_SHA256}" "$1"
+      }
       ensure_local_k3sup
       printf "%s" "$K3SUP_BIN"'
     The status should equal 0
     The output should include 'k3sup'
   End
 
-  It 'installs k3sup under the user bin when sudo is unavailable'
+  It 'installs verified k3sup under the user bin when sudo is unavailable'
     When run /usr/bin/bash "$RUNNER" "$COMMON" '
-      tmpbin="$(mktemp -d)"
       work="$(mktemp -d)"
       home_dir="$(mktemp -d)"
-      cat >"${tmpbin}/curl" <<EOF
-#!/usr/bin/env bash
-cat <<'\''SCRIPT'\'' > k3sup
-#!/usr/bin/env bash
-echo installed-k3sup
-SCRIPT
-chmod +x k3sup
-EOF
-      cat >"${tmpbin}/sudo" <<EOF
-#!/usr/bin/env bash
-exit 1
-EOF
-      cat >"${tmpbin}/install" <<EOF
-#!/usr/bin/env bash
-cp "\$1" "\$2"
-EOF
-      chmod +x "${tmpbin}/curl" "${tmpbin}/sudo" "${tmpbin}/install"
-      export PATH="${tmpbin}:$PATH"
       export HOME="${home_dir}"
+      command() {
+        if [[ "$1" == "-v" && "$2" == "k3sup" ]]; then
+          return 1
+        fi
+        if [[ "$1" == "-v" && "$2" == "sudo" ]]; then
+          return 1
+        fi
+        builtin command "$@"
+      }
+      curl() {
+        local output=""
+        while (( $# > 0 )); do
+          if [[ "$1" == "--output" ]]; then
+            output="$2"
+            break
+          fi
+          shift
+        done
+        cat >"${output}" <<'\''SCRIPT'\''
+#!/usr/bin/env bash
+if [[ "${1:-}" == "version" ]]; then
+  printf "Version: 0.13.13\n"
+else
+  printf installed-k3sup
+fi
+SCRIPT
+      }
+      sha256sum() {
+        if [[ "$1" == "-c" ]]; then
+          cat >/dev/null
+        else
+          printf "%s  %s\n" "${K3SUP_RELEASE_SHA256}" "$1"
+        fi
+      }
       mktemp() { /usr/bin/mktemp -d "${work}/tmp.XXXXXX"; }
       ensure_local_k3sup
       printf "%s|%s" "$K3SUP_BIN" "$PATH"'

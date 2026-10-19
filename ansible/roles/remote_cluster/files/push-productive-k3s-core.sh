@@ -31,7 +31,7 @@ case "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" in
     download_productive_k3s_release_bundle "${archive}" "${PRODUCTIVE_K3S_VERSION_RESOLVED}"
     first_entry="$(tar -tzf "${archive}" | head -n 1 || true)"
     extracted_subdir="${first_entry%%/*}"
-    [[ -n "${extracted_subdir}" ]] || {
+    [[ "${extracted_subdir}" =~ ^[A-Za-z0-9._-]+$ && "${extracted_subdir}" != "." && "${extracted_subdir}" != ".." ]] || {
       err "could not determine extracted directory from remote archive ${archive}"
       exit 1
     }
@@ -39,18 +39,24 @@ case "${PRODUCTIVE_K3S_SOURCE_RESOLVED}" in
     ;;
 esac
 
+remote_dir_parent="$(dirname "${REMOTE_DIR}")"
+printf -v remote_dir_q '%q' "${REMOTE_DIR}"
+printf -v remote_dir_parent_q '%q' "${remote_dir_parent}"
+printf -v extracted_dir_q '%q' "${remote_dir_parent}/${extracted_subdir}"
+
 for node_ip in "${ALL_NODE_IPS[@]}"; do
   log "Copying productive-k3s (${PRODUCTIVE_K3S_SOURCE_RESOLVED}) to ${node_ip}"
-  remote_exec "${node_ip}" "rm -rf '${REMOTE_DIR}' && mkdir -p '$(dirname "${REMOTE_DIR}")'"
+  remote_exec "${node_ip}" "rm -rf -- ${remote_dir_q} && mkdir -p -- ${remote_dir_parent_q}"
   scp_to "${archive}" "${node_ip}" "/tmp/productive-k3s.tgz"
   remote_exec "${node_ip}" "
     set -euo pipefail
-    extracted_dir='$(dirname "${REMOTE_DIR}")/${extracted_subdir}'
-    rm -rf '${REMOTE_DIR}'
-    mkdir -p '$(dirname "${REMOTE_DIR}")'
-    tar -xzf /tmp/productive-k3s.tgz -C '$(dirname "${REMOTE_DIR}")'
-    if [[ \"\${extracted_dir}\" != '${REMOTE_DIR}' ]]; then
-      mv \"\${extracted_dir}\" '${REMOTE_DIR}'
+    extracted_dir=${extracted_dir_q}
+    remote_dir=${remote_dir_q}
+    rm -rf -- \"\${remote_dir}\"
+    mkdir -p -- ${remote_dir_parent_q}
+    tar -xzf /tmp/productive-k3s.tgz -C ${remote_dir_parent_q}
+    if [[ \"\${extracted_dir}\" != \"\${remote_dir}\" ]]; then
+      mv -- \"\${extracted_dir}\" \"\${remote_dir}\"
     fi
     rm -f /tmp/productive-k3s.tgz
   "

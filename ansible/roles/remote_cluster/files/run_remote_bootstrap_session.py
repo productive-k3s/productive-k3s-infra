@@ -39,6 +39,26 @@ TOTAL_TIMEOUT_DEFAULTS = {
     "agent": 1200,
     "stack": 3600,
 }
+ALLOWED_SSH_TRANSPORT_OPTIONS = {
+    "addressfamily",
+    "compression",
+    "connectionattempts",
+    "connecttimeout",
+    "globalknownhostsfile",
+    "hostkeyalgorithms",
+    "hostname",
+    "identitiesonly",
+    "ipqos",
+    "kexalgorithms",
+    "loglevel",
+    "macs",
+    "preferredauthentications",
+    "proxyjump",
+    "pubkeyacceptedalgorithms",
+    "serveralivecountmax",
+    "serveraliveinterval",
+    "userknownhostsfile",
+}
 
 
 class SensitiveOutputRedactor:
@@ -71,6 +91,51 @@ def telemetry_env_prefix():
             continue
         assignments.append(f"{key}={shlex.quote(value)}")
     return " ".join(assignments)
+
+
+def validate_remote_workspace_path(value: str) -> str:
+    if not re.fullmatch(r"/[A-Za-z0-9._/-]+", value):
+        raise ValueError("remote workspace must be an absolute path using only safe path characters")
+    if value.endswith(("/", "/.", "/..")) or "//" in value or "/./" in value or "/../" in value:
+        raise ValueError("remote workspace must be normalized and must not contain dot segments")
+    protected = {
+        "/", "/bin", "/boot", "/dev", "/etc", "/home", "/lib", "/lib64",
+        "/media", "/mnt", "/opt", "/proc", "/root", "/run", "/sbin", "/srv",
+        "/sys", "/tmp", "/usr", "/var",
+    }
+    if value in protected or str(Path(value).parent) == "/":
+        raise ValueError("remote workspace must be nested below a protected top-level directory")
+    return value
+
+
+def parse_safe_ssh_extra_opts(value: str) -> list[str]:
+    if not value:
+        return []
+    tokens = shlex.split(value)
+    if len(tokens) % 2:
+        raise ValueError("SSH extra options must use repeated '-o Name=Value' pairs")
+    for index in range(0, len(tokens), 2):
+        option, assignment = tokens[index:index + 2]
+        match = re.fullmatch(r"([A-Za-z][A-Za-z0-9]*)=(.+)", assignment)
+        if option != "-o" or not match:
+            raise ValueError("SSH extra options must use repeated '-o Name=Value' pairs")
+        option_name, option_value = match.groups()
+        if option_name.lower() not in ALLOWED_SSH_TRANSPORT_OPTIONS:
+            raise ValueError(f"SSH option {option_name} is not in the allowed transport option set")
+        if not re.fullmatch(r"[A-Za-z0-9@%_.,:+/=-]+", option_value):
+            raise ValueError(f"SSH option {option_name} contains unsupported value characters")
+    return tokens
+
+
+def validate_ssh_endpoint(args) -> None:
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9._-]*", args.user):
+        raise ValueError("SSH user contains unsupported characters")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:%-]*", args.host):
+        raise ValueError("SSH host contains unsupported characters")
+    if not args.port.isdigit() or not 1 <= int(args.port) <= 65535:
+        raise ValueError("SSH port must be an integer between 1 and 65535")
+    if args.key_path.startswith("-") or "\n" in args.key_path or "\r" in args.key_path:
+        raise ValueError("SSH key path contains unsupported characters")
 
 
 def emit_info(message: str, log_handle=None) -> None:
@@ -343,6 +408,7 @@ def build_stack_artifact_answers(args) -> str:
 
 
 def build_remote_script(args) -> str:
+    validate_remote_workspace_path(args.remote_dir)
     remote_script = f"cd {shlex.quote(args.remote_dir)} && "
     telemetry_prefix = telemetry_env_prefix()
     if uses_stack_artifact_stdin(args):
@@ -366,6 +432,7 @@ def build_remote_script(args) -> str:
 
 
 def build_ssh_command(args):
+    validate_ssh_endpoint(args)
     command = [
         "ssh",
         "-o",
@@ -382,7 +449,7 @@ def build_ssh_command(args):
     if args.key_path:
         command.extend(["-i", args.key_path])
     if args.extra_opts:
-        command.extend(shlex.split(args.extra_opts))
+        command.extend(parse_safe_ssh_extra_opts(args.extra_opts))
     remote_script = build_remote_script(args)
     command.extend(
         [
@@ -413,6 +480,12 @@ def main():
         parser.error("--server-url and --cluster-token are required for agent mode")
     if args.mode == "stack" and not args.stack_tgz:
         parser.error("--stack-tgz is required for stack mode")
+    try:
+        validate_remote_workspace_path(args.remote_dir)
+        validate_ssh_endpoint(args)
+        parse_safe_ssh_extra_opts(args.extra_opts)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     prompt_map = select_prompt_map(args)
     pending = list(prompt_map)
