@@ -273,6 +273,14 @@ local-override` must be provided by the invoking machine with `--env-file`.
 5. Infra executes the referenced scenario
 6. OpenTofu/Ansible/scripts perform the implementation
 
+Before step 3, Infra snapshots and inspects the TGZ. Only regular files and
+directories with safe relative paths are accepted. Duplicate paths, links,
+special files, ambiguous `profile.yaml` manifests, and archives outside the
+default limits are rejected before extraction. The defaults are 64 MiB
+compressed, 512 MiB expanded, and 4096 entries. They can be lowered with
+`PK3S_ARCHIVE_MAX_COMPRESSED_BYTES`, `PK3S_ARCHIVE_MAX_EXPANDED_BYTES`, and
+`PK3S_ARCHIVE_MAX_ENTRIES`.
+
 ## Profile-oriented model
 
 Productive K3S Infra remains profile-oriented.

@@ -51,6 +51,8 @@ Remote execution also validates SSH endpoints, normalized nested workspaces, and
 
 Profile destruction is fail-closed. Interactive `destroy` commands require an explicit confirmation with a default of `no`, while non-interactive automation must pass `--yes`. Use `--dry-run` to preview the declared destroy target through `make -n`; previews neither execute the target nor remove persisted profile state.
 
+Profile TGZ extraction is also fail-closed. Infra snapshots and inspects each package before extraction, accepts only regular files and directories with safe relative paths, rejects duplicate entries and ambiguous `profile.yaml` manifests, and enforces limits of 64 MiB compressed, 512 MiB expanded, and 4096 entries. Operators may lower these ceilings with `PK3S_ARCHIVE_MAX_COMPRESSED_BYTES`, `PK3S_ARCHIVE_MAX_EXPANDED_BYTES`, and `PK3S_ARCHIVE_MAX_ENTRIES`.
+
 `export` is an alternate output mode for the same resolved profile contract.
 Instead of executing immediately, Infra can emit an executable bundle that:
 

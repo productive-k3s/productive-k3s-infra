@@ -41,6 +41,7 @@ test-unit:
 	bash ./bin/run-shellspec.sh
 	bash ./test-runtime-compatibility.sh
 	bash ./test-kcov-installer-contract.sh
+	bash ./test-profile-archive-security.sh
 
 test-lint:
 	bash ./bin/run-shellcheck.sh
